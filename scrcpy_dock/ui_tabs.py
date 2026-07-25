@@ -1,7 +1,7 @@
 import tkinter as tk
 from tkinter import ttk, messagebox
 import webbrowser
-from .utils import C, FONT_FAMILY, FONT_UI, FONT_UI_B, FONT_SM, FONT_LG, FONT_MONO
+from .utils import C, FONT_FAMILY, FONT_UI, FONT_UI_B, FONT_SM, FONT_LG, FONT_MONO, FONT_CARD
 from .ui_widgets import (
     _row, _sep, _section, Tooltip, _card_button, _cmd_chip,
     AccordionItem, ProfileWizard,
@@ -16,7 +16,208 @@ class UIBuilder:
         self._faq_items = []    # Referencia a AccordionItems de la FAQ
 
     # ─────────────────────────────────────────────────────────────────
-    # Pestaña: Dispositivo
+    # Pestaña 1: Acciones (Hub de Transmisión)
+    # ─────────────────────────────────────────────────────────────────
+
+    def build_tab_actions(self, parent):
+        p = parent
+        canvas = tk.Canvas(p, bg=C["bg"], highlightthickness=0)
+        vsb = ttk.Scrollbar(p, orient="vertical", command=canvas.yview)
+        canvas.configure(yscrollcommand=vsb.set)
+        vsb.pack(side="right", fill="y")
+        canvas.pack(side="left", fill="both", expand=True)
+
+        inner = tk.Frame(canvas, bg=C["bg"])
+        _cwin = canvas.create_window((0, 0), window=inner, anchor="nw")
+
+        def _resize(e): canvas.itemconfig(_cwin, width=e.width)
+        def _scroll(e): canvas.configure(scrollregion=canvas.bbox("all"))
+        canvas.bind("<Configure>", _resize)
+        inner.bind("<Configure>", _scroll)
+
+        # ── Header de dispositivo + perfil activo ────────────────────
+        info = tk.Frame(inner, bg=C["card"], pady=8, padx=12)
+        info.pack(fill="x", padx=16, pady=(12, 8))
+        
+        d_box = tk.Frame(info, bg=C["card"])
+        d_box.pack(side="left")
+        tk.Label(d_box, text="Dispositivo:", bg=C["card"], fg=C["muted"], font=FONT_SM).pack(side="left", padx=(0, 4))
+        self.refs['action_device_lbl'] = tk.Label(d_box, textvariable=self.ctx.active_device,
+                                                  bg=C["card"], fg=C["text"], font=FONT_UI_B)
+        self.refs['action_device_lbl'].pack(side="left")
+
+        p_box = tk.Frame(info, bg=C["card"])
+        p_box.pack(side="right")
+        tk.Label(p_box, text="Perfil:", bg=C["card"], fg=C["muted"], font=FONT_SM).pack(side="left", padx=(0, 4))
+        self.refs['action_profile_lbl'] = tk.Label(p_box, textvariable=self.ctx.active_profile,
+                                                   bg=C["card"], fg=C["cyan"], font=FONT_UI_B)
+        self.refs['action_profile_lbl'].pack(side="left")
+
+        # ── Hero Panel de Control (Acción Principal Destacada) ───────
+        hero = tk.Frame(inner, bg=C["card"], padx=20, pady=16, highlightbackground=C["sep"], highlightthickness=1)
+        hero.pack(fill="x", padx=16, pady=4)
+
+        hero_left = tk.Frame(hero, bg=C["card"])
+        hero_left.pack(side="left", fill="both", expand=True)
+
+        tk.Label(hero_left, text="Transmisión de Pantalla", bg=C["card"], fg=C["text"], font=FONT_CARD).pack(anchor="w")
+        tk.Label(hero_left, text="Inicia o detiene la sesión de scrcpy para el dispositivo activo.", bg=C["card"], fg=C["muted"], font=FONT_SM).pack(anchor="w", pady=(2, 8))
+
+        btn_bar = tk.Frame(hero_left, bg=C["card"])
+        btn_bar.pack(anchor="w")
+
+        btn_start = ttk.Button(btn_bar, text="▶  Iniciar Transmisión",
+                               command=self.cb.get('toggle_scene'), style="Primary.TButton")
+        btn_start.pack(side="left", padx=(0, 10))
+        Tooltip(btn_start, "Lanza scrcpy con el perfil seleccionado.", shortcut="Ctrl+I")
+
+        btn_stop = ttk.Button(btn_bar, text="■  Detener",
+                              command=self.cb.get('stop_current'), style="Secondary.TButton")
+        btn_stop.pack(side="left", padx=(0, 10))
+        Tooltip(btn_stop, "Detiene la transmisión activa del dispositivo.")
+
+        # Herramientas secundarias (Barra compacta)
+        tools_sec = tk.Frame(hero, bg=C["card"])
+        tools_sec.pack(side="right", anchor="e")
+
+        tk.Label(tools_sec, text="Herramientas:", bg=C["card"], fg=C["muted"], font=FONT_SM).pack(anchor="e", pady=(0, 4))
+        tb = tk.Frame(tools_sec, bg=C["card"])
+        tb.pack(anchor="e")
+
+        btn_adb = ttk.Button(tb, text="↺ ADB", command=self.cb.get('restart_adb'), style="Warn.TButton")
+        btn_adb.pack(side="left", padx=2)
+        Tooltip(btn_adb, "Reinicia el servidor ADB en caso de desconexión.")
+
+        btn_cam = ttk.Button(tb, text="📷 Webcam", command=self.cb.get('route_cam'), style="Purple.TButton")
+        btn_cam.pack(side="left", padx=2)
+        Tooltip(btn_cam, "Enruta la cámara hacia /dev/video9 (Linux).")
+
+        btn_panic = ttk.Button(tb, text="⚠ Todo", command=self.cb.get('panic_kill'), style="Danger.TButton")
+        btn_panic.pack(side="left", padx=2)
+        Tooltip(btn_panic, "Cierra todas las sesiones activas de golpe.")
+
+        # ── Tabla de Sesiones Activas ────────────────────────────────
+        sf_lbl = tk.Frame(inner, bg=C["bg"])
+        sf_lbl.pack(fill="x", padx=16, pady=(16, 4))
+        tk.Label(sf_lbl, text="  Sesiones activas", bg=C["bg"],
+                 fg=C["purple"], font=FONT_UI_B).pack(side="left")
+        tk.Label(sf_lbl, text="Supr = detener · Clic derecho = menú contextual",
+                 bg=C["bg"], fg=C["muted"], font=FONT_SM).pack(side="right")
+
+        sf = tk.Frame(inner, bg=C["card2"])
+        sf.pack(fill="both", expand=True, padx=16, pady=4)
+
+        cols = ("serial", "profile", "pid", "uptime", "status")
+        self.refs['sess_tree'] = ttk.Treeview(sf, columns=cols, show="headings",
+                                              height=6, selectmode="browse")
+        for col_id, heading, width, stretch in [
+            ("serial",  "Dispositivo",  200, True),
+            ("profile", "Perfil",       140, True),
+            ("pid",     "PID",           80, False),
+            ("uptime",  "Tiempo",        90, False),
+            ("status",  "Estado",       130, True),
+        ]:
+            self.refs['sess_tree'].heading(col_id, text=heading)
+            self.refs['sess_tree'].column(col_id, width=width,
+                                         anchor="center", stretch=stretch)
+
+        self.refs['sess_tree'].tag_configure("RUN", foreground=C["green"])
+        self.refs['sess_tree'].tag_configure("STP", foreground=C["red"])
+        sess_sb = ttk.Scrollbar(sf, orient="vertical",
+                                command=self.refs['sess_tree'].yview)
+        self.refs['sess_tree'].configure(yscrollcommand=sess_sb.set)
+        self.refs['sess_tree'].pack(side="left", fill="both", expand=True)
+        sess_sb.pack(side="right", fill="y")
+
+        self.refs['sess_tree'].bind("<Delete>",  self.cb.get('stop_selected'))
+        self.refs['sess_tree'].bind("<Button-3>", self.cb.get('sess_context_menu'))
+
+        btn_container = tk.Frame(inner, bg=C["bg"])
+        btn_container.pack(fill="x", padx=16, pady=(6, 16))
+        ttk.Button(btn_container, text="✕  Detener sesión seleccionada",
+                   command=self.cb.get('stop_selected'),
+                   style="Danger.TButton").pack(side="right")
+
+
+    # ─────────────────────────────────────────────────────────────────
+    # Pestaña 2: Controles Remotos y APK (NUEVA PESTAÑA DEDICADA)
+    # ─────────────────────────────────────────────────────────────────
+
+    def build_tab_controls(self, parent):
+        p = parent
+        canvas = tk.Canvas(p, bg=C["bg"], highlightthickness=0)
+        vsb = ttk.Scrollbar(p, orient="vertical", command=canvas.yview)
+        canvas.configure(yscrollcommand=vsb.set)
+        vsb.pack(side="right", fill="y")
+        canvas.pack(side="left", fill="both", expand=True)
+
+        inner = tk.Frame(canvas, bg=C["bg"])
+        _cwin = canvas.create_window((0, 0), window=inner, anchor="nw")
+
+        def _resize(e): canvas.itemconfig(_cwin, width=e.width)
+        def _scroll(e): canvas.configure(scrollregion=canvas.bbox("all"))
+        canvas.bind("<Configure>", _resize)
+        inner.bind("<Configure>", _scroll)
+
+        # ── 1. Mando de Controles del Hardware & Navegación ──────────
+        c_sec = _section(inner, "🎮  Mando de Control Remoto (ADB Keyevents)", pady=(12, 8))
+
+        tk.Label(c_sec, text="Envía señales directas de hardware y navegación al dispositivo activo sin necesidad de tocar la pantalla.",
+                 bg=C["card"], fg=C["muted"], font=FONT_SM, wraplength=700, justify="left").pack(anchor="w", padx=12, pady=(4, 10))
+
+        # Fila 1: Volumen y Audio
+        r1 = _row(c_sec, pady=4)
+        tk.Label(r1, text="🔊 Audio:", bg=C["card"], fg=C["text2"], font=FONT_UI_B, width=12, anchor="w").pack(side="left", padx=(8, 4))
+        for txt, code, tip in [
+            ("🔊 Vol +", 24, "Subir volumen"),
+            ("🔉 Vol -", 25, "Bajar volumen"),
+            ("🔇 Silenciar", 164, "Silenciar todo el audio"),
+        ]:
+            b = ttk.Button(r1, text=txt, command=lambda c=code: self.cb.get('send_keyevent')(c), style="Secondary.TButton")
+            b.pack(side="left", padx=4)
+            Tooltip(b, tip)
+
+        # Fila 2: Pantalla y Energía
+        r2 = _row(c_sec, pady=4)
+        tk.Label(r2, text="⚡ Pantalla:", bg=C["card"], fg=C["text2"], font=FONT_UI_B, width=12, anchor="w").pack(side="left", padx=(8, 4))
+        for txt, code, tip in [
+            ("⚡ Encender / Apagar", 26, "Enviar señal de botón Power"),
+            ("🔔 Notificaciones", "notifications", "Desplegar barra de notificaciones"),
+        ]:
+            b = ttk.Button(r2, text=txt, command=lambda c=code: self.cb.get('send_keyevent')(c), style="Secondary.TButton")
+            b.pack(side="left", padx=4)
+            Tooltip(b, tip)
+
+        # Fila 3: Navegación Android
+        r3 = _row(c_sec, pady=(4, 12))
+        tk.Label(r3, text="🧭 Navegación:", bg=C["card"], fg=C["text2"], font=FONT_UI_B, width=12, anchor="w").pack(side="left", padx=(8, 4))
+        for txt, code, tip in [
+            ("🏠 Inicio (Home)", 3, "Ir a la pantalla principal"),
+            ("◀ Volver (Back)", 4, "Retroceder a la pantalla anterior"),
+            ("📑 Recientes", 187, "Abrir el selector de aplicaciones recientes"),
+        ]:
+            b = ttk.Button(r3, text=txt, command=lambda c=code: self.cb.get('send_keyevent')(c), style="Secondary.TButton")
+            b.pack(side="left", padx=4)
+            Tooltip(b, tip)
+
+        # ── 2. Gestor de Aplicaciones (Instalar APK) ──────────────────
+        apk_sec = _section(inner, "📦  Gestor de Aplicaciones Android (Instalador APK)", pady=(8, 16))
+
+        tk.Label(apk_sec, text="Selecciona e instala archivos de aplicación (.apk) directamente desde tu computadora hacia el dispositivo seleccionado.",
+                 bg=C["card"], fg=C["muted"], font=FONT_SM, wraplength=700, justify="left").pack(anchor="w", padx=12, pady=(4, 8))
+
+        apk_r = _row(apk_sec, pady=(4, 10))
+        btn_apk = ttk.Button(apk_r, text="📦  Seleccionar e Instalar APK…",
+                             command=self.cb.get('install_apk'), style="Green.TButton")
+        btn_apk.pack(side="left", padx=8)
+        Tooltip(btn_apk, "Abre el explorador de archivos para elegir un archivo .apk e instalarlo vía ADB.")
+
+        tk.Label(apk_r, text="💡 Tip: Durante una sesión activa de scrcpy, también puedes arrastrar el archivo .apk a la ventana de transmisión.",
+                 bg=C["card"], fg=C["cyan"], font=FONT_SM).pack(side="left", padx=12)
+
+
+    # ─────────────────────────────────────────────────────────────────
+    # Pestaña 3: Dispositivo
     # ─────────────────────────────────────────────────────────────────
 
     def build_tab_device(self, parent):
@@ -43,21 +244,16 @@ class UIBuilder:
         tk.Button(btns_i, text="🖥  Abrir terminal e instalar", bg=C["sep"], fg=C["text"],
                   font=FONT_UI_B, relief="flat", bd=0, padx=14, pady=8,
                   command=self.cb.get('open_terminal_install')).pack(side="left", padx=8)
-        tk.Label(self.refs['install_frame'],
-                 text="Después de instalar, reinicia MASV.",
-                 bg=C["bg"], fg=C["muted"], font=FONT_SM).pack()
 
         # ── Contenido principal ──────────────────────────────────────
         self.refs['dep_frame'] = tk.Frame(p, bg=C["bg"])
 
         sf = _section(self.refs['dep_frame'], "🔍  Buscar dispositivos")
         r0 = _row(sf)
-        btn_scan = tk.Button(r0, text="🔄  Buscar dispositivos", bg=C["blue"], fg="#FFF",
-                             font=FONT_UI_B, relief="flat", bd=0, padx=12, pady=7,
-                             command=self.cb.get('refresh_devices'))
+        btn_scan = ttk.Button(r0, text="🔄  Buscar dispositivos",
+                              command=self.cb.get('refresh_devices'), style="Primary.TButton")
         btn_scan.pack(side="left", padx=(0, 10))
-        Tooltip(btn_scan, "Escanea dispositivos USB y WiFi\nAsegúrate de tener Depuración USB activada.",
-                shortcut="Ctrl+R")
+        Tooltip(btn_scan, "Escanea dispositivos USB y WiFi.", shortcut="Ctrl+R")
         self.refs['scan_lbl'] = tk.Label(r0, text="", bg=C["card"], fg=C["muted"], font=FONT_SM)
         self.refs['scan_lbl'].pack(side="left")
 
@@ -76,17 +272,15 @@ class UIBuilder:
         self.refs['dev_listbox'].configure(yscrollcommand=dev_sb.set)
         self.refs['dev_listbox'].bind("<<ListboxSelect>>", self.cb.get('on_dev_select'))
 
-        # Mensaje de estado del dispositivo seleccionado
         self.refs['dev_info_lbl'] = tk.Label(self.refs['dep_frame'],
                                              text="Selecciona un dispositivo de la lista.",
                                              bg=C["bg"], fg=C["muted"], font=FONT_SM)
         self.refs['dev_info_lbl'].pack(padx=14, pady=4, anchor="w")
 
-        # Enlace a FAQ si no hay dispositivos (visible cuando no hay ninguno)
         self.refs['no_dev_hint'] = tk.Label(
             self.refs['dep_frame'],
             text="¿Problemas? Consulta  →  ❓ Ayuda  →  'Cómo habilitar la Depuración USB'",
-            bg=C["bg"], fg=C["blue"], font=FONT_SM, cursor="hand2")
+            bg=C["bg"], fg=C["cyan"], font=FONT_SM, cursor="hand2")
         self.refs['no_dev_hint'].bind("<Button-1>", lambda _: self.cb.get('go_to_help_usb')())
 
         # ── WiFi ─────────────────────────────────────────────────────
@@ -97,19 +291,15 @@ class UIBuilder:
         self.refs['ip_entry'] = ttk.Entry(wr, width=18)
         self.refs['ip_entry'].insert(0, "192.168.1.")
         self.refs['ip_entry'].pack(side="left", padx=4)
-        Tooltip(self.refs['ip_entry'],
-                "IP del teléfono:\nAjustes → Acerca del teléfono → Estado → Dirección IP")
+        Tooltip(self.refs['ip_entry'], "IP del teléfono (Ajustes → Acerca del teléfono).")
         tk.Label(wr, text=":", bg=C["card"], fg=C["muted"]).pack(side="left")
         self.refs['port_entry'] = ttk.Entry(wr, width=6)
         self.refs['port_entry'].insert(0, "5555")
         self.refs['port_entry'].pack(side="left", padx=4)
 
-        # Botón "Obtener IP"
-        btn_getip = tk.Button(wr, text="📡 Obtener IP", bg=C["sep"], fg=C["text"],
-                              font=FONT_SM, relief="flat", bd=0, padx=8, pady=4,
-                              command=self.cb.get('get_device_ip'))
+        btn_getip = ttk.Button(wr, text="📡 Obtener IP", command=self.cb.get('get_device_ip'), style="Secondary.TButton")
         btn_getip.pack(side="left", padx=8)
-        Tooltip(btn_getip, "Consulta automáticamente la IP WiFi del dispositivo seleccionado via ADB.")
+        Tooltip(btn_getip, "Consulta automáticamente la IP WiFi del dispositivo seleccionado vía ADB.")
 
         btns_w = _row(wf)
         ttk.Button(btns_w, text="Conectar", command=self.cb.get('connect_wifi'),
@@ -132,7 +322,7 @@ class UIBuilder:
                                                command=self.cb.get('route_cam'),
                                                state="disabled", style="Green.TButton")
         self.refs['route_cam_btn'].pack(side="left", padx=(0, 8))
-        ttk.Button(vr, text="Instrucciones", command=self.cb.get('v4l2_help'),
+        ttk.Button(vr, text="Ver Guía en Ayuda 🔗", command=lambda: self.cb.get('go_to_help_v4l2')(),
                    style="Ghost.TButton").pack(side="left")
 
         if not self.ctx.adb or not self.ctx.scrcpy:
@@ -141,7 +331,7 @@ class UIBuilder:
             self.refs['dep_frame'].pack(fill="both", expand=True)
 
     # ─────────────────────────────────────────────────────────────────
-    # Pestaña: Perfiles
+    # Pestaña 4: Perfiles
     # ─────────────────────────────────────────────────────────────────
 
     def build_tab_profile(self, parent):
@@ -156,7 +346,6 @@ class UIBuilder:
         self.refs['profile_listbox'].bind("<<ListboxSelect>>",
                                          self.cb.get('on_profile_listbox_sel'))
 
-        # Empty state: se muestra si no hay perfiles
         self.refs['profile_empty_lbl'] = tk.Label(
             sf,
             text="Aún no hay perfiles.\nCrea uno con el botón  ✨ Nuevo perfil  para comenzar.",
@@ -170,7 +359,7 @@ class UIBuilder:
         btn_del = ttk.Button(pa, text="🗑  Eliminar",
                              command=self.cb.get('delete_profile'), style="Danger.TButton")
         btn_del.pack(side="left")
-        Tooltip(btn_del, "Elimina el perfil seleccionado de la lista.")
+        Tooltip(btn_del, "Elimina el perfil seleccionado.")
 
         df = _section(p, "🔍  Detalle del perfil seleccionado")
         from .ui_widgets import ProfileChipsView
@@ -192,148 +381,7 @@ class UIBuilder:
         self.refs['assoc_lbl'].pack(padx=14, anchor="w", pady=2)
 
     # ─────────────────────────────────────────────────────────────────
-    # Pestaña: Acciones
-    # ─────────────────────────────────────────────────────────────────
-
-    def build_tab_actions(self, parent):
-        p = parent
-        canvas = tk.Canvas(p, bg=C["bg"], highlightthickness=0)
-        vsb = ttk.Scrollbar(p, orient="vertical", command=canvas.yview)
-        canvas.configure(yscrollcommand=vsb.set)
-        vsb.pack(side="right", fill="y")
-        canvas.pack(side="left", fill="both", expand=True)
-
-        inner = tk.Frame(canvas, bg=C["bg"])
-        _cwin = canvas.create_window((0, 0), window=inner, anchor="nw")
-
-        def _resize(e): canvas.itemconfig(_cwin, width=e.width)
-        def _scroll(e): canvas.configure(scrollregion=canvas.bbox("all"))
-        canvas.bind("<Configure>", _resize)
-        inner.bind("<Configure>", _scroll)
-        canvas.bind_all("<Button-4>", lambda e: canvas.yview_scroll(-1, "units"))
-        canvas.bind_all("<Button-5>", lambda e: canvas.yview_scroll(1,  "units"))
-
-        # Barra de dispositivo + perfil activo
-        info = tk.Frame(inner, bg=C["card"], pady=6)
-        info.pack(fill="x", padx=10, pady=(8, 4))
-        tk.Label(info, text="Dispositivo:", bg=C["card"], fg=C["muted"],
-                 font=FONT_SM).pack(side="left", padx=(10, 2))
-        self.refs['action_device_lbl'] = tk.Label(info, textvariable=self.ctx.active_device,
-                                                  bg=C["card"], fg=C["muted"], font=FONT_UI_B)
-        self.refs['action_device_lbl'].pack(side="left", padx=(0, 14))
-        tk.Label(info, text="Perfil:", bg=C["card"], fg=C["muted"],
-                 font=FONT_SM).pack(side="left", padx=(0, 2))
-        self.refs['action_profile_lbl'] = tk.Label(info, textvariable=self.ctx.active_profile,
-                                                   bg=C["card"], fg=C["cyan"], font=FONT_UI_B)
-        self.refs['action_profile_lbl'].pack(side="left")
-
-        # Grid de tarjetas
-        grid = tk.Frame(inner, bg=C["bg"])
-        grid.pack(fill="x", padx=16, pady=12)
-        for c in range(3):
-            grid.columnconfigure(c, weight=1)
-        grid.rowconfigure(0, minsize=110)
-        grid.rowconfigure(1, minsize=110)
-
-        _card_button(grid, "▶", "Iniciar",
-                     "Lanza scrcpy con el perfil\ny dispositivo seleccionados",
-                     self.cb.get('toggle_scene'), C["blue"], C["blue_hover"],
-                     row=0, col=0, shortcut="Ctrl+I")
-        _card_button(grid, "■", "Detener",
-                     "Detiene la sesión activa\ndel dispositivo seleccionado",
-                     self.cb.get('stop_current'), C["sep"], C["card3"],
-                     row=0, col=1)
-        _card_button(grid, "⚠", "Todo",
-                     "Cierra TODAS las sesiones\nscrcpy de golpe",
-                     self.cb.get('panic_kill'), C["red"], C["red_hover"],
-                     row=0, col=2)
-        _card_button(grid, "↺", "ADB",
-                     "Reiniciar servidor ADB",
-                     self.cb.get('restart_adb'), C["orange"], C["orange_hover"],
-                     row=1, col=0)
-        _card_button(grid, "◉", "Cam",
-                     "Enrutar cámara → /dev/video9",
-                     self.cb.get('route_cam'), C["purple_dim"], C["purple_hover"],
-                     row=1, col=1)
-        _card_button(grid, "~", "WiFi",
-                     "Ir a sección de conexión WiFi",
-                     self.cb.get('go_to_wifi'), C["sep"], C["card3"],
-                     row=1, col=2)
-
-        # Tabla de sesiones
-        sf_lbl = tk.Frame(inner, bg=C["card"])
-        sf_lbl.pack(fill="x", padx=16, pady=(12, 0))
-        tk.Label(sf_lbl, text="  Sesiones activas", bg=C["card"],
-                 fg=C["purple"], font=FONT_UI_B).pack(side="left", padx=4, pady=4)
-        tk.Label(sf_lbl, text="Supr = detener · Clic derecho = opciones",
-                 bg=C["card"], fg=C["muted"], font=FONT_SM).pack(side="right", padx=8, pady=4)
-
-        sf = tk.Frame(inner, bg=C["card2"])
-        sf.pack(fill="both", expand=True, padx=16, pady=(0, 4))
-
-        cols = ("serial", "profile", "pid", "uptime", "status")
-        self.refs['sess_tree'] = ttk.Treeview(sf, columns=cols, show="headings",
-                                              height=5, selectmode="browse")
-        for col_id, heading, width, stretch in [
-            ("serial",  "Dispositivo",  200, True),
-            ("profile", "Perfil",       140, True),
-            ("pid",     "PID",           70, False),
-            ("uptime",  "Tiempo",        80, False),
-            ("status",  "Estado",       120, True),
-        ]:
-            self.refs['sess_tree'].heading(col_id, text=heading)
-            self.refs['sess_tree'].column(col_id, width=width,
-                                         anchor="center", stretch=stretch)
-
-        self.refs['sess_tree'].tag_configure("RUN", foreground=C["green"])
-        self.refs['sess_tree'].tag_configure("STP", foreground=C["red"])
-        sess_sb = ttk.Scrollbar(sf, orient="vertical",
-                                command=self.refs['sess_tree'].yview)
-        self.refs['sess_tree'].configure(yscrollcommand=sess_sb.set)
-        self.refs['sess_tree'].pack(side="left", fill="both", expand=True)
-        sess_sb.pack(side="right", fill="y")
-
-        # Atajos de teclado en la tabla
-        self.refs['sess_tree'].bind("<Delete>",  self.cb.get('stop_selected'))
-        self.refs['sess_tree'].bind("<Button-3>", self.cb.get('sess_context_menu'))
-
-        btn_container = tk.Frame(inner, bg=C["bg"])
-        btn_container.pack(fill="x", padx=16, pady=(4, 6))
-        ttk.Button(btn_container, text="✕  Detener sesión seleccionada",
-                   command=self.cb.get('stop_selected'),
-                   style="Danger.TButton").pack(side="right")
-
-        # ── Controles rápidos del dispositivo (remoto / ADB) ────────
-        ctrl_sec = _section(inner, "🎮  Controles rápidos del dispositivo (remoto / ADB)", pady=(6, 12))
-
-        ctrl_r1 = _row(ctrl_sec, pady=4)
-        ctrl_btns = [
-            ("🔊 Vol +",    lambda: self.cb.get('send_keyevent')(24),  "Subir volumen"),
-            ("🔉 Vol -",    lambda: self.cb.get('send_keyevent')(25),  "Bajar volumen"),
-            ("🔇 Mute",     lambda: self.cb.get('send_keyevent')(164), "Silenciar audio"),
-            ("⚡ Encender", lambda: self.cb.get('send_keyevent')(26),  "Encender/Apagar pantalla (Power)"),
-            ("🏠 Inicio",   lambda: self.cb.get('send_keyevent')(3),   "Ir a la pantalla de Inicio (Home)"),
-            ("◀ Atrás",    lambda: self.cb.get('send_keyevent')(4),   "Volver atrás (Back)"),
-            ("📑 Recientes",lambda: self.cb.get('send_keyevent')(187), "Ver aplicaciones recientes"),
-            ("🔔 Notif",    lambda: self.cb.get('send_keyevent')("notifications"), "Desplegar panel de notificaciones"),
-        ]
-        for txt, cmd, tip in ctrl_btns:
-            btn = tk.Button(ctrl_r1, text=txt, bg=C["card2"], fg=C["text2"],
-                            font=FONT_SM, relief="flat", bd=0, padx=6, pady=5,
-                            activebackground=C["card3"], activeforeground=C["text"],
-                            command=cmd)
-            btn.pack(side="left", padx=2, expand=True, fill="x")
-            Tooltip(btn, tip)
-
-        ctrl_r2 = _row(ctrl_sec, pady=(2, 6))
-        btn_apk = ttk.Button(ctrl_r2, text="📦  Instalar APK en dispositivo…",
-                             command=self.cb.get('install_apk'),
-                             style="Secondary.TButton")
-        btn_apk.pack(side="left", padx=4)
-        Tooltip(btn_apk, "Selecciona un archivo .apk del equipo para instalarlo automáticamente vía ADB.")
-
-    # ─────────────────────────────────────────────────────────────────
-    # Pestaña: Consola
+    # Pestaña 5: Consola
     # ─────────────────────────────────────────────────────────────────
 
     def build_tab_console(self, parent):
@@ -354,7 +402,7 @@ class UIBuilder:
                   font=FONT_SM, relief="flat", bd=0, padx=10, pady=3,
                   command=self.cb.get('copy_log')).pack(side="right", padx=4)
 
-        self.refs['log_txt'] = tk.Text(p, bg="#0A0A0A", fg=C["text"], wrap="word",
+        self.refs['log_txt'] = tk.Text(p, bg="#0B0F19", fg=C["text"], wrap="word",
                                        font=FONT_MONO, state="disabled",
                                        relief="flat", bd=0)
         log_sb = ttk.Scrollbar(p, orient="vertical",
@@ -377,7 +425,7 @@ class UIBuilder:
                   command=self.cb.get('open_log')).pack(side="right", padx=8, pady=4)
 
     # ─────────────────────────────────────────────────────────────────
-    # Pestaña: Ayuda — FAQ Interactiva con Acordeón
+    # Pestaña 6: Ayuda — FAQ Interactiva Completa
     # ─────────────────────────────────────────────────────────────────
 
     def build_tab_help(self, parent):
@@ -385,17 +433,15 @@ class UIBuilder:
         for w in p.winfo_children():
             w.destroy()
 
-        # ── Header de la pestaña ─────────────────────────────────────
         hdr = tk.Frame(p, bg=C["card"], pady=8)
         hdr.pack(fill="x")
-        tk.Label(hdr, text="❓  Preguntas Frecuentes",
+        tk.Label(hdr, text="❓  Preguntas Frecuentes y Documentación",
                  bg=C["card"], fg=C["purple"], font=FONT_LG).pack(side="left", padx=16)
         tk.Label(hdr, text="Ctrl+H",
                  bg=C["card"], fg=C["muted"], font=FONT_SM).pack(side="right", padx=16)
 
         tk.Frame(p, bg=C["sep"], height=1).pack(fill="x")
 
-        # ── Canvas con scroll ─────────────────────────────────────────
         canvas = tk.Canvas(p, bg=C["bg"], highlightthickness=0)
         vsb    = ttk.Scrollbar(p, orient="vertical", command=canvas.yview)
         canvas.configure(yscrollcommand=vsb.set)
@@ -409,11 +455,9 @@ class UIBuilder:
         def _frame(e):  canvas.configure(scrollregion=canvas.bbox("all"))
         canvas.bind("<Configure>", _resize)
         sf.bind("<Configure>", _frame)
-        canvas.bind_all("<Button-4>", lambda e: canvas.yview_scroll(-1, "units"))
-        canvas.bind_all("<Button-5>", lambda e: canvas.yview_scroll(1,  "units"))
 
         self._faq_items = []
-        root_ref = self.ctx.root  # para _cmd_chip clipboard
+        root_ref = self.ctx.root
 
         def _add(title, build_fn):
             item = AccordionItem(sf, title, build_fn)
@@ -423,269 +467,158 @@ class UIBuilder:
         # ── 1. Inicio rápido ─────────────────────────────────────────
         def _faq_quickstart(f):
             steps = [
-                "1. Conecta el teléfono con un cable USB (de datos, no solo carga).",
-                "2. Activa la Depuración USB en el teléfono (ver FAQ 2).",
-                "3. En la pantalla del teléfono aparecerá un cuadro de diálogo:\n   → Toca 'Permitir' y marca '✔ Siempre permitir desde este equipo'.",
+                "1. Conecta tu teléfono con un cable USB de datos.",
+                "2. Activa la Depuración USB en tu Android (ver sección 2 abajo).",
+                "3. En la pantalla del teléfono acepta el mensaje 'Permitir depuración USB'.",
                 "4. Ve a la pestaña  📱 Dispositivo  y pulsa  🔄 Buscar dispositivos.",
-                "5. Selecciona tu dispositivo de la lista.",
-                "6. Ve a la pestaña  ⚙️ Perfiles  y elige o crea un perfil.",
-                "7. Ve a  🚀 Acciones  →  ▶ Iniciar.",
+                "5. Selecciona tu teléfono de la lista.",
+                "6. Ve a la pestaña  🚀 Acciones  y pulsa  ▶ Iniciar Transmisión.",
             ]
             for s in steps:
                 tk.Label(f, text=s, bg=C["bg"], fg=C["text2"], font=FONT_UI,
-                         anchor="w", justify="left", wraplength=680).pack(
-                    fill="x", padx=20, pady=2)
-            tk.Label(f, text="⌨  Atajo rápido: Ctrl+I para iniciar/detener",
-                     bg=C["bg"], fg=C["cyan"], font=FONT_SM, anchor="w").pack(
-                fill="x", padx=20, pady=(6, 4))
+                         anchor="w", justify="left", wraplength=680).pack(fill="x", padx=20, pady=2)
 
         _add("🚀  Inicio rápido — primeros pasos", _faq_quickstart)
 
-        # ── 2. Cómo habilitar la Depuración USB ──────────────────────
+        # ── 2. Depuración USB ─────────────────────────────────────────
         def _faq_usb_debug(f):
-            tk.Label(f, text="La Depuración USB es necesaria para que ADB pueda comunicarse con tu teléfono.",
-                     bg=C["bg"], fg=C["muted"], font=FONT_SM, anchor="w",
-                     wraplength=680, justify="left").pack(fill="x", padx=20, pady=(2, 6))
-
             tk.Label(f, text="Paso 1 — Activa las Opciones de desarrollador:",
-                     bg=C["bg"], fg=C["text2"], font=FONT_UI_B, anchor="w").pack(
-                fill="x", padx=20, pady=(4, 2))
+                     bg=C["bg"], fg=C["text2"], font=FONT_UI_B, anchor="w").pack(fill="x", padx=20, pady=(4, 2))
             for line in [
-                "   a. Abre  Ajustes  en tu teléfono.",
-                "   b. Ve a  Acerca del teléfono  (o  Información del software).",
-                "   c. Toca 7 veces sobre  Número de compilación.",
-                "   d. Verás el mensaje: «¡Ahora eres desarrollador!»",
+                "   a. Abre Ajustes en tu teléfono.",
+                "   b. Ve a 'Acerca del teléfono' → 'Información de software'.",
+                "   c. Toca 7 veces seguidas sobre 'Número de compilación'.",
+                "   d. Aparecerá el mensaje: ¡Ahora eres desarrollador!",
             ]:
-                tk.Label(f, text=line, bg=C["bg"], fg=C["text2"], font=FONT_UI,
-                         anchor="w", wraplength=680).pack(fill="x", padx=20, pady=1)
+                tk.Label(f, text=line, bg=C["bg"], fg=C["text2"], font=FONT_UI, anchor="w").pack(fill="x", padx=20, pady=1)
 
             tk.Label(f, text="Paso 2 — Activa la Depuración USB:",
-                     bg=C["bg"], fg=C["text2"], font=FONT_UI_B, anchor="w").pack(
-                fill="x", padx=20, pady=(8, 2))
+                     bg=C["bg"], fg=C["text2"], font=FONT_UI_B, anchor="w").pack(fill="x", padx=20, pady=(8, 2))
             for line in [
-                "   a. Vuelve a  Ajustes  →  Opciones de desarrollador.",
-                "   b. Activa el interruptor  Depuración USB.",
-                "   c. Conecta el cable USB a tu PC.",
-                "   d. En la pantalla del teléfono acepta el diálogo RSA.",
+                "   a. Regresa a Ajustes → Sistema → Opciones para desarrolladores.",
+                "   b. Activa el interruptor 'Depuración USB'.",
+                "   c. Conecta el cable USB a tu PC y acepta el cuadro emergente RSA.",
             ]:
-                tk.Label(f, text=line, bg=C["bg"], fg=C["text2"], font=FONT_UI,
-                         anchor="w", wraplength=680).pack(fill="x", padx=20, pady=1)
+                tk.Label(f, text=line, bg=C["bg"], fg=C["text2"], font=FONT_UI, anchor="w").pack(fill="x", padx=20, pady=1)
 
-            tk.Label(f, text="💡  Consejo: En Huawei/EMUI, busca las Opciones de desarrollador en Ajustes → Sistema.",
-                     bg=C["bg"], fg=C["orange"], font=FONT_SM, anchor="w",
-                     wraplength=680).pack(fill="x", padx=20, pady=(8, 4))
+        _add("🔌  Cómo habilitar la Depuración USB en Android", _faq_usb_debug)
 
-        _add("🔌  Cómo habilitar la Depuración USB", _faq_usb_debug)
-
-        # ── 3. Dispositivo no aparece o "no autorizado" ───────────────
+        # ── 3. Dispositivo no detectado ───────────────────────────────
         def _faq_not_found(f):
-            causes = [
-                ("🔌  Cable USB de solo carga", "Usa un cable que soporte datos. Prueba otro cable."),
-                ("🚫  Diálogo RSA no aceptado", "En la pantalla del teléfono acepta 'Permitir depuración USB'."),
-                ("🔄  Servidor ADB colgado",    "Reinicia el servidor desde Acciones → ↺ ADB, o usa los comandos de abajo."),
-                ("📵  Modo de conexión USB incorrecto", "El teléfono puede estar en modo 'Solo carga'. Cambia a 'Transferencia de archivos' (MTP)."),
-            ]
-            for title, desc in causes:
-                row = tk.Frame(f, bg=C["card"], padx=12, pady=8)
-                row.pack(fill="x", padx=20, pady=3)
-                tk.Label(row, text=title, bg=C["card"], fg=C["text2"],
-                         font=FONT_UI_B, anchor="w").pack(anchor="w")
-                tk.Label(row, text=desc, bg=C["card"], fg=C["muted"],
-                         font=FONT_SM, anchor="w", wraplength=640, justify="left").pack(anchor="w")
+            tk.Label(f, text="Si tu dispositivo no aparece o dice 'unauthorized':", bg=C["bg"], fg=C["text2"], font=FONT_UI_B).pack(anchor="w", padx=20, pady=4)
+            _cmd_chip(f, "adb kill-server", root_ref)
+            _cmd_chip(f, "adb start-server", root_ref)
+            _cmd_chip(f, "adb devices", root_ref)
 
-            tk.Label(f, text="Comandos de diagnóstico (ejecutar en terminal):",
-                     bg=C["bg"], fg=C["text2"], font=FONT_UI_B, anchor="w").pack(
-                fill="x", padx=20, pady=(10, 2))
-            for cmd in ["adb kill-server", "adb start-server", "adb devices"]:
-                _cmd_chip(f, cmd, root_ref)
+        _add("⚠️  El dispositivo no aparece o dice 'no autorizado'", _faq_not_found)
 
-        _add("⚠️  El dispositivo no aparece o aparece 'no autorizado'", _faq_not_found)
-
-        # ── 4. Dependencias: adb y scrcpy ─────────────────────────────
+        # ── 4. Dependencias ───────────────────────────────────────────
         def _faq_deps(f):
-            tk.Label(f, text="MASV necesita que adb y scrcpy estén instalados en tu sistema (o en la carpeta bin/).",
-                     bg=C["bg"], fg=C["muted"], font=FONT_SM, anchor="w",
-                     wraplength=680).pack(fill="x", padx=20, pady=(2, 8))
-
-            for os_name, cmds, link in [
-                ("🐧  Linux (Debian/Ubuntu/Mint)",
-                 ["sudo apt update", "sudo apt install adb scrcpy"],
-                 "https://github.com/Genymobile/scrcpy"),
-                ("🪟  Windows",
-                 ["winget install Genymobile.scrcpy",
-                  "# O descarga el .zip desde github.com/Genymobile/scrcpy"],
-                 "https://github.com/Genymobile/scrcpy/blob/master/doc/windows.md"),
-                ("🍎  macOS",
-                 ["brew install scrcpy android-platform-tools"],
-                 "https://github.com/Genymobile/scrcpy/blob/master/doc/macos.md"),
+            for os_name, cmds in [
+                ("🐧 Linux (Debian / Ubuntu):", ["sudo apt update", "sudo apt install adb scrcpy"]),
+                ("🪟 Windows (winget):", ["winget install Genymobile.scrcpy"]),
+                ("🍎 macOS (Homebrew):", ["brew install scrcpy android-platform-tools"]),
             ]:
-                lbl = tk.Label(f, text=os_name, bg=C["bg"], fg=C["text2"],
-                               font=FONT_UI_B, anchor="w")
-                lbl.pack(fill="x", padx=20, pady=(8, 2))
-                for cmd in cmds:
-                    _cmd_chip(f, cmd, root_ref)
-                link_lbl = tk.Label(f, text=f"  🔗  Documentación oficial: {link}",
-                                    bg=C["bg"], fg=C["blue"], font=FONT_SM,
-                                    cursor="hand2", anchor="w")
-                link_lbl.pack(fill="x", padx=20, pady=2)
-                link_lbl.bind("<Button-1>", lambda e, u=link: webbrowser.open(u))
+                tk.Label(f, text=os_name, bg=C["bg"], fg=C["text2"], font=FONT_UI_B).pack(anchor="w", padx=20, pady=(6, 2))
+                for c in cmds: _cmd_chip(f, c, root_ref)
 
         _add("📦  Dependencias necesarias (adb y scrcpy)", _faq_deps)
 
-        # ── 5. Conexión por WiFi ───────────────────────────────────────
+        # ── 5. WiFi ───────────────────────────────────────────────────
         def _faq_wifi(f):
-            tk.Label(f, text="Requisito previo: el primer emparejamiento siempre debe hacerse con cable USB.",
-                     bg=C["bg"], fg=C["orange"], font=FONT_SM, anchor="w",
-                     wraplength=680).pack(fill="x", padx=20, pady=(2, 8))
-
             steps = [
-                "1. Conecta el teléfono por USB y asegúrate de que aparece en la lista de dispositivos.",
-                "2. Ve a  📱 Dispositivo  →  sección WiFi  →  pulsa  'Habilitar TCP/IP (USB→WiFi)'.",
-                "3. El puerto 5555 queda abierto. Desconecta el cable USB.",
-                "4. Introduce la IP del teléfono en el campo correspondiente (usa 'Obtener IP' para detectarla).",
-                "5. Pulsa  Conectar. El dispositivo aparecerá en la lista con su IP como serial.",
+                "1. Conecta el teléfono por USB una vez.",
+                "2. Ve a 📱 Dispositivo → Habilitar TCP/IP (USB→WiFi).",
+                "3. Desconecta el cable USB.",
+                "4. Usa el botón '📡 Obtener IP' y pulsa Conectar.",
             ]
             for s in steps:
-                tk.Label(f, text=s, bg=C["bg"], fg=C["text2"], font=FONT_UI,
-                         anchor="w", justify="left", wraplength=680).pack(
-                    fill="x", padx=20, pady=2)
+                tk.Label(f, text=s, bg=C["bg"], fg=C["text2"], font=FONT_UI).pack(anchor="w", padx=20, pady=2)
+            _cmd_chip(f, "adb tcpip 5555", root_ref)
+            _cmd_chip(f, "adb connect 192.168.1.X:5555", root_ref)
 
-            tk.Label(f, text="Comandos manuales equivalentes:",
-                     bg=C["bg"], fg=C["text2"], font=FONT_UI_B, anchor="w").pack(
-                fill="x", padx=20, pady=(10, 2))
-            for cmd in ["adb tcpip 5555", "adb connect 192.168.1.X:5555"]:
-                _cmd_chip(f, cmd, root_ref)
+        _add("📡  Conexión por WiFi (ADB inalámbrico)", _faq_wifi)
 
-            tk.Label(f, text="🛡  Solución de problemas: asegúrate de que PC y teléfono están en la misma red WiFi y que el firewall no bloquea el puerto 5555.",
-                     bg=C["bg"], fg=C["muted"], font=FONT_SM, anchor="w",
-                     wraplength=680, justify="left").pack(fill="x", padx=20, pady=(8, 4))
-
-        _add("📡  Conectarse por WiFi (ADB inalámbrico)", _faq_wifi)
-
-        # ── 6. Cámara como Webcam v4l2loopback ───────────────────────
+        # ── 6. SECCIÓN DEDICADA: WEBCAM VIRTUAL (V4L2LOOPBACK) ────────
         def _faq_v4l2(f):
-            tk.Label(f, text="⚠  Esta función solo está disponible en Linux.",
-                     bg=C["bg"], fg=C["orange"], font=FONT_UI_B, anchor="w").pack(
-                fill="x", padx=20, pady=(2, 8))
+            tk.Label(f, text="¿Qué es y para qué sirve?", bg=C["bg"], fg=C["cyan"], font=FONT_UI_B).pack(anchor="w", padx=20, pady=(4, 2))
+            tk.Label(f, text="La función Webcam Virtual te permite transmitir la cámara de tu teléfono Android como una cámara de vídeo nativa (/dev/video9) en Linux. Esto permite usar tu celular como cámara de alta definición en OBS Studio, Discord, Zoom o Google Meet sin lags ni marcas de agua.",
+                     bg=C["bg"], fg=C["text2"], font=FONT_UI, wraplength=680, justify="left").pack(anchor="w", padx=20, pady=(0, 8))
 
-            tk.Label(f, text="1. Instala el módulo v4l2loopback:",
-                     bg=C["bg"], fg=C["text2"], font=FONT_UI_B, anchor="w").pack(
-                fill="x", padx=20, pady=(4, 2))
+            tk.Label(f, text="Requisitos:", bg=C["bg"], fg=C["text2"], font=FONT_UI_B).pack(anchor="w", padx=20, pady=(4, 2))
+            tk.Label(f, text="• Sistema operativo Linux.\n• Paquete v4l2loopback-dkms instalado.", bg=C["bg"], fg=C["muted"], font=FONT_SM).pack(anchor="w", padx=20, pady=(0, 6))
+
+            tk.Label(f, text="Comandos de instalación y configuración (haz clic en 📋 Copiar):", bg=C["bg"], fg=C["text2"], font=FONT_UI_B).pack(anchor="w", padx=20, pady=(6, 2))
+
+            tk.Label(f, text="1. Instalar el módulo en el sistema:", bg=C["bg"], fg=C["muted"], font=FONT_SM).pack(anchor="w", padx=20)
             _cmd_chip(f, "sudo apt install v4l2loopback-dkms v4l2loopback-utils", root_ref)
 
-            tk.Label(f, text="2. Carga el módulo (o usa el botón en la app):",
-                     bg=C["bg"], fg=C["text2"], font=FONT_UI_B, anchor="w").pack(
-                fill="x", padx=20, pady=(8, 2))
+            tk.Label(f, text="2. Cargar el módulo manualmente:", bg=C["bg"], fg=C["muted"], font=FONT_SM).pack(anchor="w", padx=20, pady=(4, 0))
             _cmd_chip(f, "sudo modprobe v4l2loopback devices=1 video_nr=9 card_label='MASV Webcam' exclusive_caps=1", root_ref)
 
-            tk.Label(f, text="3. En MASV: 📱 Dispositivo → Cargar módulo → Enrutar cámara.",
-                     bg=C["bg"], fg=C["text2"], font=FONT_UI, anchor="w",
-                     wraplength=680).pack(fill="x", padx=20, pady=4)
-
-            tk.Label(f, text="4. En OBS Studio: + Fuente → Dispositivo de captura de vídeo (V4L2) → selecciona 'MASV Webcam'.",
-                     bg=C["bg"], fg=C["text2"], font=FONT_UI, anchor="w",
-                     wraplength=680).pack(fill="x", padx=20, pady=4)
-
-            tk.Label(f, text="Para cargar el módulo automáticamente al arrancar el sistema:",
-                     bg=C["bg"], fg=C["muted"], font=FONT_SM, anchor="w").pack(
-                fill="x", padx=20, pady=(8, 2))
+            tk.Label(f, text="3. Configurar carga automática en cada arranque:", bg=C["bg"], fg=C["muted"], font=FONT_SM).pack(anchor="w", padx=20, pady=(4, 0))
             _cmd_chip(f, "echo 'v4l2loopback' | sudo tee -a /etc/modules", root_ref)
             _cmd_chip(f, "echo 'options v4l2loopback devices=1 video_nr=9 card_label=\"MASV Webcam\" exclusive_caps=1' | sudo tee /etc/modprobe.d/masv.conf", root_ref)
 
-        _add("📷  Usar la cámara como Webcam (v4l2loopback)", _faq_v4l2)
+            tk.Label(f, text="4. Comando scrcpy equivalente en terminal:", bg=C["bg"], fg=C["muted"], font=FONT_SM).pack(anchor="w", padx=20, pady=(4, 0))
+            _cmd_chip(f, "scrcpy --video-source=camera --v4l2-sink=/dev/video9 --no-playback", root_ref)
 
-        # ── 7. Perfiles y configuraciones ─────────────────────────────
+        _add("📷  Cámara Virtual v4l2loopback (Linux)", _faq_v4l2)
+
+        # ── 7. Perfiles ───────────────────────────────────────────────
         def _faq_profiles(f):
-            params = [
-                ("Bitrate",     "Calidad del vídeo. 4M = streaming eficiente · 16M = gaming · 24M+ = máxima calidad."),
-                ("Resolución",  "Altura máxima del vídeo en píxeles. 0 = resolución nativa del teléfono."),
-                ("FPS máx",     "Fotogramas por segundo. 30 FPS para streaming, 60 FPS para gaming fluido."),
-                ("Códec",       "h264 = compatible con todo · h265/av1 = más compresión, requiere hardware reciente."),
-                ("Audio",       "playback = audio del sistema · mic = micrófono del teléfono · no-audio = sin audio."),
-            ]
-            for param, desc in params:
-                row = tk.Frame(f, bg=C["card"], padx=12, pady=6)
+            for param, desc in [
+                ("Bitrate", "Velocidad de datos. 4M = liviano, 16M = alta calidad para juegos."),
+                ("Resolución", "Altura máxima en px (720p, 1080p, 1920p). 0 = resolución nativa."),
+                ("Códec", "H.264 (alta compatibilidad), H.265 (mejor compresión), AV1 (moderno)."),
+            ]:
+                row = tk.Frame(f, bg=C["card"], padx=10, pady=4)
                 row.pack(fill="x", padx=20, pady=2)
-                tk.Label(row, text=param, bg=C["card"], fg=C["cyan"],
-                         font=FONT_UI_B, width=14, anchor="w").pack(side="left")
-                tk.Label(row, text=desc, bg=C["card"], fg=C["text2"],
-                         font=FONT_SM, anchor="w", justify="left", wraplength=540).pack(
-                    side="left", fill="x", expand=True)
-
-            tk.Label(f, text="💡  Un perfil puede asociarse automáticamente a un dispositivo:\nal seleccionar el dispositivo por primera vez y guardar, MASV recuerda qué perfil usas con él.",
-                     bg=C["bg"], fg=C["muted"], font=FONT_SM, anchor="w",
-                     wraplength=680, justify="left").pack(fill="x", padx=20, pady=(10, 4))
+                tk.Label(row, text=param, bg=C["card"], fg=C["cyan"], font=FONT_UI_B, width=12, anchor="w").pack(side="left")
+                tk.Label(row, text=desc, bg=C["card"], fg=C["text2"], font=FONT_SM).pack(side="left")
 
         _add("⚙️  Perfiles y configuraciones — qué significan", _faq_profiles)
 
-        # ── 8. Atajos nativos de scrcpy ─────────────────────────────
+        # ── 8. Atajos Nativo Scrcpy ───────────────────────────────────
         def _faq_scrcpy_keys(f):
-            tk.Label(f, text="Cuando la ventana de scrcpy está enfocada, puedes controlar el teléfono con estos atajos:",
-                     bg=C["bg"], fg=C["muted"], font=FONT_SM, anchor="w",
-                     wraplength=680).pack(fill="x", padx=20, pady=(2, 6))
-
-            keys = [
-                ("Alt + Up  /  MOD + u", "🔊 Subir volumen del teléfono"),
-                ("Alt + Down /  MOD + d", "🔉 Bajar volumen del teléfono"),
-                ("MOD + p",              "⚡ Botón de encendido / apagar pantalla"),
-                ("MOD + h",              "🏠 Ir a la pantalla de inicio (Home)"),
-                ("MOD + b  /  Backspace", "◀ Botón Atrás (Back)"),
-                ("MOD + s",              "📑 Abrir aplicaciones recientes"),
-                ("MOD + f",              "🖥️ Activar / Desactivar pantalla completa"),
-                ("MOD + m",              "🔇 Silenciar / Desactivar silencio"),
-                ("MOD + Shift + o",      "☀️ Encender pantalla físicamente"),
-                ("MOD + n",              "🔔 Desplegar panel de notificaciones"),
-                ("MOD + v",              "📋 Pegar portapapeles del PC al teléfono"),
-                ("Arrastrar .apk",       "📦 Instalar archivo APK arrastrando a la ventana"),
-            ]
-            for combo, desc in keys:
-                row = tk.Frame(f, bg=C["card"], padx=12, pady=4)
-                row.pack(fill="x", padx=20, pady=2)
-                tk.Label(row, text=combo, bg=C["card"], fg=C["cyan"],
-                         font=FONT_MONO, width=22, anchor="w").pack(side="left")
-                tk.Label(row, text=desc, bg=C["card"], fg=C["text2"],
-                         font=FONT_SM, anchor="w", justify="left").pack(side="left", fill="x", expand=True)
+            for combo, desc in [
+                ("Alt + Up / MOD + u", "🔊 Subir volumen"),
+                ("Alt + Down / MOD + d", "🔉 Bajar volumen"),
+                ("MOD + p", "⚡ Encendido / Apagar pantalla"),
+                ("MOD + h", "🏠 Ir a Inicio (Home)"),
+                ("MOD + b / Backspace", "◀ Volver Atrás (Back)"),
+                ("MOD + s", "📑 Ver aplicaciones recientes"),
+                ("MOD + f", "🖥️ Pantalla completa"),
+                ("MOD + m", "🔇 Silenciar / Activar audio"),
+                ("MOD + n", "🔔 Desplegar notificaciones"),
+                ("MOD + v", "📋 Pegar portapapeles del PC"),
+                ("Arrastrar .apk", "📦 Instalar archivo APK en el teléfono"),
+            ]:
+                row = tk.Frame(f, bg=C["card"], padx=10, pady=3)
+                row.pack(fill="x", padx=20, pady=1)
+                tk.Label(row, text=combo, bg=C["card"], fg=C["cyan"], font=FONT_MONO, width=22, anchor="w").pack(side="left")
+                tk.Label(row, text=desc, bg=C["card"], fg=C["text2"], font=FONT_SM).pack(side="left")
 
         _add("⌨️  Atajos nativos de scrcpy (control por teclado)", _faq_scrcpy_keys)
 
-        # ── 9. Problemas comunes y soluciones ─────────────────────────
+        # ── 9. Problemas Comunes ──────────────────────────────────────
         def _faq_troubleshoot(f):
-            problems = [
-                ("Error: 'device offline'",
-                 "El dispositivo se desconectó. Prueba:",
-                 ["adb reconnect", "adb disconnect && adb connect <IP>:5555"]),
-                ("Error: 'more than one device/emulator'",
-                 "Hay más de un dispositivo. Selecciona el correcto en la lista de MASV antes de iniciar.",
-                 []),
-                ("La sesión no se detiene",
-                 "Usa la opción 'Cerrar todo' (tarjeta ⚠ Todo) o clic derecho en la tabla → Forzar cierre.",
-                 []),
-                ("Sudo solicitado al cargar v4l2loopback",
-                 "Es normal. MASV usa pkexec (GUI). Puedes cargarlo manualmente en terminal con:",
-                 ["sudo modprobe v4l2loopback devices=1 video_nr=9 exclusive_caps=1"]),
-                ("scrcpy: error 'Video encoding failed'",
-                 "Prueba a reducir el bitrate o cambiar el códec (usa h264 como fallback).",
-                 []),
-            ]
-            for prob, desc, cmds in problems:
-                row = tk.Frame(f, bg=C["card"], padx=14, pady=8)
-                row.pack(fill="x", padx=20, pady=3)
-                tk.Label(row, text=f"🛠  {prob}", bg=C["card"], fg=C["red"],
-                         font=FONT_UI_B, anchor="w").pack(anchor="w")
-                tk.Label(row, text=desc, bg=C["card"], fg=C["text2"],
-                         font=FONT_UI, anchor="w", wraplength=640, justify="left").pack(anchor="w")
-                for cmd in cmds:
-                    _cmd_chip(row, cmd, root_ref)
+            for prob, desc in [
+                ("Error: device offline", "Desconecta y vuelve a conectar el cable USB o ejecuta 'adb reconnect'."),
+                ("Error: more than one device", "Selecciona el dispositivo deseado en la pestaña 📱 Dispositivo."),
+                ("La sesión no se detiene", "Usa el botón '⚠ Todo' en Acciones o clic derecho → Forzar cierre."),
+            ]:
+                row = tk.Frame(f, bg=C["card"], padx=12, pady=6)
+                row.pack(fill="x", padx=20, pady=2)
+                tk.Label(row, text=f"🛠 {prob}", bg=C["card"], fg=C["red"], font=FONT_UI_B).pack(anchor="w")
+                tk.Label(row, text=desc, bg=C["card"], fg=C["text2"], font=FONT_SM).pack(anchor="w")
 
         _add("🛠️  Problemas comunes y soluciones", _faq_troubleshoot)
 
-        # ── Footer ────────────────────────────────────────────────────
+        # Footer
         ft = tk.Frame(sf, bg=C["bg"])
         ft.pack(fill="x", padx=12, pady=(12, 16))
-        tk.Label(ft, text="MASV — Memexicanisimos Android Screen Viewer",
-                 bg=C["bg"], fg=C["muted"], font=FONT_SM).pack(side="left")
-        link = tk.Label(ft, text="🔗  GitHub",
-                        bg=C["bg"], fg=C["blue"], font=FONT_SM, cursor="hand2")
+        tk.Label(ft, text="MASV — Memexicanisimos Android Screen Viewer", bg=C["bg"], fg=C["muted"], font=FONT_SM).pack(side="left")
+        link = tk.Label(ft, text="🔗 GitHub", bg=C["bg"], fg=C["blue"], font=FONT_SM, cursor="hand2")
         link.pack(side="right")
-        link.bind("<Button-1>", lambda _: webbrowser.open(
-            "https://github.com/myinnervoid/Memexicanisimos-Android-Screen-Viewer"))
+        link.bind("<Button-1>", lambda _: webbrowser.open("https://github.com/myinnervoid/Memexicanisimos-Android-Screen-Viewer"))

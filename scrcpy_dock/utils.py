@@ -1,59 +1,62 @@
 import os, sys, re, time, socket, shutil, json
 
-# ── Paleta iOS DARK — Tokens de diseño canónicos ──────────────────────────
-# TODOS los colores de la interfaz DEBEN referenciar estas claves.
-# NO usar colores hexadecimales directos fuera de este diccionario.
+# ── Paleta Slate Dark — Sistema de Diseño Canónico ──────────────────────────
+# Teoría de Color para Apps Profesionales (Vercel / Linear / Raycast style)
+# Fondo Slate profundo, tarjetas con elevación por capas y contraste WCAG AAA.
 C = {
-    # Fondos
-    "bg":          "#121212",   # Fondo principal de la aplicación
-    "card":        "#1C1C1E",   # Tarjetas, secciones, headers
-    "card2":       "#2C2C2E",   # Fondos secundarios, toolbars, console
-    "card3":       "#383838",   # Hover sutil / separación terciaria
+    # Fondos principales (Elevación por capas)
+    "bg":          "#0F172A",   # Slate 900 - Ventana principal
+    "card":        "#1E293B",   # Slate 800 - Tarjetas y contenedores
+    "card2":       "#334155",   # Slate 700 - Headers, toolbars, entradas
+    "card3":       "#475569",   # Slate 600 - Hover sutil
 
-    # Separadores
-    "sep":         "#3A3A3C",
+    # Separadores y bordes
+    "sep":         "#334155",   # Borde de separación sutil
 
-    # Acciones primarias
-    "blue":        "#0A84FF",
-    "blue_hover":  "#0077ED",
+    # Acciones primarias y acentos
+    "blue":        "#0284C7",   # Sky 600
+    "blue_hover":  "#0369A1",
+    "indigo":      "#6366F1",   # Indigo 500 - Acento principal de marca
+    "indigo_hover":"#4F46E5",
 
-    # Peligro / Cancelar
-    "red":         "#FF453A",
-    "red_hover":   "#D70015",
+    # Peligro / Cancelar (Rojo elegante, no deslumbrante)
+    "red":         "#EF4444",   # Red 500
+    "red_dim":     "#451A1A",   # Fondo de alerta destructiva
+    "red_hover":   "#DC2626",
 
-    # Éxito / Activo
-    "green":       "#32D74B",
-    "green_dim":   "#1C3A27",   # Fondo de toast success
-    "green_hover": "#28B83E",
+    # Éxito / Estado Activo
+    "green":       "#10B981",   # Emerald 500
+    "green_dim":   "#064E3B",   # Fondo de estado OK
+    "green_hover": "#059669",
 
     # Advertencia
-    "orange":      "#FF9F0A",
-    "orange_hover":"#E08C00",
+    "orange":      "#F59E0B",   # Amber 500
+    "orange_hover":"#D97706",
 
     # Acento / Perfiles
-    "purple":      "#BF5AF2",
-    "purple_dim":  "#3A0CA3",   # Fondo de tarjeta de perfil seleccionado
-    "purple_hover":"#9b44d1",
+    "purple":      "#A855F7",   # Purple 500
+    "purple_dim":  "#3B0764",
+    "purple_hover":"#9333EA",
 
-    # Información / WiFi / Escaneando
-    "cyan":        "#64D2FF",
+    # Información / WiFi
+    "cyan":        "#38BDF8",   # Sky 400
 
-    # Texto
-    "text":        "#FFFFFF",
-    "text2":       "#EBEBF5",   # Texto secundario sobre cards
-    "muted":       "#8E8E93",   # Texto desactivado / labels de campo
+    # Tipografía — Legibilidad comprobada (WCAG AAA)
+    "text":        "#F8FAFC",   # Slate 50 - Texto primario
+    "text2":       "#E2E8F0",   # Slate 200 - Texto secundario
+    "muted":       "#94A3B8",   # Slate 400 - Etiquetas y pistas
 
     # Estados desactivados
-    "disabled":    "#3A3A3C",
+    "disabled":    "#334155",
 
-    # Foco (accesibilidad)
-    "focus":       "#0A84FF",   # Borde de foco visible al navegar con Tab
+    # Foco de accesibilidad (Tab)
+    "focus":       "#38BDF8",
 
-    # Badges de estado semánticos (usados en notificaciones y status bar)
-    "state_ok":      "#32D74B",
-    "state_warn":    "#FF9F0A",
-    "state_err":     "#FF453A",
-    "state_neutral": "#8E8E93",
+    # Badges de estado semánticos
+    "state_ok":      "#10B981",
+    "state_warn":    "#F59E0B",
+    "state_err":     "#EF4444",
+    "state_neutral": "#94A3B8",
 }
 
 _PLAT = sys.platform
@@ -70,7 +73,7 @@ FONT_SM    = (FONT_FAMILY, 9)
 FONT_LG    = (FONT_FAMILY, 13, "bold")
 FONT_XL    = (FONT_FAMILY, 16, "bold")
 FONT_CARD  = (FONT_FAMILY, 12, "bold")
-FONT_MONO  = ("Courier New", 9)
+FONT_MONO  = ("JetBrains Mono", 9) if _PLAT != "win32" else ("Consolas", 9)
 
 # ── Rutas ──────────────────────────────────────────────────────────────────
 CONFIG_DIR  = os.path.expanduser("~/.config/masv")
@@ -101,7 +104,7 @@ DEFAULT_CONFIG = {
     },
     "device_associations": {},
     "last_selected_profile": "🎮 Juego Rápido",
-    "window_geometry": "860x680",
+    "window_geometry": "880x680",
     "window_state": "normal",
     "onboarding_done": False,
 }

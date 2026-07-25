@@ -61,6 +61,7 @@ class ScrcpyDockApp:
             'route_cam':             self._route_cam,
             'v4l2_help':             self._v4l2_help,
             'go_to_help_usb':        self._go_to_help_usb,
+            'go_to_help_v4l2':       self._go_to_help_v4l2,
 
             'on_profile_listbox_sel':  self._on_profile_listbox_sel,
             'open_wizard':             self._open_wizard,
@@ -101,7 +102,7 @@ class ScrcpyDockApp:
         self.root.bind("<Control-q>", lambda _: self._on_close())
         self.root.bind("<Control-r>", lambda _: self._refresh_devices())
         self.root.bind("<Control-i>", lambda _: self._toggle_scene())
-        self.root.bind("<Control-h>", lambda _: self._nb.select(4))
+        self.root.bind("<Control-h>", lambda _: self._nb.select(5))
 
     def _setup_styles(self):
         s = ttk.Style()
@@ -116,7 +117,7 @@ class ScrcpyDockApp:
                     foreground=C["purple"], font=FONT_UI_B)
         s.configure("TNotebook", background=C["card2"], borderwidth=0, tabmargins=0)
         s.configure("TNotebook.Tab", background=C["sep"], foreground=C["muted"],
-                    font=FONT_UI_B, padding=(20, 12))
+                    font=FONT_UI_B, padding=(18, 10))
         s.map("TNotebook.Tab",
               background=[("selected", C["card"])],
               foreground=[("selected", C["text"])])
@@ -144,20 +145,20 @@ class ScrcpyDockApp:
         def _btn(name, bg, fg, hover, dis_bg=C["disabled"], dis_fg=C["muted"]):
             s.configure(name, background=bg, foreground=fg, borderwidth=0,
                         focusthickness=2, focuscolor=C["focus"],
-                        padding=(14, 7), font=FONT_UI_B, relief="flat")
+                        padding=(12, 6), font=FONT_UI_B, relief="flat")
             s.map(name,
                   background=[("active", hover), ("disabled", dis_bg),
                                ("focus", bg)],
                   foreground=[("disabled", dis_fg)],
                   relief=[("focus", "solid")])
 
-        _btn("Primary.TButton",   C["blue"],   "#FFF", C["blue_hover"])
+        _btn("Primary.TButton",   C["indigo"], "#FFF", C["indigo_hover"])
         _btn("Danger.TButton",    C["red"],    "#FFF", C["red_hover"])
-        _btn("Secondary.TButton", C["sep"],    C["text"], C["card3"])
-        _btn("Green.TButton",     C["green"],  C["bg"],   C["green_hover"])
-        _btn("Warn.TButton",      C["orange"], C["bg"],   C["orange_hover"])
-        _btn("Ghost.TButton",     C["card"],   C["blue"], C["card2"])
-        _btn("Purple.TButton",    C["purple"], "#FFF",    C["purple_hover"])
+        _btn("Secondary.TButton", C["card2"],  C["text2"], C["card3"])
+        _btn("Green.TButton",     C["green"],  "#FFF", C["green_hover"])
+        _btn("Warn.TButton",      C["orange"], "#FFF", C["orange_hover"])
+        _btn("Ghost.TButton",     C["card"],   C["cyan"], C["card2"])
+        _btn("Purple.TButton",    C["purple"], "#FFF", C["purple_hover"])
 
     def _build_ui(self):
         hdr = tk.Frame(self.root, bg=C["card"], height=64)
@@ -186,22 +187,25 @@ class ScrcpyDockApp:
         self._nb = ttk.Notebook(self.root)
         self._nb.pack(fill="both", expand=True, padx=8, pady=(4, 0))
 
-        self._tab_device  = tk.Frame(self._nb, bg=C["bg"])
-        self._tab_profile = tk.Frame(self._nb, bg=C["bg"])
-        self._tab_actions = tk.Frame(self._nb, bg=C["bg"])
-        self._tab_console = tk.Frame(self._nb, bg=C["bg"])
-        self._tab_help    = tk.Frame(self._nb, bg=C["bg"])
+        self._tab_actions  = tk.Frame(self._nb, bg=C["bg"])
+        self._tab_controls = tk.Frame(self._nb, bg=C["bg"])
+        self._tab_device   = tk.Frame(self._nb, bg=C["bg"])
+        self._tab_profile  = tk.Frame(self._nb, bg=C["bg"])
+        self._tab_console  = tk.Frame(self._nb, bg=C["bg"])
+        self._tab_help     = tk.Frame(self._nb, bg=C["bg"])
 
-        # Tabs en orden: Perfiles(0), Acciones(1), Dispositivo(2), Consola(3), Ayuda(4)
-        self._nb.add(self._tab_profile, text="⚙️  Perfiles")
-        self._nb.add(self._tab_actions, text="🚀  Acciones")
-        self._nb.add(self._tab_device,  text="📱  Dispositivo")
-        self._nb.add(self._tab_console, text="🖥  Consola")
-        self._nb.add(self._tab_help,    text="❓  Ayuda")
+        # Pestañas en orden lógico limpio: Acciones(0), Controles(1), Dispositivo(2), Perfiles(3), Consola(4), Ayuda(5)
+        self._nb.add(self._tab_actions,  text="🚀  Acciones")
+        self._nb.add(self._tab_controls, text="🎮  Controles")
+        self._nb.add(self._tab_device,   text="📱  Dispositivo")
+        self._nb.add(self._tab_profile,  text="⚙️  Perfiles")
+        self._nb.add(self._tab_console,  text="🖥  Consola")
+        self._nb.add(self._tab_help,     text="❓  Ayuda")
 
-        self.ui.build_tab_profile(self._tab_profile)
         self.ui.build_tab_actions(self._tab_actions)
+        self.ui.build_tab_controls(self._tab_controls)
         self.ui.build_tab_device(self._tab_device)
+        self.ui.build_tab_profile(self._tab_profile)
         self.ui.build_tab_console(self._tab_console)
         self.ui.build_tab_help(self._tab_help)
 
@@ -213,6 +217,11 @@ class ScrcpyDockApp:
         self._status_lbl.pack(side="left", padx=14, pady=4)
         tk.Label(bar, text=f"v1.0  |  Ctrl+H → Ayuda  |  Ctrl+Q → Salir",
                  bg=C["card2"], fg=C["muted"], font=FONT_SM).pack(side="right", padx=14)
+
+        self.ui.refs['profile_listbox'].bind("<<ListboxSelect>>", self._on_profile_listbox_sel)
+        self._refresh_profile_listbox()
+
+        self._nb.bind("<<NotebookTabChanged>>", self._on_tab_changed)
 
         self.ui.refs['profile_listbox'].bind("<<ListboxSelect>>", self._on_profile_listbox_sel)
         self._refresh_profile_listbox()
@@ -411,10 +420,19 @@ class ScrcpyDockApp:
 
     def _go_to_help_usb(self):
         """Cambia a la pestaña Ayuda y expande el FAQ de depuración USB."""
-        self._nb.select(4)
+        self._nb.select(5)
         try:
             if len(self.ui._faq_items) > 1:
                 self.ui._faq_items[1].expand()
+        except Exception:
+            pass
+
+    def _go_to_help_v4l2(self):
+        """Cambia a la pestaña Ayuda y expande la FAQ de Webcam Virtual v4l2loopback."""
+        self._nb.select(5)
+        try:
+            if len(self.ui._faq_items) > 5:
+                self.ui._faq_items[5].expand()
         except Exception:
             pass
 

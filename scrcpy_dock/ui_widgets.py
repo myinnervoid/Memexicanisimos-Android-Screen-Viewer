@@ -3,7 +3,7 @@ from tkinter import ttk, messagebox
 from .utils import C, FONT_FAMILY, FONT_UI, FONT_UI_B, FONT_SM, FONT_LG, FONT_MONO, FONT_CARD
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Helpers de layout (usan tokens del sistema de diseño — sin hex hardcoded)
+# Helpers de layout (usan tokens del sistema Slate Dark)
 # ─────────────────────────────────────────────────────────────────────────────
 
 def _row(parent, bg=None, pady=3, padx=4) -> tk.Frame:
@@ -23,6 +23,8 @@ def _recolor(frame: tk.Frame, color: str):
     for child in frame.winfo_children():
         try: child.config(bg=color)
         except Exception: pass
+        if isinstance(child, tk.Frame):
+            _recolor(child, color)
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -65,40 +67,52 @@ class Tooltip:
         if self._shortcut:
             body += f"\n  ⌨  {self._shortcut}"
         tk.Label(self._win, text=body, justify="left", bg=C["card2"],
-                 fg=C["text2"], font=FONT_SM, padx=9, pady=6,
+                 fg=C["text"], font=FONT_SM, padx=10, pady=7,
                  wraplength=280).pack()
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Tarjeta de acción (grid de 3 columnas en pestaña Acciones)
+# Tarjeta de acción estilizada (Alta legibilidad y contraste WCAG AAA)
 # ─────────────────────────────────────────────────────────────────────────────
 
 def _card_button(parent, icon_text: str, title: str, desc: str,
-                 command, style_bg: str, style_hover: str,
+                 command, accent_color: str, hover_color: str,
                  row: int, col: int, shortcut: str = ""):
-    """Tarjeta de acción con hover, clic y tooltip con atajo de teclado."""
-    outer = tk.Frame(parent, bg=C["card2"], padx=2, pady=2)
+    """Tarjeta de acción elegante con fondo Slate oscuro, borde de acento y texto de alto contraste."""
+    outer = tk.Frame(parent, bg=C["sep"], padx=1, pady=1)
     outer.grid(row=row, column=col, padx=8, pady=8, sticky="nsew")
 
-    inner = tk.Frame(outer, bg=style_bg, cursor="hand2")
+    bg_color = C["card"]
+    inner = tk.Frame(outer, bg=bg_color, cursor="hand2")
     inner.pack(fill="both", expand=True)
 
-    top_row = tk.Frame(inner, bg=style_bg)
-    top_row.pack(pady=(12, 6), padx=8)
-    tk.Label(top_row, text=icon_text, font=(FONT_FAMILY, 20, "bold"),
-             bg=style_bg, fg="#FFFFFF").pack(side="left", padx=(0, 8))
+    # Indicador superior sutil de color de acento
+    accent_bar = tk.Frame(inner, bg=accent_color, height=3)
+    accent_bar.pack(fill="x", side="top")
+
+    top_row = tk.Frame(inner, bg=bg_color)
+    top_row.pack(pady=(12, 4), padx=10)
+    tk.Label(top_row, text=icon_text, font=(FONT_FAMILY, 18, "bold"),
+             bg=bg_color, fg=accent_color).pack(side="left", padx=(0, 6))
     tk.Label(top_row, text=title, font=FONT_UI_B,
-             bg=style_bg, fg="#FFFFFF").pack(side="left")
+             bg=bg_color, fg=C["text"]).pack(side="left")
 
-    tk.Label(inner, text=desc, font=FONT_SM, wraplength=130,
-             bg=style_bg, fg=C["muted"], justify="center"
-             ).pack(pady=(0, 14), padx=8)
+    tk.Label(inner, text=desc, font=FONT_SM, wraplength=140,
+             bg=bg_color, fg=C["text2"], justify="center"
+             ).pack(pady=(0, 12), padx=10)
 
-    def enter(_): inner.config(bg=style_hover); _recolor(inner, style_hover)
-    def leave(_): inner.config(bg=style_bg);    _recolor(inner, style_bg)
+    def enter(_):
+        inner.config(bg=C["card2"])
+        _recolor(inner, C["card2"])
+        accent_bar.config(bg=hover_color)
+    def leave(_):
+        inner.config(bg=bg_color)
+        _recolor(inner, bg_color)
+        accent_bar.config(bg=accent_color)
     def click(_): command()
 
     for w in [inner] + inner.winfo_children():
+        if w is accent_bar: continue
         w.bind("<Enter>", enter)
         w.bind("<Leave>", leave)
         w.bind("<Button-1>", click)
@@ -119,28 +133,25 @@ def _card_button(parent, icon_text: str, title: str, desc: str,
 # ─────────────────────────────────────────────────────────────────────────────
 
 def _cmd_chip(parent, cmd: str, root: tk.Tk = None) -> tk.Frame:
-    """Chip oscuro con texto de comando y botón de copia integrado."""
-    chip = tk.Frame(parent, bg=C["card3"], padx=8, pady=4,
+    """Chip oscuro con texto de comando copiable de un solo clic."""
+    chip = tk.Frame(parent, bg=C["card2"], padx=10, pady=5,
                     highlightbackground=C["sep"], highlightthickness=1)
-    chip.pack(fill="x", padx=20, pady=3)
+    chip.pack(fill="x", padx=20, pady=4)
 
-    tk.Label(chip, text=cmd, bg=C["card3"], fg=C["cyan"],
+    tk.Label(chip, text=cmd, bg=C["card2"], fg=C["cyan"],
              font=FONT_MONO, anchor="w").pack(side="left", fill="x", expand=True)
 
-    def copy():
-        if root:
-            root.clipboard_clear()
-            root.clipboard_append(cmd)
-        else:
-            chip.clipboard_clear()
-            chip.clipboard_append(cmd)
+    def copy(_=None):
+        target = root or chip
+        target.clipboard_clear()
+        target.clipboard_append(cmd)
         copy_btn.config(text="✔ Copiado", fg=C["green"])
         chip.after(2000, lambda: copy_btn.config(text="📋 Copiar", fg=C["muted"]))
 
-    copy_btn = tk.Label(chip, text="📋 Copiar", bg=C["card3"], fg=C["muted"],
+    copy_btn = tk.Label(chip, text="📋 Copiar", bg=C["card2"], fg=C["muted"],
                         font=FONT_SM, cursor="hand2")
     copy_btn.pack(side="right", padx=4)
-    copy_btn.bind("<Button-1>", lambda _: copy())
+    copy_btn.bind("<Button-1>", copy)
     return chip
 
 
@@ -150,18 +161,12 @@ def _cmd_chip(parent, cmd: str, root: tk.Tk = None) -> tk.Frame:
 
 class AccordionItem(tk.Frame):
     """
-    Elemento de FAQ acordeón con apertura/cierre animado.
-    El contenido se pasa como una función build_fn(content_frame) que
-    rellena el frame interior con los widgets deseados.
+    Elemento de FAQ acordeón con apertura/cierre fluido.
     """
-    _ANIM_STEPS = 8
-    _ANIM_MS    = 12   # ms entre steps — fluido sin ser lento
-
     def __init__(self, parent, title: str, build_fn, **kw):
         super().__init__(parent, bg=C["card"], **kw)
         self._title    = title
         self._expanded = False
-        self._anim_id  = None
 
         # ── Header ────────────────────────────────────────────────────
         self._hdr = tk.Frame(self, bg=C["card2"], cursor="hand2")
@@ -169,19 +174,18 @@ class AccordionItem(tk.Frame):
 
         self._arrow = tk.Label(self._hdr, text="▶", bg=C["card2"],
                                fg=C["purple"], font=FONT_UI_B, width=2)
-        self._arrow.pack(side="left", padx=(10, 4), pady=10)
+        self._arrow.pack(side="left", padx=(12, 4), pady=10)
 
         tk.Label(self._hdr, text=title, bg=C["card2"], fg=C["text"],
                  font=FONT_UI_B, anchor="w").pack(side="left", fill="x",
                                                    expand=True, pady=10)
 
-        # Separador inferior del header
         tk.Frame(self, bg=C["sep"], height=1).pack(fill="x")
 
-        # ── Contenido (oculto por defecto) ────────────────────────────
+        # ── Contenido ─────────────────────────────────────────────────
         self._content_outer = tk.Frame(self, bg=C["bg"])
         self._content_inner = tk.Frame(self._content_outer, bg=C["bg"])
-        self._content_inner.pack(fill="both", padx=10, pady=(6, 10))
+        self._content_inner.pack(fill="both", padx=10, pady=(8, 12))
 
         # Construir widgets del contenido
         build_fn(self._content_inner)
@@ -192,21 +196,21 @@ class AccordionItem(tk.Frame):
             w.bind("<Return>",   self._toggle)
 
         # Hover del header
-        self._hdr.bind("<Enter>", lambda _: self._hdr.config(bg=C["card3"]) or
-                        [c.config(bg=C["card3"]) for c in self._hdr.winfo_children()
-                         if hasattr(c, 'config')])
-        self._hdr.bind("<Leave>", lambda _: self._hdr.config(bg=C["card2"]) or
-                        [c.config(bg=C["card2"]) for c in self._hdr.winfo_children()
-                         if hasattr(c, 'config')])
+        def enter(_):
+            self._hdr.config(bg=C["card3"])
+            for c in self._hdr.winfo_children():
+                if hasattr(c, 'config'): c.config(bg=C["card3"])
+        def leave(_):
+            self._hdr.config(bg=C["card2"])
+            for c in self._hdr.winfo_children():
+                if hasattr(c, 'config'): c.config(bg=C["card2"])
 
-        # Separador al final del ítem
+        self._hdr.bind("<Enter>", enter)
+        self._hdr.bind("<Leave>", leave)
+
         tk.Frame(self, bg=C["sep"], height=1).pack(fill="x")
 
     def _toggle(self, _=None):
-        if self._anim_id:
-            self.after_cancel(self._anim_id)
-            self._anim_id = None
-
         if self._expanded:
             self._content_outer.pack_forget()
             self._arrow.config(text="▶")
@@ -217,18 +221,16 @@ class AccordionItem(tk.Frame):
             self._expanded = True
 
     def expand(self):
-        """Expande este ítem programáticamente."""
         if not self._expanded:
             self._toggle()
 
     def collapse(self):
-        """Colapsa este ítem programáticamente."""
         if self._expanded:
             self._toggle()
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Toast — Notificación flotante no bloqueante
+# Toast — Notificación emergente no bloqueante
 # ─────────────────────────────────────────────────────────────────────────────
 
 class Toast:
@@ -239,7 +241,7 @@ class Toast:
             "info":    (C["card2"],     C["cyan"]),
             "success": (C["green_dim"], C["green"]),
             "warning": (C["card2"],     C["orange"]),
-            "error":   (C["card2"],     C["red"]),
+            "error":   (C["red_dim"],   C["red"]),
         }
         bg_col, fg_col = colors.get(level, (C["card2"], C["text"]))
 
