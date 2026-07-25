@@ -138,15 +138,18 @@ def save_config(cfg: dict):
         print(f"Error saving config: {e}")
 
 def find_portable_binaries():
-    """Busca adb y scrcpy primero en la carpeta 'bin' relativa al ejecutable, luego en PATH."""
+    """Busca adb y scrcpy en la carpeta 'bin' relativa al ejecutable, en ~/.config/masv/bin, y en PATH."""
     if getattr(sys, 'frozen', False):
         base_path = sys._MEIPASS
     else:
         base_path = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
-    bin_path = os.path.join(base_path, "bin")
-    adb_path    = shutil.which("adb",    path=bin_path) or shutil.which("adb")
-    scrcpy_path = shutil.which("scrcpy", path=bin_path) or shutil.which("scrcpy")
+    bin_path1 = os.path.join(base_path, "bin")
+    bin_path2 = os.path.join(APP_DIR, "bin")
+    search_path = f"{bin_path1}{os.pathsep}{bin_path2}"
+
+    adb_path    = shutil.which("adb",    path=search_path) or shutil.which("adb")
+    scrcpy_path = shutil.which("scrcpy", path=search_path) or shutil.which("scrcpy")
     return adb_path, scrcpy_path
 
 def parse_ip_port(raw: str):

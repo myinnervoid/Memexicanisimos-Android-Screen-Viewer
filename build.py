@@ -1,18 +1,16 @@
 import os
 import sys
+import tarfile
 import PyInstaller.__main__
 
 def build():
-    print("🚀 Iniciando empaquetado con PyInstaller...")
+    print("🚀 Iniciando empaquetado de MASV con PyInstaller...")
     
-    # Detecta el sistema operativo para añadir los binarios correctos
     plat = sys.platform
     base_dir = os.path.dirname(os.path.abspath(__file__))
     bin_path = os.path.join(base_dir, "bin")
     
-    # Si la carpeta bin existe, la añade al ejecutable como datos
     if os.path.exists(bin_path) and os.listdir(bin_path):
-        # En Windows el separador de paths es ';', en Linux/Mac es ':'
         sep = ';' if plat == 'win32' else ':'
         add_data = f"--add-data={bin_path}{sep}bin"
         print(f"📦 Carpeta 'bin/' detectada. Se incluirá en el ejecutable portátil.")
@@ -25,7 +23,7 @@ def build():
     args = [
         '--onefile',
         '--windowed',
-        '--name=ScrcpyDock',
+        '--name=MASV',
         '--collect-all=pystray',
         '--collect-all=PIL',
         main_script
@@ -36,7 +34,16 @@ def build():
 
     try:
         PyInstaller.__main__.run(args)
-        print("✅ Empaquetado finalizado con éxito. Revisa la carpeta 'dist/'.")
+        dist_dir = os.path.join(base_dir, "dist")
+        bin_file = os.path.join(dist_dir, "MASV" + (".exe" if plat == "win32" else ""))
+        
+        if plat != "win32" and os.path.exists(bin_file):
+            tar_path = os.path.join(dist_dir, "MASV-Linux.tar.gz")
+            with tarfile.open(tar_path, "w:gz") as tar:
+                tar.add(bin_file, arcname="MASV")
+            print(f"📦 Paquete comprimido generado en: {tar_path}")
+            
+        print("✅ Empaquetado de MASV finalizado con éxito en 'dist/'.")
     except Exception as e:
         print(f"❌ Error durante el empaquetado: {e}")
 

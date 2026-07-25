@@ -248,19 +248,28 @@ class UIBuilder:
         tk.Label(self.refs['install_frame'], text="Faltan dependencias: adb y/o scrcpy",
                  bg=C["bg"], fg=C["text"], font=FONT_LG).pack()
         tk.Label(self.refs['install_frame'],
-                 text="Para instalarlas en Debian/Ubuntu ejecuta en la terminal:",
-                 bg=C["bg"], fg=C["muted"], font=FONT_UI).pack(pady=(8, 4))
-        cmd_f = tk.Frame(self.refs['install_frame'], bg=C["card2"], padx=12, pady=8)
+                 text="MASV puede instalar automáticamente el núcleo sin necesidad de abrir la terminal:",
+                 bg=C["bg"], fg=C["muted"], font=FONT_UI).pack(pady=(8, 6))
+
+        btn_auto = tk.Button(self.refs['install_frame'], text="🚀  Instalar núcleo automáticamente (1-Clic)",
+                             bg=C["green"], fg="#FFFFFF", font=(FONT_FAMILY, 11, "bold"),
+                             relief="flat", bd=0, padx=20, pady=10, cursor="hand2",
+                             command=self.cb.get('auto_install_deps'))
+        btn_auto.pack(pady=(4, 12))
+        Tooltip(btn_auto, "Descarga e instala scrcpy y adb automáticamente sin abrir consolas.")
+
+        cmd_f = tk.Frame(self.refs['install_frame'], bg=C["card2"], padx=12, pady=6)
         cmd_f.pack()
-        tk.Label(cmd_f, text="sudo apt install adb scrcpy", bg=C["card2"],
-                 fg=C["cyan"], font=FONT_MONO).pack()
+        tk.Label(cmd_f, text="Instalación manual (opcional): sudo apt install adb scrcpy", bg=C["card2"],
+                 fg=C["muted"], font=FONT_SM).pack()
+
         btns_i = tk.Frame(self.refs['install_frame'], bg=C["bg"])
-        btns_i.pack(pady=16)
+        btns_i.pack(pady=12)
         tk.Button(btns_i, text="📋  Copiar comando", bg=C["blue"], fg="#FFF",
-                  font=FONT_UI_B, relief="flat", bd=0, padx=14, pady=8,
+                  font=FONT_UI_B, relief="flat", bd=0, padx=14, pady=6,
                   command=self.cb.get('copy_install_cmd')).pack(side="left", padx=8)
-        tk.Button(btns_i, text="🖥  Abrir terminal e instalar", bg=C["sep"], fg=C["text"],
-                  font=FONT_UI_B, relief="flat", bd=0, padx=14, pady=8,
+        tk.Button(btns_i, text="🖥  Abrir terminal", bg=C["sep"], fg=C["text"],
+                  font=FONT_UI_B, relief="flat", bd=0, padx=14, pady=6,
                   command=self.cb.get('open_terminal_install')).pack(side="left", padx=8)
 
         # ── Contenido principal ──────────────────────────────────────

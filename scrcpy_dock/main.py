@@ -50,6 +50,7 @@ class ScrcpyDockApp:
             pass
 
         self.cb = {
+            'auto_install_deps':     self._auto_install_deps,
             'copy_install_cmd':      self._copy_install_cmd,
             'open_terminal_install': self._open_terminal_install,
             'refresh_devices':       self._refresh_devices,
@@ -216,7 +217,7 @@ class ScrcpyDockApp:
         self._status_lbl = tk.Label(bar, text="Iniciando…", bg=C["card2"],
                                     fg=C["muted"], font=FONT_SM, anchor="w")
         self._status_lbl.pack(side="left", padx=14, pady=4)
-        tk.Label(bar, text=f"v1.0  |  Ctrl+H → Ayuda  |  Ctrl+Q → Salir",
+        tk.Label(bar, text=f"v1.1  |  Ctrl+H → Ayuda  |  Ctrl+Q → Salir",
                  bg=C["card2"], fg=C["muted"], font=FONT_SM).pack(side="right", padx=14)
 
         self.ui.refs['profile_listbox'].bind("<<ListboxSelect>>", self._on_profile_listbox_sel)
@@ -256,6 +257,57 @@ class ScrcpyDockApp:
             self.ui.refs['install_frame'].pack_forget()
             self.ui.refs['dep_frame'].pack(fill="both", expand=True)
             self.root.after(700, self._check_v4l2)
+
+    def _auto_install_deps(self):
+        """Instala automáticamente scrcpy y adb sin requerir comandos manuales en la terminal."""
+        import urllib.request, zipfile, shutil
+        from .utils import APP_DIR, find_portable_binaries
+        target_bin_dir = os.path.join(APP_DIR, "bin")
+        os.makedirs(target_bin_dir, exist_ok=True)
+
+        Toast(self.root, "Iniciando descarga e instalación automática de scrcpy...", "info", duration=5000)
+
+        def task():
+            try:
+                if _PLAT == "win32":
+                    r = subprocess.run(["winget", "install", "Genymobile.scrcpy", "--silent", "--accept-source-agreements", "--accept-package-agreements"], capture_output=True, text=True)
+                    if r.returncode != 0:
+                        url = "https://github.com/Genymobile/scrcpy/releases/download/v2.4/scrcpy-win64-v2.4.zip"
+                        zip_path = os.path.join(APP_DIR, "scrcpy_temp.zip")
+                        urllib.request.urlretrieve(url, zip_path)
+                        with zipfile.ZipFile(zip_path, 'r') as zip_ref:
+                            for member in zip_ref.namelist():
+                                filename = os.path.basename(member)
+                                if not filename: continue
+                                source = zip_ref.open(member)
+                                target = open(os.path.join(target_bin_dir, filename), "wb")
+                                with source, target:
+                                    shutil.copyfileobj(source, target)
+                        if os.path.exists(zip_path):
+                            os.remove(zip_path)
+                else:
+                    subprocess.run(["pkexec", "apt-get", "install", "-y", "adb", "scrcpy"])
+
+                adb_path, scrcpy_path = find_portable_binaries()
+                if adb_path and scrcpy_path:
+                    self.ctx.adb = adb_path
+                    self.ctx.scrcpy = scrcpy_path
+                    self.root.after(0, self._on_deps_installed_success)
+                else:
+                    self.root.after(0, lambda: Toast(self.root, "No se pudo completar la instalación automática.", "error"))
+            except Exception as e:
+                self.root.after(0, lambda: Toast(self.root, f"Error en instalación: {e}", "error"))
+
+        threading.Thread(target=task, daemon=True).start()
+
+    def _on_deps_installed_success(self):
+        if 'install_frame' in self.ui.refs:
+            self.ui.refs['install_frame'].pack_forget()
+        if 'dep_frame' in self.ui.refs:
+            self.ui.refs['dep_frame'].pack(fill="both", expand=True)
+        self._dep_lbl.config(text="✔  ADB + scrcpy OK", fg=C["green"])
+        Toast(self.root, "¡scrcpy y adb instalados con éxito! Ya puedes conectar tu teléfono.", "success", duration=5000)
+        self._refresh_devices()
 
     def _copy_install_cmd(self):
         self.root.clipboard_clear()

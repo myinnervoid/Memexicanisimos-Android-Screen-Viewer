@@ -45,6 +45,16 @@ jobs:
           python -m pip install --upgrade pip
           pip install pyinstaller pystray Pillow
 
+      - name: Download Portable scrcpy for Windows (1-Click Standalone Bundle)
+        if: runner.os == 'Windows'
+        shell: powershell
+        run: |
+          mkdir -Force bin
+          curl.exe -L -o scrcpy-win64.zip https://github.com/Genymobile/scrcpy/releases/download/v2.4/scrcpy-win64-v2.4.zip
+          Expand-Archive -Path scrcpy-win64.zip -DestinationPath scrcpy_temp -Force
+          Get-ChildItem -Path scrcpy_temp\scrcpy-win64-v2.4\* | Move-Item -Destination bin\ -Force
+          Remove-Item -Recurse -Force scrcpy_temp scrcpy-win64.zip
+
       - name: Build Executable
         run: python build.py
 
@@ -83,13 +93,12 @@ jobs:
           body: |
             ## MASV — Memexicanisimos Android Screen Viewer ${{ github.ref_name }}
 
-            ### Descargas
+            ### 🚀 Descargas Directas Listo para Usar (1-Clic)
 
-            | Sistema | Archivo |
-            |---------|---------|
-            | 🐧 Linux | `MASV-Linux.tar.gz` |
-            | 🪟 Windows | `MASV-Windows.exe` |
-            | 🍎 macOS | `MASV-macOS` |
+            | Sistema | Archivo | Detalles |
+            |---------|---------|----------|
+            | 🪟 **Windows** | `MASV-Windows.exe` | **100% Standalone (Incluye scrcpy y adb integrados en el ejecutable, cero instalación previa)** |
+            | 🐧 **Linux** | `MASV-Linux.tar.gz` | Paquete ejecutable para distros Debian/Ubuntu/Arch/Fedora |
+            | 🍎 **macOS** | `MASV-macOS` | Binario para macOS Monterey o superior |
 
-            > **Requisito**: `adb` y `scrcpy` instalados en el sistema.
-            > Consulta el [README](README.md) para más información.
+            > ✨ **Nota para Windows**: El ejecutable para Windows ya viene con todo el núcleo integrado. Solo haz doble clic y comenzará a funcionar inmediatamente.
