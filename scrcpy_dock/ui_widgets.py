@@ -308,6 +308,8 @@ class ProfileChipsView(tk.Frame):
             ("☀️ Despierto",   "Sí" if p.get('stay_awake') else "No",
              C["green"] if p.get('stay_awake') else C["muted"]),
         ]
+        if p.get("no_video") or "--no-video" in p.get("extra_args",""):
+            chips_data.append(("🎙️ Solo Audio", "Sí", C["orange"]))
         if p.get("force_screen_off_keyevent"):
             chips_data.append(("🔑 EMUI Keyevent", "Sí", C["orange"]))
         if p.get("extra_args"):
@@ -329,17 +331,18 @@ class ProfileChipsView(tk.Frame):
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# ProfileWizard — Asistente paso a paso de creación de perfiles
+# ProfileWizard — Asistente paso a paso de creación de perfiles (7 Pasos)
 # ─────────────────────────────────────────────────────────────────────────────
 
 class ProfileWizard(tk.Toplevel):
     STEPS = [
         ("📝", "Nombre del perfil",   "Elige un nombre descriptivo para identificar este perfil fácilmente."),
-        ("🎯", "¿Qué quieres hacer?", "Selecciona el caso de uso principal. Esto preseleccionará los ajustes óptimos."),
-        ("🖼️", "Calidad de imagen",   "Define la resolución y la velocidad de bits del vídeo.\nMayor calidad = más consumo de CPU y batería."),
-        ("🔊", "Fuente de audio",     "Elige qué audio se captura desde el teléfono."),
-        ("🔋", "Opciones de batería", "Controla el comportamiento de la pantalla del teléfono durante la sesión."),
-        ("✅", "Resumen",             "Revisa la configuración y guarda el perfil."),
+        ("🎯", "¿Qué quieres hacer?", "Selecciona un caso de uso predefinido o personaliza cada ajuste."),
+        ("🖼️", "Calidad de imagen",   "Define la resolución, fotogramas por segundo, bitrate y códec de vídeo."),
+        ("🔊", "Fuente de audio",     "Configura la captura de sonido del sistema, micrófono o modo solo audio."),
+        ("🔋", "Opciones de batería", "Controla el apagado de pantalla y suspensión durante la transmisión."),
+        ("🧩", "Ajustes avanzados",   "ID de cámara trasera y argumentos adicionales para el comando scrcpy."),
+        ("✅", "Resumen",             "Revisa toda la configuración antes de guardar el perfil."),
     ]
 
     PRESETS = {
@@ -347,33 +350,33 @@ class ProfileWizard(tk.Toplevel):
             "bitrate": "16M", "max_size": "1920", "max_fps": "60",
             "audio_source": "playback", "video_codec": "h264",
             "turn_screen_off": False, "stay_awake": True,
-            "force_screen_off_keyevent": False, "extra_args": "",
+            "force_screen_off_keyevent": False, "no_video": False, "extra_args": "",
         },
         "📡 Stream con OBS (solo audio mic)": {
             "bitrate": "4M", "max_size": "1080", "max_fps": "30",
             "audio_source": "mic", "video_codec": "h264",
             "turn_screen_off": True, "stay_awake": True,
-            "force_screen_off_keyevent": True, "extra_args": "--no-video",
+            "force_screen_off_keyevent": True, "no_video": True, "extra_args": "--no-video",
         },
         "📷 Usar cámara trasera como webcam": {
             "bitrate": "12M", "max_size": "1920", "max_fps": "30",
             "audio_source": "mic", "video_codec": "h264",
             "turn_screen_off": False, "stay_awake": True,
-            "force_screen_off_keyevent": False,
+            "force_screen_off_keyevent": False, "no_video": False,
             "extra_args": "--video-source=camera --camera-id 0",
         },
         "⚡ Espejo ligero (bajo consumo)": {
             "bitrate": "4M", "max_size": "720", "max_fps": "30",
             "audio_source": "playback", "video_codec": "h264",
             "turn_screen_off": False, "stay_awake": True,
-            "force_screen_off_keyevent": False, "extra_args": "",
+            "force_screen_off_keyevent": False, "no_video": False, "extra_args": "",
         },
     }
 
     def __init__(self, parent, on_save_callback):
         super().__init__(parent)
         self.title("Asistente de nuevo perfil — MASV")
-        self.geometry("580x540")
+        self.geometry("600x560")
         self.resizable(False, False)
         self.configure(bg=C["bg"])
         self.grab_set()
@@ -384,7 +387,7 @@ class ProfileWizard(tk.Toplevel):
             "name": "", "bitrate": "8M", "max_size": "1080", "max_fps": "60",
             "audio_source": "playback", "video_codec": "h264", "camera_id": "0",
             "turn_screen_off": True, "stay_awake": True,
-            "force_screen_off_keyevent": False, "extra_args": "",
+            "force_screen_off_keyevent": False, "no_video": False, "extra_args": "",
         }
         self._build()
         self._show_step(0)
@@ -400,7 +403,7 @@ class ProfileWizard(tk.Toplevel):
         self._step_lbl = tk.Label(right_top, text="", bg=C["card"], fg=C["purple"], font=FONT_LG, anchor="w")
         self._step_lbl.pack(anchor="w", padx=4, pady=(8, 0))
         self._desc_lbl = tk.Label(right_top, text="", bg=C["card"], fg=C["muted"],
-                                   font=FONT_SM, anchor="w", wraplength=370, justify="left")
+                                   font=FONT_SM, anchor="w", wraplength=380, justify="left")
         self._desc_lbl.pack(anchor="w", padx=4)
 
         self._prog_frame = tk.Frame(top, bg=C["card"])
@@ -472,16 +475,26 @@ class ProfileWizard(tk.Toplevel):
             self._data["video_codec"] = self._codec_var.get()
         elif step == 3:
             self._data["audio_source"] = self._audio_var.get()
+            self._data["no_video"]     = self._novideo_var.get()
+            if self._usemic_var.get():
+                self._data["audio_source"] = "mic"
         elif step == 4:
             self._data["turn_screen_off"]          = self._scroff_var.get()
             self._data["stay_awake"]               = self._awake_var.get()
             self._data["force_screen_off_keyevent"] = self._kev_var.get()
+        elif step == 5:
+            self._data["camera_id"]  = self._camid_var.get()
+            self._data["extra_args"] = self._extra_var.get().strip()
         return True
 
     def _finish(self):
         self._collect_step(self._step)
-        self._cb(self._data)
+        if self._data.get("no_video"):
+            args = self._data.get("extra_args", "").strip()
+            if "--no-video" not in args:
+                self._data["extra_args"] = (args + " --no-video").strip()
         self.destroy()
+        self._cb(self._data)
 
     def _step_0(self):
         tk.Label(self._content, text="Nombre del perfil:", bg=C["bg"],
@@ -523,19 +536,44 @@ class ProfileWizard(tk.Toplevel):
         pair("Códec de vídeo:",    self._codec_var, ["h264","h265","av1"])
 
     def _step_3(self):
-        self._audio_var = tk.StringVar(value=self._data["audio_source"])
+        self._audio_var   = tk.StringVar(value=self._data.get("audio_source", "playback"))
+        self._novideo_var = tk.BooleanVar(value=self._data.get("no_video", False))
+        self._usemic_var  = tk.BooleanVar(value=(self._data.get("audio_source") == "mic"))
+
+        tk.Label(self._content, text="Selecciona la fuente de audio:",
+                 bg=C["bg"], fg=C["text2"], font=FONT_UI_B).pack(anchor="w", pady=(4, 6))
+
         for emoji_lbl, val, tip in [
-            ("🔈 playback", "playback", "Audio del sistema del teléfono."),
-            ("🎤 Micrófono","mic",      "Micrófono físico. Ideal para Huawei con --no-video."),
-            ("🔇 Sin audio","no-audio", "Solo vídeo, sin captura de audio."),
+            ("🔈 playback (sistema)", "playback", "Audio del sistema interno del teléfono."),
+            ("🎤 mic (micrófono)",     "mic",      "Micrófono físico del teléfono."),
+            ("📻 system (sonido)",     "system",   "Audio directo del sistema Android."),
+            ("🔇 none (sin audio)",    "none",     "Solo transmisión de vídeo, sin captura de audio."),
         ]:
-            f = tk.Frame(self._content, bg=C["card"], pady=8, padx=12)
-            f.pack(fill="x", pady=5)
+            f = tk.Frame(self._content, bg=C["card"], pady=5, padx=10)
+            f.pack(fill="x", pady=3)
             tk.Radiobutton(f, text=f"  {emoji_lbl}", variable=self._audio_var, value=val,
                            bg=C["card"], fg=C["text"], selectcolor=C["blue"],
                            activebackground=C["card"], font=FONT_UI_B, anchor="w").pack(side="left")
             tk.Label(f, text=tip, bg=C["card"], fg=C["muted"],
-                     font=FONT_SM, justify="left", wraplength=280).pack(side="left", padx=12)
+                     font=FONT_SM, justify="left", wraplength=320).pack(side="left", padx=10)
+
+        _sep(self._content, C["sep"])
+
+        f_extra = tk.Frame(self._content, bg=C["card"], pady=6, padx=10)
+        f_extra.pack(fill="x", pady=4)
+        tk.Checkbutton(f_extra, text=" 🚫 Solo audio (sin video --no-video)", variable=self._novideo_var,
+                       bg=C["card"], fg=C["text"], selectcolor=C["card2"],
+                       activebackground=C["card"], font=FONT_UI_B).pack(anchor="w")
+        Tooltip(f_extra, "Transmite únicamente el sonido del teléfono sin abrir la ventana de vídeo.")
+
+        f_mic = tk.Frame(self._content, bg=C["card"], pady=6, padx=10)
+        f_mic.pack(fill="x", pady=2)
+        def _on_mic_toggle():
+            if self._usemic_var.get():
+                self._audio_var.set("mic")
+        tk.Checkbutton(f_mic, text=" 🎤 Usar micrófono como entrada de audio principal", variable=self._usemic_var,
+                       command=_on_mic_toggle, bg=C["card"], fg=C["text"], selectcolor=C["card2"],
+                       activebackground=C["card"], font=FONT_UI_B).pack(anchor="w")
 
     def _step_4(self):
         self._scroff_var = tk.BooleanVar(value=self._data["turn_screen_off"])
@@ -556,27 +594,44 @@ class ProfileWizard(tk.Toplevel):
                      font=FONT_SM, wraplength=280).pack(side="left", padx=10)
 
     def _step_5(self):
-        self._collect_step(4)
+        tk.Label(self._content, text="ID de Cámara trasera (para webcam):",
+                 bg=C["bg"], fg=C["text2"], font=FONT_UI_B).pack(anchor="w", pady=(8, 4))
+        self._camid_var = tk.StringVar(value=self._data.get("camera_id", "0"))
+        cb_cam = ttk.Combobox(self._content, textvariable=self._camid_var, values=["0", "1", "2"], width=8, state="readonly")
+        cb_cam.pack(anchor="w", padx=4, pady=(0, 10))
+
+        tk.Label(self._content, text="Argumentos adicionales de scrcpy (extra_args):",
+                 bg=C["bg"], fg=C["text2"], font=FONT_UI_B).pack(anchor="w", pady=(8, 4))
+        self._extra_var = tk.StringVar(value=self._data.get("extra_args", ""))
+        e_extra = ttk.Entry(self._content, textvariable=self._extra_var, width=42, font=FONT_MONO)
+        e_extra.pack(anchor="w", padx=4)
+        tk.Label(self._content, text="Ejemplos: '--no-control', '--max-fps 30', '--no-audio'",
+                 bg=C["bg"], fg=C["muted"], font=FONT_SM).pack(anchor="w", padx=4, pady=(4, 0))
+
+    def _step_6(self):
+        self._collect_step(5)
         d = self._data
         lines = [
-            f"  Nombre    : {d['name']}",
-            f"  Bitrate   : {d['bitrate']}",
-            f"  Resolución: {d['max_size']}p",
-            f"  FPS máx   : {d['max_fps']}",
-            f"  Códec     : {d['video_codec']}",
-            f"  Audio     : {d['audio_source']}",
+            f"  Nombre           : {d['name']}",
+            f"  Bitrate          : {d['bitrate']}",
+            f"  Resolución       : {d['max_size']}p",
+            f"  FPS máx          : {d['max_fps']}",
+            f"  Códec            : {d['video_codec']}",
+            f"  Audio            : {d['audio_source']}",
+            f"  Solo Audio       : {'Sí' if d.get('no_video') else 'No'}",
             f"  Pantalla apagada : {'Sí' if d['turn_screen_off'] else 'No'}",
             f"  Despierto        : {'Sí' if d['stay_awake'] else 'No'}",
+            f"  Cámara ID        : {d.get('camera_id','0')}",
             f"  Keyevent EMUI    : {'Sí' if d['force_screen_off_keyevent'] else 'No'}",
         ]
         if d.get("extra_args"):
-            lines.append(f"  Args extra: {d['extra_args']}")
+            lines.append(f"  Args extra       : {d['extra_args']}")
         tk.Label(self._content, text="Perfil listo para guardar:", bg=C["bg"],
-                 fg=C["text2"], font=FONT_UI_B).pack(anchor="w", pady=(8,4))
+                 fg=C["text2"], font=FONT_UI_B).pack(anchor="w", pady=(6, 4))
         box = tk.Text(self._content, bg=C["card2"], fg=C["text"], font=FONT_MONO,
-                      height=10, relief="flat", bd=0, state="normal", wrap="word")
+                      height=11, relief="flat", bd=0, state="normal", wrap="word")
         box.insert("1.0", "\n".join(lines))
         box.config(state="disabled")
         box.pack(fill="both", expand=True, pady=4)
         tk.Label(self._content, text="✔  Pulsa 'Guardar perfil' para finalizar.",
-                 bg=C["bg"], fg=C["green"], font=FONT_UI_B).pack(pady=(6,0))
+                 bg=C["bg"], fg=C["green"], font=FONT_UI_B).pack(pady=(4, 0))

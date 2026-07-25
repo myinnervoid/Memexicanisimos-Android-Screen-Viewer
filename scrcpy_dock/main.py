@@ -67,6 +67,7 @@ class ScrcpyDockApp:
             'open_wizard':             self._open_wizard,
             'delete_profile':          self._delete_profile,
             'on_active_profile_change':self._on_active_profile_change,
+            'start_profile':           self._start_profile,
 
             'toggle_scene':     self._toggle_scene,
             'stop_current':     self._stop_current,
@@ -619,6 +620,7 @@ class ScrcpyDockApp:
 
     def _open_wizard(self):
         from .utils import save_config
+        from .ui_widgets import Toast
         def on_save(data: dict):
             name = data.pop("name")
             self.ctx.cfg["profiles"][name] = data
@@ -630,9 +632,27 @@ class ScrcpyDockApp:
             self.ctx.active_profile.set(name)
             self.ctx.save_current_config()
             self.ctx.log("OK", f"Perfil '{name}' creado desde el asistente.")
-            messagebox.showinfo("Perfil guardado ✔", f"El perfil '{name}' fue creado correctamente.")
+            Toast(self.root, f"Perfil '{name}' creado correctamente.", "success")
         from .ui_widgets import ProfileWizard
         ProfileWizard(self.root, on_save)
+
+    def _start_profile(self):
+        """Selecciona el perfil resaltado e inicia la transmisión inmediatamente."""
+        listbox = self.ui.refs.get('profile_listbox')
+        if not listbox: return
+        sel = listbox.curselection()
+        if not sel:
+            messagebox.showwarning("Seleccionar perfil", "Selecciona un perfil en la lista primero.")
+            return
+        name = listbox.get(sel[0]).strip()
+        
+        if not self.ctx.active_device_serial:
+            Toast(self.root, "Selecciona un dispositivo en la pestaña Dispositivo.", "warning")
+            self._nb.select(2)  # Pestaña Dispositivo (índice 2)
+            return
+
+        self._on_profile_listbox_sel()
+        self._toggle_scene()
 
     def _delete_profile(self):
         from .utils import save_config

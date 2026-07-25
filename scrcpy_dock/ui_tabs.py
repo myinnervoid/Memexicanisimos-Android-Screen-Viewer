@@ -140,7 +140,7 @@ class UIBuilder:
 
 
     # ─────────────────────────────────────────────────────────────────
-    # Pestaña 2: Controles Remotos y APK (NUEVA PESTAÑA DEDICADA)
+    # Pestaña 2: Controles Remotos y APK (PESTAÑA DEDICADA)
     # ─────────────────────────────────────────────────────────────────
 
     def build_tab_controls(self, parent):
@@ -161,6 +161,24 @@ class UIBuilder:
 
         # ── 1. Mando de Controles del Hardware & Navegación ──────────
         c_sec = _section(inner, "🎮  Mando de Control Remoto (ADB Keyevents)", pady=(12, 8))
+
+        # ── Indicador compacto de Dispositivo & Perfil activo ─────────────
+        info_f = tk.Frame(c_sec, bg=C["card"], padx=12, pady=4)
+        info_f.pack(fill="x", padx=12, pady=(2, 8))
+
+        d_box = tk.Frame(info_f, bg=C["card"])
+        d_box.pack(side="left")
+        tk.Label(d_box, text="Dispositivo:", bg=C["card"], fg=C["muted"], font=FONT_SM).pack(side="left", padx=(0, 4))
+        self.refs['ctrl_device_lbl'] = tk.Label(d_box, textvariable=self.ctx.active_device,
+                                                bg=C["card"], fg=C["green"], font=FONT_UI_B)
+        self.refs['ctrl_device_lbl'].pack(side="left")
+
+        p_box = tk.Frame(info_f, bg=C["card"])
+        p_box.pack(side="right")
+        tk.Label(p_box, text="Perfil:", bg=C["card"], fg=C["muted"], font=FONT_SM).pack(side="left", padx=(0, 4))
+        self.refs['ctrl_profile_lbl'] = tk.Label(p_box, textvariable=self.ctx.active_profile,
+                                                 bg=C["card"], fg=C["cyan"], font=FONT_UI_B)
+        self.refs['ctrl_profile_lbl'].pack(side="left")
 
         tk.Label(c_sec, text="Envía señales directas de hardware y navegación al dispositivo activo sin necesidad de tocar la pantalla.",
                  bg=C["card"], fg=C["muted"], font=FONT_SM, wraplength=700, justify="left").pack(anchor="w", padx=12, pady=(4, 10))
@@ -371,10 +389,15 @@ class UIBuilder:
         tk.Label(ar, text="Perfil:", bg=C["card"], fg=C["muted"],
                  font=FONT_SM).pack(side="left", padx=(0, 6))
         self.refs['active_profile_combo'] = ttk.Combobox(
-            ar, textvariable=self.ctx.active_profile, state="readonly", width=28)
+            ar, textvariable=self.ctx.active_profile, state="readonly", width=24)
         self.refs['active_profile_combo'].pack(side="left")
         self.refs['active_profile_combo'].bind("<<ComboboxSelected>>",
                                               self.cb.get('on_active_profile_change'))
+
+        btn_start_prof = ttk.Button(ar, text="▶  Iniciar transmisión con este perfil",
+                                    command=self.cb.get('start_profile'), style="Primary.TButton")
+        btn_start_prof.pack(side="right", padx=(8, 0))
+        Tooltip(btn_start_prof, "Activa este perfil y lanza la sesión inmediatamente con el dispositivo seleccionado.")
 
         self.refs['assoc_lbl'] = tk.Label(p, text="", bg=C["bg"],
                                          fg=C["muted"], font=FONT_SM)
@@ -464,7 +487,7 @@ class UIBuilder:
             item.pack(fill="x", padx=12, pady=(0, 2))
             self._faq_items.append(item)
 
-        # ── 1. Inicio rápido ─────────────────────────────────────────
+        # ── 0. Inicio rápido ─────────────────────────────────────────
         def _faq_quickstart(f):
             steps = [
                 "1. Conecta tu teléfono con un cable USB de datos.",
@@ -480,7 +503,7 @@ class UIBuilder:
 
         _add("🚀  Inicio rápido — primeros pasos", _faq_quickstart)
 
-        # ── 2. Depuración USB ─────────────────────────────────────────
+        # ── 1. Depuración USB ─────────────────────────────────────────
         def _faq_usb_debug(f):
             tk.Label(f, text="Paso 1 — Activa las Opciones de desarrollador:",
                      bg=C["bg"], fg=C["text2"], font=FONT_UI_B, anchor="w").pack(fill="x", padx=20, pady=(4, 2))
@@ -503,7 +526,7 @@ class UIBuilder:
 
         _add("🔌  Cómo habilitar la Depuración USB en Android", _faq_usb_debug)
 
-        # ── 3. Dispositivo no detectado ───────────────────────────────
+        # ── 2. Dispositivo no detectado ───────────────────────────────
         def _faq_not_found(f):
             tk.Label(f, text="Si tu dispositivo no aparece o dice 'unauthorized':", bg=C["bg"], fg=C["text2"], font=FONT_UI_B).pack(anchor="w", padx=20, pady=4)
             _cmd_chip(f, "adb kill-server", root_ref)
@@ -512,7 +535,7 @@ class UIBuilder:
 
         _add("⚠️  El dispositivo no aparece o dice 'no autorizado'", _faq_not_found)
 
-        # ── 4. Dependencias ───────────────────────────────────────────
+        # ── 3. Dependencias ───────────────────────────────────────────
         def _faq_deps(f):
             for os_name, cmds in [
                 ("🐧 Linux (Debian / Ubuntu):", ["sudo apt update", "sudo apt install adb scrcpy"]),
@@ -524,7 +547,7 @@ class UIBuilder:
 
         _add("📦  Dependencias necesarias (adb y scrcpy)", _faq_deps)
 
-        # ── 5. WiFi ───────────────────────────────────────────────────
+        # ── 4. WiFi ───────────────────────────────────────────────────
         def _faq_wifi(f):
             steps = [
                 "1. Conecta el teléfono por USB una vez.",
@@ -539,7 +562,7 @@ class UIBuilder:
 
         _add("📡  Conexión por WiFi (ADB inalámbrico)", _faq_wifi)
 
-        # ── 6. SECCIÓN DEDICADA: WEBCAM VIRTUAL (V4L2LOOPBACK) ────────
+        # ── 5. SECCIÓN DEDICADA: WEBCAM VIRTUAL (V4L2LOOPBACK) ────────
         def _faq_v4l2(f):
             tk.Label(f, text="¿Qué es y para qué sirve?", bg=C["bg"], fg=C["cyan"], font=FONT_UI_B).pack(anchor="w", padx=20, pady=(4, 2))
             tk.Label(f, text="La función Webcam Virtual te permite transmitir la cámara de tu teléfono Android como una cámara de vídeo nativa (/dev/video9) en Linux. Esto permite usar tu celular como cámara de alta definición en OBS Studio, Discord, Zoom o Google Meet sin lags ni marcas de agua.",
@@ -565,7 +588,7 @@ class UIBuilder:
 
         _add("📷  Cámara Virtual v4l2loopback (Linux)", _faq_v4l2)
 
-        # ── 7. Perfiles ───────────────────────────────────────────────
+        # ── 6. Perfiles ───────────────────────────────────────────────
         def _faq_profiles(f):
             for param, desc in [
                 ("Bitrate", "Velocidad de datos. 4M = liviano, 16M = alta calidad para juegos."),
@@ -579,7 +602,7 @@ class UIBuilder:
 
         _add("⚙️  Perfiles y configuraciones — qué significan", _faq_profiles)
 
-        # ── 8. Atajos Nativo Scrcpy ───────────────────────────────────
+        # ── 7. Atajos Nativo Scrcpy ───────────────────────────────────
         def _faq_scrcpy_keys(f):
             for combo, desc in [
                 ("Alt + Up / MOD + u", "🔊 Subir volumen"),
@@ -601,7 +624,71 @@ class UIBuilder:
 
         _add("⌨️  Atajos nativos de scrcpy (control por teclado)", _faq_scrcpy_keys)
 
-        # ── 9. Problemas Comunes ──────────────────────────────────────
+        # ── 8. NUEVO FAQ: Controles Remotos (Mando) ───────────────────
+        def _faq_controls(f):
+            tk.Label(f, text="¿Cómo funcionan los controles remotos?", bg=C["bg"], fg=C["cyan"], font=FONT_UI_B).pack(anchor="w", padx=20, pady=(4, 2))
+            tk.Label(f, text="Desde la pestaña 🎮 Controles puedes enviar señales directas de hardware y comandos de navegación a tu dispositivo Android sin necesidad de tocar la pantalla física.",
+                     bg=C["bg"], fg=C["text2"], font=FONT_UI, wraplength=680, justify="left").pack(anchor="w", padx=20, pady=(0, 6))
+
+            tk.Label(f, text="Agrupación de botones disponibles:", bg=C["bg"], fg=C["text2"], font=FONT_UI_B).pack(anchor="w", padx=20, pady=(4, 2))
+            groups = [
+                ("🔊 Audio", "Vol+ (subir volumen), Vol- (bajar volumen), Silenciar (mute instantáneo)."),
+                ("⚡ Pantalla", "Encender/Apagar (señal Power) y Notificaciones (desplegar barra de estado)."),
+                ("🧭 Navegación", "Inicio (pantalla principal), Volver (Atrás), Recientes (selector de apps)."),
+            ]
+            for title, desc in groups:
+                r = tk.Frame(f, bg=C["card"], padx=10, pady=4)
+                r.pack(fill="x", padx=20, pady=2)
+                tk.Label(r, text=title, bg=C["card"], fg=C["purple"], font=FONT_UI_B, width=14, anchor="w").pack(side="left")
+                tk.Label(r, text=desc, bg=C["card"], fg=C["text2"], font=FONT_SM, wraplength=520, justify="left").pack(side="left")
+
+            tk.Label(f, text="⚠️ Requisito: Debes tener un dispositivo activo seleccionado en la pestaña 📱 Dispositivo para enviar los comandos.",
+                     bg=C["bg"], fg=C["orange"], font=FONT_SM, wraplength=680, justify="left").pack(anchor="w", padx=20, pady=(6, 4))
+
+        _add("🎮  Controles Remotos (Mando)", _faq_controls)
+
+        # ── 9. NUEVO FAQ: Instalación de APKs ─────────────────────────
+        def _faq_apks(f):
+            tk.Label(f, text="Existen dos métodos sencillos para instalar aplicaciones (.apk) en tu teléfono:",
+                     bg=C["bg"], fg=C["text2"], font=FONT_UI, wraplength=680, justify="left").pack(anchor="w", padx=20, pady=(4, 6))
+
+            methods = [
+                ("a) Botón de instalación en la app:", "Ve a la pestaña 🎮 Controles y pulsa '📦 Seleccionar e Instalar APK…'. Abre el explorador de archivos, elige el archivo .apk y MASV lo instalará vía ADB."),
+                ("b) Arrastrar y soltar en scrcpy:", "Durante una transmisión activa, arrastra el archivo .apk desde tu explorador de archivos directamente sobre la ventana de vídeo de scrcpy."),
+            ]
+            for title, desc in methods:
+                r = tk.Frame(f, bg=C["card"], padx=12, pady=6)
+                r.pack(fill="x", padx=20, pady=3)
+                tk.Label(r, text=title, bg=C["card"], fg=C["green"], font=FONT_UI_B).pack(anchor="w")
+                tk.Label(r, text=desc, bg=C["card"], fg=C["text2"], font=FONT_SM, wraplength=640, justify="left").pack(anchor="w", pady=(2, 0))
+
+            tk.Label(f, text="Comando equivalente manual en terminal:", bg=C["bg"], fg=C["muted"], font=FONT_SM).pack(anchor="w", padx=20, pady=(6, 0))
+            _cmd_chip(f, "adb install -r nombre.apk", root_ref)
+
+        _add("📦  Instalación de APKs", _faq_apks)
+
+        # ── 10. NUEVO FAQ: Atajos de la aplicación MASV ───────────────
+        def _faq_masv_keys(f):
+            tk.Label(f, text="Atajos globales y combinaciones de teclado dentro de MASV:",
+                     bg=C["bg"], fg=C["muted"], font=FONT_SM, anchor="w").pack(fill="x", padx=20, pady=(2, 6))
+
+            masv_shortcuts = [
+                ("Ctrl + I", "🚀 Iniciar / Detener transmisión activa"),
+                ("Ctrl + R", "🔄 Buscar y refrescar dispositivos conectados"),
+                ("Ctrl + H", "❓ Abrir pestaña de Ayuda y FAQ"),
+                ("Ctrl + Q", "❌ Salir de la aplicación"),
+                ("Supr (Delete)", "✕ Detener la sesión seleccionada en la tabla"),
+                ("Clic derecho (tabla)", "📋 Menú contextual: copiar serial, copiar comando, forzar cierre"),
+            ]
+            for combo, desc in masv_shortcuts:
+                row = tk.Frame(f, bg=C["card"], padx=10, pady=3)
+                row.pack(fill="x", padx=20, pady=1)
+                tk.Label(row, text=combo, bg=C["card"], fg=C["cyan"], font=FONT_MONO, width=22, anchor="w").pack(side="left")
+                tk.Label(row, text=desc, bg=C["card"], fg=C["text2"], font=FONT_SM).pack(side="left")
+
+        _add("⌨️  Atajos de la aplicación MASV", _faq_masv_keys)
+
+        # ── 11. Problemas Comunes ──────────────────────────────────────
         def _faq_troubleshoot(f):
             for prob, desc in [
                 ("Error: device offline", "Desconecta y vuelve a conectar el cable USB o ejecuta 'adb reconnect'."),
