@@ -298,10 +298,39 @@ class UIBuilder:
         self.refs['sess_tree'].bind("<Button-3>", self.cb.get('sess_context_menu'))
 
         btn_container = tk.Frame(inner, bg=C["bg"])
-        btn_container.pack(fill="x", padx=16, pady=(4, 10))
+        btn_container.pack(fill="x", padx=16, pady=(4, 6))
         ttk.Button(btn_container, text="✕  Detener sesión seleccionada",
                    command=self.cb.get('stop_selected'),
                    style="Danger.TButton").pack(side="right")
+
+        # ── Controles rápidos del dispositivo (remoto / ADB) ────────
+        ctrl_sec = _section(inner, "🎮  Controles rápidos del dispositivo (remoto / ADB)", pady=(6, 12))
+
+        ctrl_r1 = _row(ctrl_sec, pady=4)
+        ctrl_btns = [
+            ("🔊 Vol +",    lambda: self.cb.get('send_keyevent')(24),  "Subir volumen"),
+            ("🔉 Vol -",    lambda: self.cb.get('send_keyevent')(25),  "Bajar volumen"),
+            ("🔇 Mute",     lambda: self.cb.get('send_keyevent')(164), "Silenciar audio"),
+            ("⚡ Encender", lambda: self.cb.get('send_keyevent')(26),  "Encender/Apagar pantalla (Power)"),
+            ("🏠 Inicio",   lambda: self.cb.get('send_keyevent')(3),   "Ir a la pantalla de Inicio (Home)"),
+            ("◀ Atrás",    lambda: self.cb.get('send_keyevent')(4),   "Volver atrás (Back)"),
+            ("📑 Recientes",lambda: self.cb.get('send_keyevent')(187), "Ver aplicaciones recientes"),
+            ("🔔 Notif",    lambda: self.cb.get('send_keyevent')("notifications"), "Desplegar panel de notificaciones"),
+        ]
+        for txt, cmd, tip in ctrl_btns:
+            btn = tk.Button(ctrl_r1, text=txt, bg=C["card2"], fg=C["text2"],
+                            font=FONT_SM, relief="flat", bd=0, padx=6, pady=5,
+                            activebackground=C["card3"], activeforeground=C["text"],
+                            command=cmd)
+            btn.pack(side="left", padx=2, expand=True, fill="x")
+            Tooltip(btn, tip)
+
+        ctrl_r2 = _row(ctrl_sec, pady=(2, 6))
+        btn_apk = ttk.Button(ctrl_r2, text="📦  Instalar APK en dispositivo…",
+                             command=self.cb.get('install_apk'),
+                             style="Secondary.TButton")
+        btn_apk.pack(side="left", padx=4)
+        Tooltip(btn_apk, "Selecciona un archivo .apk del equipo para instalarlo automáticamente vía ADB.")
 
     # ─────────────────────────────────────────────────────────────────
     # Pestaña: Consola
@@ -589,7 +618,37 @@ class UIBuilder:
 
         _add("⚙️  Perfiles y configuraciones — qué significan", _faq_profiles)
 
-        # ── 8. Problemas comunes y soluciones ─────────────────────────
+        # ── 8. Atajos nativos de scrcpy ─────────────────────────────
+        def _faq_scrcpy_keys(f):
+            tk.Label(f, text="Cuando la ventana de scrcpy está enfocada, puedes controlar el teléfono con estos atajos:",
+                     bg=C["bg"], fg=C["muted"], font=FONT_SM, anchor="w",
+                     wraplength=680).pack(fill="x", padx=20, pady=(2, 6))
+
+            keys = [
+                ("Alt + Up  /  MOD + u", "🔊 Subir volumen del teléfono"),
+                ("Alt + Down /  MOD + d", "🔉 Bajar volumen del teléfono"),
+                ("MOD + p",              "⚡ Botón de encendido / apagar pantalla"),
+                ("MOD + h",              "🏠 Ir a la pantalla de inicio (Home)"),
+                ("MOD + b  /  Backspace", "◀ Botón Atrás (Back)"),
+                ("MOD + s",              "📑 Abrir aplicaciones recientes"),
+                ("MOD + f",              "🖥️ Activar / Desactivar pantalla completa"),
+                ("MOD + m",              "🔇 Silenciar / Desactivar silencio"),
+                ("MOD + Shift + o",      "☀️ Encender pantalla físicamente"),
+                ("MOD + n",              "🔔 Desplegar panel de notificaciones"),
+                ("MOD + v",              "📋 Pegar portapapeles del PC al teléfono"),
+                ("Arrastrar .apk",       "📦 Instalar archivo APK arrastrando a la ventana"),
+            ]
+            for combo, desc in keys:
+                row = tk.Frame(f, bg=C["card"], padx=12, pady=4)
+                row.pack(fill="x", padx=20, pady=2)
+                tk.Label(row, text=combo, bg=C["card"], fg=C["cyan"],
+                         font=FONT_MONO, width=22, anchor="w").pack(side="left")
+                tk.Label(row, text=desc, bg=C["card"], fg=C["text2"],
+                         font=FONT_SM, anchor="w", justify="left").pack(side="left", fill="x", expand=True)
+
+        _add("⌨️  Atajos nativos de scrcpy (control por teclado)", _faq_scrcpy_keys)
+
+        # ── 9. Problemas comunes y soluciones ─────────────────────────
         def _faq_troubleshoot(f):
             problems = [
                 ("Error: 'device offline'",

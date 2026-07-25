@@ -28,14 +28,45 @@ Diseñada para **streamers, creadores de contenido, gamers y desarrolladores** q
 
 ## ⌨️ Atajos de teclado
 
-| Atajo | Acción |
-|-------|--------|
+| Atajo MASV | Acción |
+|------------|--------|
 | `Ctrl+I` | Iniciar / Detener sesión activa |
 | `Ctrl+R` | Buscar dispositivos conectados |
 | `Ctrl+H` | Abrir pestaña de Ayuda |
 | `Ctrl+Q` | Salir de la aplicación |
 | `Supr` | Detener sesión seleccionada (tabla de sesiones) |
 | Clic derecho (tabla) | Menú contextual: copiar comando scrcpy, forzar cierre |
+
+### ⌨️ Atajos nativos de scrcpy (control por teclado desde la ventana)
+
+Cuando la ventana de transmisión de `scrcpy` está enfocada, puedes usar estos atajos directo con tu teclado:
+
+| Atajo | Función |
+|-------|---------|
+| `Alt + Up` / `MOD + u` | 🔊 Subir volumen del teléfono |
+| `Alt + Down` / `MOD + d` | 🔉 Bajar volumen del teléfono |
+| `MOD + p` | ⚡ Botón de encendido / apagar pantalla |
+| `MOD + h` | 🏠 Ir a la pantalla de inicio (Home) |
+| `MOD + b` / `Backspace` | ◀ Botón Atrás (Back) |
+| `MOD + s` | 📑 Ver aplicaciones recientes |
+| `MOD + f` | 🖥️ Pantalla completa (Fullscreen) |
+| `MOD + m` | 🔇 Silenciar / Desactivar silencio |
+| `MOD + Shift + o` | ☀️ Encender pantalla del teléfono físicamente |
+| `MOD + n` | 🔔 Desplegar panel de notificaciones |
+| `MOD + v` | 📋 Pegar portapapeles del PC al teléfono |
+| Arrastrar `.apk` a la ventana | 📦 Instalar aplicación automáticamente |
+
+---
+
+## 🎮 Controles remotos e instalación de APKs en MASV
+
+Dentro de la pestaña **Acciones**, MASV incluye un mando con botones de control directo sin necesidad de tocar la pantalla del teléfono:
+
+- 🔊 **Vol + / Vol - / Mute**: Control de volumen directo.
+- ⚡ **Encender**: Enciende o apaga la pantalla del teléfono (`Power`).
+- 🏠 **Inicio / ◀ Atrás / 📑 Recientes**: Navegación Android completa.
+- 🔔 **Notificaciones**: Despliega la barra de estado y notificaciones.
+- 📦 **Instalar APK...**: Abre un diálogo de archivos para seleccionar e instalar cualquier archivo `.apk` vía ADB automáticamente.
 
 ---
 

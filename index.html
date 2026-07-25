@@ -4,10 +4,10 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>MASV — Memexicanisimos Android Screen Viewer</title>
-  <meta name="description" content="GUI avanzada para controlar y transmitir pantallas Android a tu PC con scrcpy. Perfiles, WiFi, Webcam virtual y más." />
+  <meta name="description" content="GUI avanzada para controlar y transmitir pantallas Android a tu PC con scrcpy. Perfiles, WiFi, Webcam virtual, controles remotos y más." />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700;900&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700;900&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet" />
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -15,6 +15,7 @@
       --bg:       #121212;
       --card:     #1C1C1E;
       --card2:    #2C2C2E;
+      --card3:    #383838;
       --sep:      #3A3A3C;
       --blue:     #0A84FF;
       --purple:   #BF5AF2;
@@ -34,6 +35,7 @@
       background: var(--bg);
       color: var(--text);
       min-height: 100vh;
+      line-height: 1.5;
     }
 
     /* ── Hero ─────────────────────────────────────────────── */
@@ -84,7 +86,7 @@
       font-size: clamp(1rem, 2vw, 1.25rem);
       font-weight: 300;
       color: var(--muted);
-      max-width: 580px;
+      max-width: 600px;
       margin-bottom: 40px;
       line-height: 1.6;
     }
@@ -131,24 +133,54 @@
       color: var(--muted);
     }
 
+    /* ── Navegación rápida ──────────────────────────────── */
+    .nav-bar {
+      display: flex;
+      justify-content: center;
+      gap: 20px;
+      padding: 16px 24px;
+      background: var(--card);
+      border-top: 1px solid var(--sep);
+      border-bottom: 1px solid var(--sep);
+      flex-wrap: wrap;
+    }
+
+    .nav-bar a {
+      color: var(--text2);
+      font-size: .85rem;
+      font-weight: 600;
+      text-decoration: none;
+      transition: color .15s;
+    }
+
+    .nav-bar a:hover { color: var(--purple); }
+
     /* ── Sección de descarga ─────────────────────────────── */
     .downloads {
-      max-width: 840px;
+      max-width: 900px;
       margin: 0 auto;
-      padding: 0 24px 80px;
+      padding: 64px 24px;
     }
 
     .section-title {
       text-align: center;
-      font-size: 1.5rem;
-      font-weight: 700;
-      margin-bottom: 32px;
-      color: var(--text2);
+      font-size: 1.6rem;
+      font-weight: 800;
+      margin-bottom: 12px;
+      color: var(--text);
+    }
+
+    .section-subtitle {
+      text-align: center;
+      font-size: .9rem;
+      color: var(--muted);
+      max-width: 600px;
+      margin: 0 auto 36px;
     }
 
     .download-cards {
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+      grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
       gap: 16px;
     }
 
@@ -235,6 +267,233 @@
       line-height: 1.55;
     }
 
+    /* ── Guía Visual Android Setup ──────────────────────── */
+    .guide-section {
+      max-width: 1000px;
+      margin: 0 auto;
+      padding: 72px 24px;
+    }
+
+    .setup-steps {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(290px, 1fr));
+      gap: 24px;
+      margin-top: 36px;
+    }
+
+    .step-card {
+      background: var(--card);
+      border: 1px solid var(--sep);
+      border-radius: 16px;
+      padding: 24px;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .step-badge {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 28px;
+      height: 28px;
+      background: var(--purple);
+      color: #fff;
+      font-weight: 700;
+      font-size: .85rem;
+      border-radius: 50%;
+      margin-bottom: 14px;
+    }
+
+    .step-card h3 {
+      font-size: 1rem;
+      font-weight: 700;
+      margin-bottom: 8px;
+    }
+
+    .step-card p {
+      font-size: .83rem;
+      color: var(--muted);
+      margin-bottom: 18px;
+      line-height: 1.5;
+    }
+
+    /* Phone Mockup Styling */
+    .phone-mockup {
+      background: #000;
+      border: 2px solid var(--sep);
+      border-radius: 18px;
+      padding: 14px 12px;
+      margin-top: auto;
+      box-shadow: 0 8px 24px rgba(0,0,0,.5);
+    }
+
+    .mockup-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: .7rem;
+      color: var(--muted);
+      margin-bottom: 12px;
+      padding: 0 4px;
+    }
+
+    .mockup-item {
+      background: var(--card2);
+      border-radius: 8px;
+      padding: 10px 12px;
+      margin-bottom: 8px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: .78rem;
+    }
+
+    .mockup-item.active {
+      border: 1px solid var(--purple);
+      background: rgba(191,90,242,.12);
+    }
+
+    .mockup-title { font-weight: 600; color: var(--text); }
+    .mockup-sub { font-size: .7rem; color: var(--muted); margin-top: 2px; }
+
+    .toggle-on {
+      width: 32px;
+      height: 18px;
+      background: var(--green);
+      border-radius: 10px;
+      position: relative;
+    }
+    .toggle-on::after {
+      content: "";
+      position: absolute;
+      right: 2px;
+      top: 2px;
+      width: 14px;
+      height: 14px;
+      background: #fff;
+      border-radius: 50%;
+    }
+
+    .toast-mockup {
+      background: rgba(44,44,46,.95);
+      border: 1px solid var(--sep);
+      color: var(--green);
+      font-size: .72rem;
+      font-weight: 600;
+      text-align: center;
+      padding: 6px 10px;
+      border-radius: 20px;
+      margin-top: 10px;
+    }
+
+    .dialog-mockup {
+      background: var(--card2);
+      border: 1px solid var(--sep);
+      border-radius: 12px;
+      padding: 14px;
+      font-size: .78rem;
+    }
+    .dialog-title { font-weight: 700; color: var(--text); margin-bottom: 6px; }
+    .dialog-body { color: var(--muted); font-size: .72rem; margin-bottom: 10px; }
+    .dialog-check { display: flex; align-items: center; gap: 6px; font-size: .72rem; color: var(--cyan); margin-bottom: 12px; }
+    .dialog-btns { display: flex; justify-content: flex-end; gap: 10px; font-size: .75rem; font-weight: 700; color: var(--blue); }
+
+    /* ── Keyboard Shortcuts Section ──────────────────────── */
+    .shortcuts-section {
+      background: var(--card);
+      border-top: 1px solid var(--sep);
+      border-bottom: 1px solid var(--sep);
+      padding: 72px 24px;
+    }
+
+    .shortcuts-container {
+      max-width: 960px;
+      margin: 0 auto;
+    }
+
+    .keys-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 16px;
+      margin-top: 32px;
+    }
+
+    .key-card {
+      background: var(--card2);
+      border: 1px solid var(--sep);
+      border-radius: 12px;
+      padding: 14px 18px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+    }
+
+    .key-combo {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      flex-wrap: wrap;
+    }
+
+    kbd {
+      background: var(--card3);
+      border: 1px solid var(--sep);
+      box-shadow: 0 2px 0 var(--sep);
+      color: var(--cyan);
+      font-family: 'JetBrains Mono', monospace;
+      font-size: .75rem;
+      font-weight: 700;
+      padding: 3px 7px;
+      border-radius: 5px;
+    }
+
+    .key-desc {
+      font-size: .83rem;
+      color: var(--text2);
+      font-weight: 500;
+      text-align: right;
+    }
+
+    /* ── Remote Control & APK Section ────────────────────── */
+    .control-section {
+      max-width: 900px;
+      margin: 0 auto;
+      padding: 72px 24px;
+    }
+
+    .control-card {
+      background: var(--card);
+      border: 1px solid var(--sep);
+      border-radius: 20px;
+      padding: 32px;
+    }
+
+    .control-buttons-preview {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin: 20px 0;
+    }
+
+    .ctrl-pill {
+      background: var(--card2);
+      border: 1px solid var(--sep);
+      color: var(--text2);
+      font-size: .82rem;
+      font-weight: 600;
+      padding: 8px 14px;
+      border-radius: 8px;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .ctrl-pill.active {
+      border-color: var(--blue);
+      color: var(--blue);
+    }
+
     /* ── Requisitos ──────────────────────────────────────── */
     .requirements {
       max-width: 720px;
@@ -247,7 +506,7 @@
       border: 1px solid var(--sep);
       border-radius: 10px;
       padding: 14px 18px;
-      font-family: 'Courier New', monospace;
+      font-family: 'JetBrains Mono', monospace;
       font-size: .88rem;
       color: var(--cyan);
       overflow-x: auto;
@@ -265,23 +524,6 @@
 
     footer a { color: var(--blue); text-decoration: none; }
     footer a:hover { color: var(--purple); }
-
-    /* ── Scroll indicator ────────────────────────────────── */
-    .scroll-hint {
-      margin-top: 48px;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      gap: 6px;
-      color: var(--muted);
-      font-size: .78rem;
-      animation: bounce 2s infinite;
-    }
-
-    @keyframes bounce {
-      0%, 100% { transform: translateY(0); }
-      50%       { transform: translateY(6px); }
-    }
   </style>
 </head>
 <body>
@@ -292,36 +534,42 @@
   <h1>Memexicanisimos<br /><span>Android Screen Viewer</span></h1>
   <p class="hero-sub">
     GUI avanzada para transmitir, controlar y gestionar múltiples dispositivos Android
-    simultáneamente desde tu PC. Ideal para streamers, gamers y creadores de contenido.
+    simultáneamente desde tu PC. Creada por y para la comunidad latina.
   </p>
 
   <div class="btn-group">
     <a href="https://github.com/myinnervoid/Memexicanisimos-Android-Screen-Viewer/releases/latest"
        class="btn btn-primary">
-      ⬇  Descargar última versión
+      ⬇ Descargar última versión
     </a>
     <a href="https://github.com/myinnervoid/Memexicanisimos-Android-Screen-Viewer"
        class="btn btn-outline">
-      ⭐  GitHub
+      ⭐ GitHub
     </a>
   </div>
   <p class="download-note">Disponible para Linux · Windows · macOS</p>
-
-  <div class="scroll-hint">
-    <span>Ver más</span>
-    <span>↓</span>
-  </div>
 </section>
+
+<!-- ── BARRA DE NAVEGACIÓN ───────────────────────────────────────────── -->
+<nav class="nav-bar">
+  <a href="#descargas">⬇ Descargas</a>
+  <a href="#caracteristicas">✨ Características</a>
+  <a href="#guia-usb">🔌 Activación USB</a>
+  <a href="#atajos">⌨️ Atajos de teclado</a>
+  <a href="#controles">🎮 Controles y APK</a>
+  <a href="#requisitos">📦 Requisitos</a>
+</nav>
 
 <!-- ── DESCARGA ──────────────────────────────────────────────────────── -->
 <section class="downloads" id="descargas">
   <h2 class="section-title">Descargas directas</h2>
-  <div class="download-cards">
+  <p class="section-subtitle">Elige tu sistema operativo y descarga el paquete compilado listo para usar.</p>
 
+  <div class="download-cards">
     <div class="dl-card">
       <div class="dl-icon">🐧</div>
       <h3>Linux</h3>
-      <p>Debian · Ubuntu · Arch · Fedora<br/>Archivo <code>.tar.gz</code></p>
+      <p>Debian · Ubuntu · Arch · Fedora<br/>Paquete <code>.tar.gz</code></p>
       <a href="https://github.com/myinnervoid/Memexicanisimos-Android-Screen-Viewer/releases/latest/download/MASV-Linux.tar.gz"
          class="dl-btn">Descargar .tar.gz</a>
     </div>
@@ -341,7 +589,6 @@
       <a href="https://github.com/myinnervoid/Memexicanisimos-Android-Screen-Viewer/releases/latest/download/MASV-macOS"
          class="dl-btn">Descargar binario</a>
     </div>
-
   </div>
 </section>
 
@@ -377,10 +624,10 @@
       </div>
     </div>
     <div class="feat">
-      <div class="feat-icon">🛎️</div>
+      <div class="feat-icon">🎛️</div>
       <div>
-        <h3>Bandeja del Sistema</h3>
-        <p>Minimiza sin interrumpir transmisiones. El icono en la bandeja muestra sesiones activas.</p>
+        <h3>Mando de Controles Remotos</h3>
+        <p>Botones directos para volumen, inicio, atrás, recientes, encendido e instalación de APKs.</p>
       </div>
     </div>
     <div class="feat">
@@ -393,11 +640,186 @@
   </div>
 </section>
 
+<!-- ── GUÍA VISUAL ACTIVACIÓN USB ───────────────────────────────────── -->
+<section class="guide-section" id="guia-usb">
+  <h2 class="section-title">🔌 Cómo habilitar la Depuración USB en Android</h2>
+  <p class="section-subtitle">Sigue estos 3 sencillos pasos en tu teléfono antes de conectar por primera vez.</p>
+
+  <div class="setup-steps">
+    <!-- Paso 1 -->
+    <div class="step-card">
+      <div class="step-badge">1</div>
+      <h3>Activa las Opciones de Desarrollador</h3>
+      <p>Abre <strong>Ajustes → Acerca del teléfono</strong>. Toca <strong>7 veces continuas</strong> sobre el campo <em>Número de compilación</em>.</p>
+
+      <div class="phone-mockup">
+        <div class="mockup-header">
+          <span>09:41</span>
+          <span>Ajustes</span>
+        </div>
+        <div class="mockup-item">
+          <div>
+            <div class="mockup-title">Modelo del dispositivo</div>
+            <div class="mockup-sub">Android 13 / 14</div>
+          </div>
+        </div>
+        <div class="mockup-item active">
+          <div>
+            <div class="mockup-title">Número de compilación</div>
+            <div class="mockup-sub">Toca 7 veces seguidas</div>
+          </div>
+          <span style="color:var(--purple);font-size:.7rem;font-weight:700;">👈 Tocar 7x</span>
+        </div>
+        <div class="toast-mockup">✔ ¡Ahora eres desarrollador!</div>
+      </div>
+    </div>
+
+    <!-- Paso 2 -->
+    <div class="step-card">
+      <div class="step-badge">2</div>
+      <h3>Habilita la Depuración USB</h3>
+      <p>Regresa a <strong>Ajustes → Sistema → Opciones para desarrolladores</strong>. Busca e interrupta la casilla <strong>Depuración USB</strong>.</p>
+
+      <div class="phone-mockup">
+        <div class="mockup-header">
+          <span>09:41</span>
+          <span>Opciones de desarrollador</span>
+        </div>
+        <div class="mockup-item active">
+          <div>
+            <div class="mockup-title">Depuración USB</div>
+            <div class="mockup-sub">Modo de depuración cuando USB se conecta</div>
+          </div>
+          <div class="toggle-on"></div>
+        </div>
+        <div class="mockup-item">
+          <div>
+            <div class="mockup-title">Permanecer activo</div>
+            <div class="mockup-sub">Pantalla no se apaga cargando</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Paso 3 -->
+    <div class="step-card">
+      <div class="step-badge">3</div>
+      <h3>Autoriza tu Computadora (RSA)</h3>
+      <p>Conecta el cable USB. Aparecerá una ventana emergente en el teléfono. Acepta y marca la opción para recordar este equipo.</p>
+
+      <div class="phone-mockup">
+        <div class="mockup-header">
+          <span>09:41</span>
+          <span>Pantalla de inicio</span>
+        </div>
+        <div class="dialog-mockup">
+          <div class="dialog-title">¿Permitir depuración USB?</div>
+          <div class="dialog-body">La huella digital de la clave RSA del equipo es:<br/><code style="color:var(--cyan)">FC:9A:88:12:44:B1</code></div>
+          <div class="dialog-check">
+            <span>[✔]</span> Permitir siempre desde este equipo
+          </div>
+          <div class="dialog-btns">
+            <span>CANCELAR</span>
+            <span style="color:var(--green)">PERMITIR</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ── ATAJOS NATIVOS SCRCPY ────────────────────────────────────────── -->
+<section class="shortcuts-section" id="atajos">
+  <div class="shortcuts-container">
+    <h2 class="section-title">⌨️ Atajos nativos de scrcpy (Cheat Sheet)</h2>
+    <p class="section-subtitle">Cuando la ventana de scrcpy esté enfocada, puedes usar estos atajos directo con tu teclado:</p>
+
+    <div class="keys-grid">
+      <div class="key-card">
+        <div class="key-combo"><kbd>Alt</kbd> + <kbd>↑</kbd> / <kbd>MOD</kbd> + <kbd>u</kbd></div>
+        <div class="key-desc">🔊 Subir volumen</div>
+      </div>
+      <div class="key-card">
+        <div class="key-combo"><kbd>Alt</kbd> + <kbd>↓</kbd> / <kbd>MOD</kbd> + <kbd>d</kbd></div>
+        <div class="key-desc">🔉 Bajar volumen</div>
+      </div>
+      <div class="key-card">
+        <div class="key-combo"><kbd>MOD</kbd> + <kbd>p</kbd></div>
+        <div class="key-desc">⚡ Encendido / Pantalla</div>
+      </div>
+      <div class="key-card">
+        <div class="key-combo"><kbd>MOD</kbd> + <kbd>h</kbd></div>
+        <div class="key-desc">🏠 Ir a Inicio (Home)</div>
+      </div>
+      <div class="key-card">
+        <div class="key-combo"><kbd>MOD</kbd> + <kbd>b</kbd> / <kbd>Backspace</kbd></div>
+        <div class="key-desc">◀ Volver Atrás (Back)</div>
+      </div>
+      <div class="key-card">
+        <div class="key-combo"><kbd>MOD</kbd> + <kbd>s</kbd></div>
+        <div class="key-desc">📑 Aplicaciones recientes</div>
+      </div>
+      <div class="key-card">
+        <div class="key-combo"><kbd>MOD</kbd> + <kbd>f</kbd></div>
+        <div class="key-desc">🖥️ Pantalla completa</div>
+      </div>
+      <div class="key-card">
+        <div class="key-combo"><kbd>MOD</kbd> + <kbd>m</kbd></div>
+        <div class="key-desc">🔇 Silenciar / Activar audio</div>
+      </div>
+      <div class="key-card">
+        <div class="key-combo"><kbd>MOD</kbd> + <kbd>Shift</kbd> + <kbd>o</kbd></div>
+        <div class="key-desc">☀️ Encender pantalla física</div>
+      </div>
+      <div class="key-card">
+        <div class="key-combo"><kbd>MOD</kbd> + <kbd>n</kbd></div>
+        <div class="key-desc">🔔 Panel de notificaciones</div>
+      </div>
+      <div class="key-card">
+        <div class="key-combo"><kbd>MOD</kbd> + <kbd>v</kbd></div>
+        <div class="key-desc">📋 Pegar texto del PC</div>
+      </div>
+      <div class="key-card">
+        <div class="key-combo"><kbd>Arrastrar .apk</kbd></div>
+        <div class="key-desc">📦 Instalar aplicación</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ── CONTROLES Y APK EN MASV ──────────────────────────────────────── -->
+<section class="control-section" id="controles">
+  <div class="control-card">
+    <h2 class="section-title" style="text-align:left;margin-bottom:8px;">🎮 Controles remotos e instalación de APKs en MASV</h2>
+    <p style="color:var(--muted);font-size:.9rem;margin-bottom:20px;">
+      Sin necesidad de tocar la pantalla del teléfono, MASV incluye un mando de controles rápidos vía ADB directamente en la pestaña <strong>Acciones</strong>:
+    </p>
+
+    <div class="control-buttons-preview">
+      <span class="ctrl-pill">🔊 Vol +</span>
+      <span class="ctrl-pill">🔉 Vol -</span>
+      <span class="ctrl-pill">🔇 Mute</span>
+      <span class="ctrl-pill active">⚡ Encender</span>
+      <span class="ctrl-pill">🏠 Inicio</span>
+      <span class="ctrl-pill">◀ Atrás</span>
+      <span class="ctrl-pill">📑 Recientes</span>
+      <span class="ctrl-pill">🔔 Notificaciones</span>
+      <span class="ctrl-pill active" style="border-color:var(--green);color:var(--green);">📦 Instalar APK...</span>
+    </div>
+
+    <p style="color:var(--text2);font-size:.85rem;line-height:1.6;">
+      <strong>¿Cómo instalar aplicaciones (APK)?</strong><br/>
+      • En MASV: Haz clic en el botón <code>📦 Instalar APK en dispositivo...</code>, selecciona el archivo <code>.apk</code> de tu PC y se instalará automáticamente.<br/>
+      • En scrcpy: Durante una sesión activa, simplemente <strong>arrastra y suelta</strong> el archivo <code>.apk</code> sobre la ventana de scrcpy.
+    </p>
+  </div>
+</section>
+
 <!-- ── REQUISITOS ────────────────────────────────────────────────────── -->
 <section class="requirements" id="requisitos">
-  <h2 class="section-title">Requisitos previos</h2>
+  <h2 class="section-title">Requisitos previos del sistema</h2>
   <p style="color:var(--muted);text-align:center;margin-bottom:28px;font-size:.9rem;">
-    MASV necesita que <strong>adb</strong> y <strong>scrcpy</strong> estén instalados en tu sistema.
+    MASV utiliza <strong>adb</strong> y <strong>scrcpy</strong> como motor subyacente.
   </p>
 
   <p style="color:var(--text2);font-weight:600;margin-bottom:8px;">🐧 Linux (Debian/Ubuntu):</p>
@@ -408,11 +830,6 @@
 
   <p style="color:var(--text2);font-weight:600;margin-bottom:8px;margin-top:16px;">🍎 macOS (Homebrew):</p>
   <div class="code-block">brew install scrcpy android-platform-tools</div>
-
-  <p style="color:var(--muted);font-size:.82rem;margin-top:24px;text-align:center;">
-    ¿Webcam virtual en Linux? También necesitas:
-    <code>sudo apt install v4l2loopback-dkms</code>
-  </p>
 </section>
 
 <!-- ── FOOTER ────────────────────────────────────────────────────────── -->

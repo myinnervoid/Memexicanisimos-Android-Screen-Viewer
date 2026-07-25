@@ -1,5 +1,5 @@
 import tkinter as tk
-from tkinter import ttk, messagebox
+from tkinter import ttk, messagebox, filedialog
 import queue
 import time
 import sys
@@ -74,6 +74,8 @@ class ScrcpyDockApp:
             'go_to_wifi':       lambda: self._nb.select(2),
             'stop_selected':    self._stop_selected,
             'sess_context_menu':self._sess_context_menu,
+            'send_keyevent':    self._send_keyevent,
+            'install_apk':       self._install_apk,
 
             'clear_log':  self._clear_log,
             'open_log':   self._open_log,
@@ -415,6 +417,59 @@ class ScrcpyDockApp:
                 self.ui._faq_items[1].expand()
         except Exception:
             pass
+
+    def _send_keyevent(self, code):
+        """Envía un keyevent de control remoto al dispositivo activo vía ADB."""
+        serial = self.ctx.active_device_serial
+        if not serial or not self.ctx.adb:
+            messagebox.showwarning("Sin dispositivo", "Selecciona un dispositivo activo en la lista primero.")
+            return
+        def task():
+            try:
+                if code == "notifications":
+                    subprocess.run([self.ctx.adb, "-s", serial, "shell", "cmd", "statusbar", "expand-notifications"], capture_output=True, timeout=5)
+                else:
+                    subprocess.run([self.ctx.adb, "-s", serial, "shell", "input", "keyevent", str(code)], capture_output=True, timeout=5)
+            except Exception as e:
+                self.ctx.log("ERROR", f"Keyevent {code}: {e}")
+        threading.Thread(target=task, daemon=True).start()
+
+    def _install_apk(self):
+        """Abre un diálogo para seleccionar un APK e instalarlo vía ADB."""
+        serial = self.ctx.active_device_serial
+        if not serial or not self.ctx.adb:
+            messagebox.showwarning("Sin dispositivo", "Selecciona un dispositivo activo en la lista primero.")
+            return
+        apk_path = filedialog.askopenfilename(
+            title="Seleccionar archivo APK para instalar",
+            filetypes=[("Archivos Android APK", "*.apk"), ("Todos los archivos", "*.*")]
+        )
+        if not apk_path:
+            return
+        apk_name = os.path.basename(apk_path)
+        self.ctx.log("ADB", f"[{serial}] Instalando APK: {apk_name}…")
+        self._set_status(f"Instalando {apk_name}…", C["cyan"])
+        Toast(self.root, f"Instalando {apk_name}...", "info")
+        def task():
+            try:
+                res = subprocess.run([self.ctx.adb, "-s", serial, "install", "-r", apk_path], capture_output=True, text=True, timeout=120)
+                output = (res.stdout or "") + (res.stderr or "")
+                if "Success" in output:
+                    self.ctx.log("OK", f"[{serial}] Instalación exitosa: {apk_name}")
+                    self.root.after(0, lambda: [
+                        self._set_status(f"✔ APK instalada: {apk_name}", C["green"]),
+                        Toast(self.root, f"✔ APK instalada con éxito: {apk_name}", "success")
+                    ])
+                else:
+                    self.ctx.log("ERROR", f"[{serial}] Error al instalar {apk_name}: {output.strip()}")
+                    self.root.after(0, lambda: [
+                        self._set_status(f"❌ Error al instalar APK", C["red"]),
+                        messagebox.showerror("Error al instalar APK", f"No se pudo instalar {apk_name}:\n\n{output.strip()}")
+                    ])
+            except Exception as e:
+                self.ctx.log("ERROR", f"Instalar APK: {e}")
+        threading.Thread(target=task, daemon=True).start()
+
     def _check_v4l2(self):
         if _PLAT != "linux":
             if 'v4l2_lbl' in self.ui.refs:
