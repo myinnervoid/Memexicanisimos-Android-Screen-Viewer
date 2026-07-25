@@ -1,0 +1,433 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>MASV — Memexicanisimos Android Screen Viewer</title>
+  <meta name="description" content="GUI avanzada para controlar y transmitir pantallas Android a tu PC con scrcpy. Perfiles, WiFi, Webcam virtual y más." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700;900&display=swap" rel="stylesheet" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:       #121212;
+      --card:     #1C1C1E;
+      --card2:    #2C2C2E;
+      --sep:      #3A3A3C;
+      --blue:     #0A84FF;
+      --purple:   #BF5AF2;
+      --green:    #32D74B;
+      --orange:   #FF9F0A;
+      --red:      #FF453A;
+      --cyan:     #64D2FF;
+      --text:     #FFFFFF;
+      --text2:    #EBEBF5;
+      --muted:    #8E8E93;
+    }
+
+    html { scroll-behavior: smooth; }
+
+    body {
+      font-family: 'Inter', system-ui, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+    }
+
+    /* ── Hero ─────────────────────────────────────────────── */
+    .hero {
+      position: relative;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      padding: 96px 24px 64px;
+      overflow: hidden;
+    }
+
+    .hero::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background: radial-gradient(ellipse 80% 60% at 50% 0%, rgba(191,90,242,.25) 0%, transparent 70%);
+      pointer-events: none;
+    }
+
+    .hero-badge {
+      display: inline-block;
+      background: rgba(191, 90, 242, .18);
+      border: 1px solid rgba(191, 90, 242, .45);
+      color: var(--purple);
+      font-size: .78rem;
+      font-weight: 700;
+      letter-spacing: .08em;
+      text-transform: uppercase;
+      padding: 4px 14px;
+      border-radius: 100px;
+      margin-bottom: 20px;
+    }
+
+    .hero h1 {
+      font-size: clamp(2.4rem, 6vw, 4.2rem);
+      font-weight: 900;
+      letter-spacing: -.04em;
+      line-height: 1.1;
+      margin-bottom: 10px;
+    }
+
+    .hero h1 span { color: var(--purple); }
+
+    .hero-sub {
+      font-size: clamp(1rem, 2vw, 1.25rem);
+      font-weight: 300;
+      color: var(--muted);
+      max-width: 580px;
+      margin-bottom: 40px;
+      line-height: 1.6;
+    }
+
+    /* ── Botones ──────────────────────────────────────────── */
+    .btn-group {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      justify-content: center;
+      margin-bottom: 16px;
+    }
+
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 13px 24px;
+      border-radius: 10px;
+      font-size: .95rem;
+      font-weight: 600;
+      text-decoration: none;
+      transition: transform .15s, box-shadow .15s, opacity .15s;
+    }
+
+    .btn:hover { transform: translateY(-2px); opacity: .92; }
+
+    .btn-primary {
+      background: var(--blue);
+      color: #fff;
+      box-shadow: 0 4px 24px rgba(10,132,255,.35);
+    }
+
+    .btn-outline {
+      background: transparent;
+      border: 1px solid var(--sep);
+      color: var(--text2);
+    }
+
+    .btn-outline:hover { border-color: var(--purple); color: var(--purple); }
+
+    .download-note {
+      font-size: .78rem;
+      color: var(--muted);
+    }
+
+    /* ── Sección de descarga ─────────────────────────────── */
+    .downloads {
+      max-width: 840px;
+      margin: 0 auto;
+      padding: 0 24px 80px;
+    }
+
+    .section-title {
+      text-align: center;
+      font-size: 1.5rem;
+      font-weight: 700;
+      margin-bottom: 32px;
+      color: var(--text2);
+    }
+
+    .download-cards {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+      gap: 16px;
+    }
+
+    .dl-card {
+      background: var(--card);
+      border: 1px solid var(--sep);
+      border-radius: 16px;
+      padding: 28px 20px 24px;
+      text-align: center;
+      transition: border-color .2s, transform .2s;
+    }
+
+    .dl-card:hover {
+      border-color: var(--purple);
+      transform: translateY(-4px);
+    }
+
+    .dl-icon { font-size: 2.4rem; margin-bottom: 12px; }
+
+    .dl-card h3 {
+      font-size: 1.05rem;
+      font-weight: 700;
+      margin-bottom: 6px;
+    }
+
+    .dl-card p {
+      font-size: .82rem;
+      color: var(--muted);
+      margin-bottom: 20px;
+    }
+
+    .dl-btn {
+      display: inline-block;
+      background: var(--card2);
+      border: 1px solid var(--sep);
+      color: var(--text2);
+      font-size: .85rem;
+      font-weight: 600;
+      padding: 9px 18px;
+      border-radius: 8px;
+      text-decoration: none;
+      transition: background .15s, border-color .15s;
+    }
+
+    .dl-btn:hover { background: var(--purple); border-color: var(--purple); color: #fff; }
+
+    /* ── Features ──────────────────────────────────────────── */
+    .features {
+      background: var(--card);
+      border-top: 1px solid var(--sep);
+      border-bottom: 1px solid var(--sep);
+      padding: 72px 24px;
+    }
+
+    .features-grid {
+      max-width: 960px;
+      margin: 0 auto;
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+      gap: 32px;
+    }
+
+    .feat {
+      display: flex;
+      align-items: flex-start;
+      gap: 16px;
+    }
+
+    .feat-icon {
+      font-size: 1.8rem;
+      flex-shrink: 0;
+      margin-top: 2px;
+    }
+
+    .feat h3 {
+      font-size: .95rem;
+      font-weight: 700;
+      margin-bottom: 4px;
+    }
+
+    .feat p {
+      font-size: .82rem;
+      color: var(--muted);
+      line-height: 1.55;
+    }
+
+    /* ── Requisitos ──────────────────────────────────────── */
+    .requirements {
+      max-width: 720px;
+      margin: 0 auto;
+      padding: 72px 24px;
+    }
+
+    .code-block {
+      background: var(--card2);
+      border: 1px solid var(--sep);
+      border-radius: 10px;
+      padding: 14px 18px;
+      font-family: 'Courier New', monospace;
+      font-size: .88rem;
+      color: var(--cyan);
+      overflow-x: auto;
+      margin: 12px 0;
+    }
+
+    /* ── Footer ──────────────────────────────────────────── */
+    footer {
+      border-top: 1px solid var(--sep);
+      padding: 32px 24px;
+      text-align: center;
+      color: var(--muted);
+      font-size: .8rem;
+    }
+
+    footer a { color: var(--blue); text-decoration: none; }
+    footer a:hover { color: var(--purple); }
+
+    /* ── Scroll indicator ────────────────────────────────── */
+    .scroll-hint {
+      margin-top: 48px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 6px;
+      color: var(--muted);
+      font-size: .78rem;
+      animation: bounce 2s infinite;
+    }
+
+    @keyframes bounce {
+      0%, 100% { transform: translateY(0); }
+      50%       { transform: translateY(6px); }
+    }
+  </style>
+</head>
+<body>
+
+<!-- ── HERO ──────────────────────────────────────────────────────────── -->
+<section class="hero">
+  <div class="hero-badge">Open Source · Python · Scrcpy</div>
+  <h1>Memexicanisimos<br /><span>Android Screen Viewer</span></h1>
+  <p class="hero-sub">
+    GUI avanzada para transmitir, controlar y gestionar múltiples dispositivos Android
+    simultáneamente desde tu PC. Ideal para streamers, gamers y creadores de contenido.
+  </p>
+
+  <div class="btn-group">
+    <a href="https://github.com/myinnervoid/Memexicanisimos-Android-Screen-Viewer/releases/latest"
+       class="btn btn-primary">
+      ⬇  Descargar última versión
+    </a>
+    <a href="https://github.com/myinnervoid/Memexicanisimos-Android-Screen-Viewer"
+       class="btn btn-outline">
+      ⭐  GitHub
+    </a>
+  </div>
+  <p class="download-note">Disponible para Linux · Windows · macOS</p>
+
+  <div class="scroll-hint">
+    <span>Ver más</span>
+    <span>↓</span>
+  </div>
+</section>
+
+<!-- ── DESCARGA ──────────────────────────────────────────────────────── -->
+<section class="downloads" id="descargas">
+  <h2 class="section-title">Descargas directas</h2>
+  <div class="download-cards">
+
+    <div class="dl-card">
+      <div class="dl-icon">🐧</div>
+      <h3>Linux</h3>
+      <p>Debian · Ubuntu · Arch · Fedora<br/>Archivo <code>.tar.gz</code></p>
+      <a href="https://github.com/myinnervoid/Memexicanisimos-Android-Screen-Viewer/releases/latest/download/MASV-Linux.tar.gz"
+         class="dl-btn">Descargar .tar.gz</a>
+    </div>
+
+    <div class="dl-card">
+      <div class="dl-icon">🪟</div>
+      <h3>Windows</h3>
+      <p>Windows 10 / 11<br/>Ejecutable <code>.exe</code> portable</p>
+      <a href="https://github.com/myinnervoid/Memexicanisimos-Android-Screen-Viewer/releases/latest/download/MASV-Windows.exe"
+         class="dl-btn">Descargar .exe</a>
+    </div>
+
+    <div class="dl-card">
+      <div class="dl-icon">🍎</div>
+      <h3>macOS</h3>
+      <p>macOS 12 Monterey o superior<br/>Binario ejecutable</p>
+      <a href="https://github.com/myinnervoid/Memexicanisimos-Android-Screen-Viewer/releases/latest/download/MASV-macOS"
+         class="dl-btn">Descargar binario</a>
+    </div>
+
+  </div>
+</section>
+
+<!-- ── FEATURES ─────────────────────────────────────────────────────── -->
+<section class="features" id="caracteristicas">
+  <div class="features-grid">
+    <div class="feat">
+      <div class="feat-icon">🎮</div>
+      <div>
+        <h3>Soporte Multidispositivo</h3>
+        <p>Controla múltiples teléfonos en paralelo con diferentes perfiles simultáneamente.</p>
+      </div>
+    </div>
+    <div class="feat">
+      <div class="feat-icon">⚙️</div>
+      <div>
+        <h3>Perfiles Personalizados</h3>
+        <p>Guarda configuraciones de resolución, FPS, bitrate, códec y audio para cada uso.</p>
+      </div>
+    </div>
+    <div class="feat">
+      <div class="feat-icon">📡</div>
+      <div>
+        <h3>Conexión WiFi ADB</h3>
+        <p>Conecta y transmite sin cables. Detecta la IP automáticamente desde la interfaz.</p>
+      </div>
+    </div>
+    <div class="feat">
+      <div class="feat-icon">📷</div>
+      <div>
+        <h3>Webcam Virtual (Linux)</h3>
+        <p>Enruta la cámara trasera como <code>/dev/video9</code> directamente a OBS Studio.</p>
+      </div>
+    </div>
+    <div class="feat">
+      <div class="feat-icon">🛎️</div>
+      <div>
+        <h3>Bandeja del Sistema</h3>
+        <p>Minimiza sin interrumpir transmisiones. El icono en la bandeja muestra sesiones activas.</p>
+      </div>
+    </div>
+    <div class="feat">
+      <div class="feat-icon">❓</div>
+      <div>
+        <h3>FAQ Interactiva</h3>
+        <p>Guía de inicio rápido, depuración USB, WiFi, v4l2loopback y solución de problemas comunes.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ── REQUISITOS ────────────────────────────────────────────────────── -->
+<section class="requirements" id="requisitos">
+  <h2 class="section-title">Requisitos previos</h2>
+  <p style="color:var(--muted);text-align:center;margin-bottom:28px;font-size:.9rem;">
+    MASV necesita que <strong>adb</strong> y <strong>scrcpy</strong> estén instalados en tu sistema.
+  </p>
+
+  <p style="color:var(--text2);font-weight:600;margin-bottom:8px;">🐧 Linux (Debian/Ubuntu):</p>
+  <div class="code-block">sudo apt install adb scrcpy</div>
+
+  <p style="color:var(--text2);font-weight:600;margin-bottom:8px;margin-top:16px;">🪟 Windows (winget):</p>
+  <div class="code-block">winget install Genymobile.scrcpy</div>
+
+  <p style="color:var(--text2);font-weight:600;margin-bottom:8px;margin-top:16px;">🍎 macOS (Homebrew):</p>
+  <div class="code-block">brew install scrcpy android-platform-tools</div>
+
+  <p style="color:var(--muted);font-size:.82rem;margin-top:24px;text-align:center;">
+    ¿Webcam virtual en Linux? También necesitas:
+    <code>sudo apt install v4l2loopback-dkms</code>
+  </p>
+</section>
+
+<!-- ── FOOTER ────────────────────────────────────────────────────────── -->
+<footer>
+  <p>
+    Hecho con ❤️ por la comunidad Memexicanisimos ·
+    Powered by <a href="https://github.com/Genymobile/scrcpy" target="_blank">scrcpy</a> &amp;
+    <a href="https://developer.android.com/tools/adb" target="_blank">ADB</a>
+  </p>
+  <p style="margin-top:8px;">
+    <a href="https://github.com/myinnervoid/Memexicanisimos-Android-Screen-Viewer" target="_blank">GitHub</a> ·
+    <a href="https://github.com/myinnervoid/Memexicanisimos-Android-Screen-Viewer/issues" target="_blank">Reportar un bug</a> ·
+    Licencia MIT
+  </p>
+</footer>
+
+</body>
+</html>

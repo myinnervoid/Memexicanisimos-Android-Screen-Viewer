@@ -1,0 +1,95 @@
+name: Build Executables — MASV Multiplatform
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+jobs:
+  build:
+    permissions:
+      contents: write
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+        include:
+          - os: ubuntu-latest
+            asset_name: MASV-Linux
+            tar_name:   MASV-Linux.tar.gz
+          - os: windows-latest
+            asset_name: MASV-Windows.exe
+          - os: macos-latest
+            asset_name: MASV-macOS
+
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install system dependencies (Ubuntu)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y python3-tk
+
+      - name: Install Python dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install pyinstaller pystray Pillow
+
+      - name: Build Executable
+        run: python build.py
+
+      - name: Prepare release artifact (Linux)
+        if: runner.os == 'Linux'
+        shell: bash
+        run: |
+          mkdir -p bin_release
+          mv MASV-Linux.tar.gz bin_release/ 2>/dev/null || mv dist/MASV bin_release/MASV-Linux
+
+      - name: Prepare release artifact (Windows)
+        if: runner.os == 'Windows'
+        shell: bash
+        run: |
+          mkdir -p bin_release
+          mv dist/MASV.exe bin_release/MASV-Windows.exe
+
+      - name: Prepare release artifact (macOS)
+        if: runner.os == 'macOS'
+        shell: bash
+        run: |
+          mkdir -p bin_release
+          mv dist/MASV bin_release/MASV-macOS
+
+      - name: Upload Build Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.asset_name }}
+          path: bin_release/
+
+      - name: Publish GitHub Release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: bin_release/*
+          body: |
+            ## MASV — Memexicanisimos Android Screen Viewer ${{ github.ref_name }}
+
+            ### Descargas
+
+            | Sistema | Archivo |
+            |---------|---------|
+            | 🐧 Linux | `MASV-Linux.tar.gz` |
+            | 🪟 Windows | `MASV-Windows.exe` |
+            | 🍎 macOS | `MASV-macOS` |
+
+            > **Requisito**: `adb` y `scrcpy` instalados en el sistema.
+            > Consulta el [README](README.md) para más información.
