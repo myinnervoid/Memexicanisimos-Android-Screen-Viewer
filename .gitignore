@@ -25,6 +25,8 @@ share/python-wheels/
 .installed.cfg
 *.egg
 MANIFEST
+*.tar.gz
+MASV-Linux.tar.gz
 
 # PyInstaller
 *.manifest
@@ -56,10 +58,12 @@ ENV/
 env/
 env.bak/
 venv.bak/
+.env
 
 # Local Configuration & Logs
 config.json
 *.log
+masv.log
 scrcpy-dock.log
 
 # Binaries inside bin/ (except .gitkeep)
