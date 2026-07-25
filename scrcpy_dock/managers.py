@@ -125,7 +125,8 @@ class SessionManager:
         if profile_data.get("stay_awake"):
             cmd.append("--stay-awake")
         if profile_data.get("extra_args"):
-            cmd.extend(profile_data["extra_args"].split())
+            import shlex
+            cmd.extend(shlex.split(profile_data["extra_args"]))
 
         def task():
             try:

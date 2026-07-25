@@ -73,6 +73,13 @@ FONT_SM    = (FONT_FAMILY, 9)
 FONT_LG    = (FONT_FAMILY, 13, "bold")
 FONT_XL    = (FONT_FAMILY, 16, "bold")
 FONT_CARD  = (FONT_FAMILY, 12, "bold")
+
+# Tokens de espaciado estandarizados
+SPACE_XS = 4
+SPACE_SM = 8
+SPACE_MD = 12
+SPACE_LG = 16
+SPACE_XL = 20
 FONT_MONO  = ("JetBrains Mono", 9) if _PLAT != "win32" else ("Consolas", 9)
 
 # ── Rutas ──────────────────────────────────────────────────────────────────

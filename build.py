@@ -1,51 +1,44 @@
 import os
 import sys
-import subprocess
-import shutil
-
-# ── Configuración del build ────────────────────────────────────────────────
-APP_NAME  = "MASV"
-ENTRY     = "run.py"
-ICON_FILE = None  # Pon aquí la ruta a un .ico/.icns si tienes uno
-
-bin_dir  = os.path.join(os.path.dirname(__file__), "bin")
-add_data = []
-if os.path.isdir(bin_dir):
-    for fname in os.listdir(bin_dir):
-        fpath = os.path.join(bin_dir, fname)
-        if os.path.isfile(fpath):
-            sep = ";" if sys.platform == "win32" else ":"
-            add_data.append(f"--add-binary={fpath}{sep}bin")
-
-args = [
-    ENTRY,
-    "--onefile",
-    "--name", APP_NAME,
-    "--noconsole",
-    "--clean",
-]
-if ICON_FILE and os.path.exists(ICON_FILE):
-    args += ["--icon", ICON_FILE]
-args += add_data
-
-print(f"[MASV Build] Generando ejecutable con PyInstaller...")
-print(f"  Nombre   : {APP_NAME}")
-print(f"  Entrada  : {ENTRY}")
-print(f"  Binarios extras: {len(add_data)}")
-
 import PyInstaller.__main__
-PyInstaller.__main__.run(args)
 
-# ── Post-build: empaquetar .tar.gz en Linux ────────────────────────────────
-if sys.platform == "linux":
-    dist_file = os.path.join("dist", APP_NAME)
-    tar_name  = f"{APP_NAME}-Linux.tar.gz"
-    if os.path.exists(dist_file):
-        import tarfile
-        with tarfile.open(tar_name, "w:gz") as tar:
-            tar.add(dist_file, arcname=APP_NAME)
-        print(f"[MASV Build] Paquete Linux generado: {tar_name}")
+def build():
+    print("🚀 Iniciando empaquetado con PyInstaller...")
+    
+    # Detecta el sistema operativo para añadir los binarios correctos
+    plat = sys.platform
+    base_dir = os.path.dirname(os.path.abspath(__file__))
+    bin_path = os.path.join(base_dir, "bin")
+    
+    # Si la carpeta bin existe, la añade al ejecutable como datos
+    if os.path.exists(bin_path) and os.listdir(bin_path):
+        # En Windows el separador de paths es ';', en Linux/Mac es ':'
+        sep = ';' if plat == 'win32' else ':'
+        add_data = f"--add-data={bin_path}{sep}bin"
+        print(f"📦 Carpeta 'bin/' detectada. Se incluirá en el ejecutable portátil.")
     else:
-        print(f"[MASV Build] AVISO: No se encontró {dist_file} para empaquetar.")
+        add_data = ""
+        print(f"⚠ Carpeta 'bin/' vacía o no encontrada. El ejecutable dependerá del PATH del sistema.")
+        
+    main_script = os.path.join(base_dir, "run.py")
 
-print(f"\n[MASV Build] ¡Listo! Ejecutable en dist/{APP_NAME}")
+    args = [
+        '--onefile',
+        '--windowed',
+        '--name=ScrcpyDock',
+        '--collect-all=pystray',
+        '--collect-all=PIL',
+        main_script
+    ]
+
+    if add_data:
+        args.insert(args.index(main_script), add_data)
+
+    try:
+        PyInstaller.__main__.run(args)
+        print("✅ Empaquetado finalizado con éxito. Revisa la carpeta 'dist/'.")
+    except Exception as e:
+        print(f"❌ Error durante el empaquetado: {e}")
+
+if __name__ == "__main__":
+    build()
