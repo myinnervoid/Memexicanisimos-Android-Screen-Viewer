@@ -17,7 +17,6 @@ jobs:
         include:
           - os: ubuntu-latest
             asset_name: MASV-Linux
-            tar_name:   MASV-Linux.tar.gz
           - os: windows-latest
             asset_name: MASV-Windows.exe
           - os: macos-latest
@@ -63,21 +62,31 @@ jobs:
         shell: bash
         run: |
           mkdir -p bin_release
-          mv MASV-Linux.tar.gz bin_release/ 2>/dev/null || mv dist/MASV bin_release/MASV-Linux
+          if [ -f dist/MASV-Linux.tar.gz ]; then
+            cp dist/MASV-Linux.tar.gz bin_release/MASV-Linux.tar.gz
+          elif [ -f MASV-Linux.tar.gz ]; then
+            cp MASV-Linux.tar.gz bin_release/MASV-Linux.tar.gz
+          else
+            tar -czvf bin_release/MASV-Linux.tar.gz -C dist MASV
+          fi
 
       - name: Prepare release artifact (Windows)
         if: runner.os == 'Windows'
         shell: bash
         run: |
           mkdir -p bin_release
-          mv dist/MASV.exe bin_release/MASV-Windows.exe
+          if [ -f dist/MASV.exe ]; then
+            cp dist/MASV.exe bin_release/MASV-Windows.exe
+          elif [ -f dist/MASV ]; then
+            cp dist/MASV bin_release/MASV-Windows.exe
+          fi
 
       - name: Prepare release artifact (macOS)
         if: runner.os == 'macOS'
         shell: bash
         run: |
           mkdir -p bin_release
-          mv dist/MASV bin_release/MASV-macOS
+          cp dist/MASV bin_release/MASV-macOS
 
       - name: Upload Build Artifact
         uses: actions/upload-artifact@v4
