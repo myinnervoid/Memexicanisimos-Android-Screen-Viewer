@@ -84,6 +84,7 @@ FONT_MONO  = ("JetBrains Mono", 9) if _PLAT != "win32" else ("Consolas", 9)
 
 # ── Rutas ──────────────────────────────────────────────────────────────────
 CONFIG_DIR  = os.path.expanduser("~/.config/masv")
+APP_DIR     = CONFIG_DIR
 CONFIG_FILE = os.path.join(CONFIG_DIR, "config.json")
 LOG_FILE    = os.path.join(CONFIG_DIR, "masv.log")
 os.makedirs(CONFIG_DIR, exist_ok=True)
