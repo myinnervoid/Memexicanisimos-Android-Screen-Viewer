@@ -205,17 +205,27 @@ class ScrcpyDockApp:
         self._nb.add(self._tab_console,  text=_("🖥  Consola"))
         self._nb.add(self._tab_help,     text=_("❓  Ayuda"))
 
+        self._simple_view = tk.Frame(self.root, bg=C["bg"])
+
         self.ui.build_tab_actions(self._tab_actions)
         self.ui.build_tab_controls(self._tab_controls)
         self.ui.build_tab_device(self._tab_device)
         self.ui.build_tab_profile(self._tab_profile)
         self.ui.build_tab_console(self._tab_console)
         self.ui.build_tab_help(self._tab_help)
+        self.ui.build_simple_view(self._simple_view)
 
         bar = tk.Frame(self.root, bg=C["card2"], height=34)
         bar.pack(fill="x", side="bottom")
         bar.pack_propagate(False)
         self._status_lbl = tk.Label(bar, text=_("Iniciando…"), bg=C["card2"],
+
+        self.is_advanced_view = True
+        self.btn_toggle_view = tk.Button(bar, text="Cambiar a Vista Simple", bg=C["sep"], fg=C["text"],
+                                     font=FONT_SM, relief="flat", bd=0, padx=12, pady=4,
+                                     command=self._toggle_view)
+        self.btn_toggle_view.pack(side="right", padx=14)
+        self._status_lbl = tk.Label(bar, text="Iniciando…", bg=C["card2"],
                                     fg=C["muted"], font=FONT_SM, anchor="w")
         self._status_lbl.pack(side="left", padx=14, pady=4)
 
@@ -246,6 +256,18 @@ class ScrcpyDockApp:
         self._refresh_profile_listbox()
 
         self._nb.bind("<<NotebookTabChanged>>", self._on_tab_changed)
+
+    def _toggle_view(self):
+        if self.is_advanced_view:
+            self._nb.pack_forget()
+            self._simple_view.pack(fill="both", expand=True, padx=8, pady=(4, 0))
+            self.btn_toggle_view.config(text="Cambiar a Vista Avanzada")
+            self.is_advanced_view = False
+        else:
+            self._simple_view.pack_forget()
+            self._nb.pack(fill="both", expand=True, padx=8, pady=(4, 0))
+            self.btn_toggle_view.config(text="Cambiar a Vista Simple")
+            self.is_advanced_view = True
 
     def _set_status(self, msg: str, color: str = None):
         self._status_lbl.config(text=msg, fg=color or C["muted"])
@@ -364,6 +386,10 @@ class ScrcpyDockApp:
             else:
                 listbox.insert(tk.END, f"  ⚫  {model}  ({serial})")
 
+        simple_combo = self.ui.refs.get('simple_dev_combo')
+        if simple_combo:
+            simple_combo['values'] = [f"{model} ({serial})" for serial, model, state in found]
+
         if found:
             listbox.selection_set(0)
             self._on_dev_select()
@@ -375,15 +401,26 @@ class ScrcpyDockApp:
             self.ui.refs['dev_info_lbl'].config(text=_("Sin dispositivos. Conecta un cable USB o activa ADB WiFi."), fg=C["orange"])
             self.ui.refs['scan_lbl'].config(text=_("Sin dispositivos"), fg=C["orange"])
             self._set_status(_("Sin dispositivos. Conecta un cable USB y activa la Depuración USB."), C["orange"])
+            if simple_combo:
+                simple_combo.set("Sin dispositivo")
+            self.ui.refs['dev_info_lbl'].config(text="Sin dispositivos. Conecta un cable USB o activa ADB WiFi.", fg=C["orange"])
+            self.ui.refs['scan_lbl'].config(text="Sin dispositivos", fg=C["orange"])
+            self._set_status("Sin dispositivos. Conecta un cable USB y activa la Depuración USB.", C["orange"])
 
-    def _on_dev_select(self, _=None):
-        listbox = self.ui.refs['dev_listbox']
-        sel = listbox.curselection()
-        if not sel:
-            return
-        raw = listbox.get(sel[0])
-        serial = _extract_serial(raw)
-        model = raw.strip().lstrip("🟢🟠⚫ ").split("  (")[0].strip()
+    def _on_dev_select(self, event=None):
+        if event and event.widget == self.ui.refs.get('simple_dev_combo'):
+            raw = self.ui.refs['simple_dev_combo'].get()
+            if not raw or raw == "Sin dispositivo": return
+            serial = _extract_serial(raw)
+            model = raw.split(" (")[0].strip()
+        else:
+            listbox = self.ui.refs['dev_listbox']
+            sel = listbox.curselection()
+            if not sel:
+                return
+            raw = listbox.get(sel[0])
+            serial = _extract_serial(raw)
+            model = raw.strip().lstrip("🟢🟠⚫ ").split("  (")[0].strip()
 
         self.ctx.select_device(serial, f"{model} ({serial})")
 
@@ -516,6 +553,19 @@ class ScrcpyDockApp:
             try:
                 if code == "notifications":
                     subprocess.run([self.ctx.adb, "-s", serial, "shell", "cmd", "statusbar", "expand-notifications"], capture_output=True, timeout=5)
+                elif code == "paste_text":
+                    try:
+                        text = self.root.clipboard_get()
+                        if text:
+                            # Use input text for pasting. Simple quote escaping.
+                            escaped_text = text.replace("'", "'\\''")
+                            subprocess.run([self.ctx.adb, "-s", serial, "shell", "input", "text", f"'{escaped_text}'"], capture_output=True, timeout=5)
+                    except tk.TclError:
+                        pass # Clipboard empty
+                elif code == "screen_on":
+                    subprocess.run([self.ctx.adb, "-s", serial, "shell", "input", "keyevent", "224"], capture_output=True, timeout=5)
+                elif code == "screen_off":
+                    subprocess.run([self.ctx.adb, "-s", serial, "shell", "input", "keyevent", "223"], capture_output=True, timeout=5)
                 else:
                     subprocess.run([self.ctx.adb, "-s", serial, "shell", "input", "keyevent", str(code)], capture_output=True, timeout=5)
             except Exception as e:
@@ -661,6 +711,10 @@ class ScrcpyDockApp:
         if combo:
             combo['values'] = names
 
+        simple_combo = self.ui.refs.get('simple_prof_combo')
+        if simple_combo:
+            simple_combo['values'] = names
+
     def _on_profile_listbox_sel(self, _=None):
         listbox = self.ui.refs['profile_listbox']
         sel = listbox.curselection()
@@ -758,7 +812,15 @@ class ScrcpyDockApp:
             self._stop_current()
         else:
             profile_name = self.ctx.active_profile.get()
-            profile_data = self.ctx.cfg["profiles"].get(profile_name, {})
+            profile_data = dict(self.ctx.cfg["profiles"].get(profile_name, {}))
+
+            # Incorporar argumentos adicionales si estamos en Vista Simple
+            if hasattr(self, 'is_advanced_view') and not self.is_advanced_view:
+                extra_var = self.ui.refs.get('simple_extra_cmd_var')
+                if extra_var and extra_var.get().strip():
+                    existing_args = profile_data.get("extra_args", "")
+                    profile_data["extra_args"] = f"{existing_args} {extra_var.get().strip()}".strip()
+
             self._set_status(f"Iniciando sesión: {profile_name}...", C["green"])
             
             if profile_data.get("force_screen_off_keyevent") or (profile_data.get("audio_source") == "mic" and "--no-video" in profile_data.get("extra_args", "")):

@@ -17,6 +17,69 @@ class UIBuilder:
         self._faq_items = []    # Referencia a AccordionItems de la FAQ
 
     # ─────────────────────────────────────────────────────────────────
+    # Vista Simple (Básica)
+    # ─────────────────────────────────────────────────────────────────
+
+    def build_simple_view(self, parent):
+        p = parent
+
+        # Centrar contenido
+        center_frame = tk.Frame(p, bg=C["bg"])
+        center_frame.place(relx=0.5, rely=0.5, anchor="center")
+
+        # Título
+        tk.Label(center_frame, text="Modo Simple", bg=C["bg"], fg=C["purple"], font=FONT_LG).pack(pady=(0, 20))
+
+        # Dispositivo
+        dev_frame = _row(center_frame, bg=C["bg"])
+        tk.Label(dev_frame, text="📱 Dispositivo:", bg=C["bg"], fg=C["text"], font=FONT_UI_B, width=15, anchor="w").pack(side="left")
+        self.refs['simple_dev_combo'] = ttk.Combobox(dev_frame, textvariable=self.ctx.active_device, state="readonly", width=30)
+        self.refs['simple_dev_combo'].pack(side="left", padx=10)
+        btn_refresh = ttk.Button(dev_frame, text="🔄", width=3, command=self.cb.get('refresh_devices'), style="Secondary.TButton")
+        btn_refresh.pack(side="left")
+        Tooltip(btn_refresh, "Refrescar dispositivos conectados")
+
+        self.refs['simple_dev_combo'].bind("<<ComboboxSelected>>", self.cb.get('on_dev_select'))
+
+        # Perfil
+        prof_frame = _row(center_frame, bg=C["bg"])
+        tk.Label(prof_frame, text="⚙️ Perfil:", bg=C["bg"], fg=C["text"], font=FONT_UI_B, width=15, anchor="w").pack(side="left")
+        self.refs['simple_prof_combo'] = ttk.Combobox(prof_frame, textvariable=self.ctx.active_profile, state="readonly", width=30)
+        self.refs['simple_prof_combo'].pack(side="left", padx=10)
+        btn_new_prof = ttk.Button(prof_frame, text="✨", width=3, command=self.cb.get('open_wizard'), style="Purple.TButton")
+        btn_new_prof.pack(side="left")
+        Tooltip(btn_new_prof, "Crear un nuevo perfil")
+
+        self.refs['simple_prof_combo'].bind("<<ComboboxSelected>>", self.cb.get('on_active_profile_change'))
+
+        # Comandos extra (Opcional)
+        cmd_frame = _row(center_frame, bg=C["bg"])
+        tk.Label(cmd_frame, text="🧩 Comandos extra:", bg=C["bg"], fg=C["text"], font=FONT_UI_B, width=15, anchor="w").pack(side="left")
+
+        self.refs['simple_extra_cmd_var'] = tk.StringVar(value="")
+        e_extra = ttk.Entry(cmd_frame, textvariable=self.refs['simple_extra_cmd_var'], width=35)
+        e_extra.pack(side="left", padx=10)
+        Tooltip(e_extra, "Argumentos adicionales para scrcpy (opcional)")
+
+        _sep(center_frame, C["sep"])
+
+        # Acciones principales
+        actions_frame = tk.Frame(center_frame, bg=C["bg"])
+        actions_frame.pack(pady=20)
+
+        btn_start = ttk.Button(actions_frame, text="▶  Iniciar", command=self.cb.get('toggle_scene'), style="Primary.TButton")
+        btn_start.pack(side="left", padx=10)
+        Tooltip(btn_start, "Iniciar transmisión")
+
+        btn_stop = ttk.Button(actions_frame, text="■  Detener", command=self.cb.get('stop_current'), style="Danger.TButton")
+        btn_stop.pack(side="left", padx=10)
+        Tooltip(btn_stop, "Detener transmisión activa")
+
+        btn_adb = ttk.Button(actions_frame, text="↺  Reiniciar ADB", command=self.cb.get('restart_adb'), style="Warn.TButton")
+        btn_adb.pack(side="left", padx=10)
+        Tooltip(btn_adb, "Reiniciar el servidor ADB")
+
+    # ─────────────────────────────────────────────────────────────────
     # Pestaña 1: Acciones (Hub de Transmisión)
     # ─────────────────────────────────────────────────────────────────
 
@@ -184,39 +247,46 @@ class UIBuilder:
         tk.Label(c_sec, text=_("Envía señales directas de hardware y navegación al dispositivo activo sin necesidad de tocar la pantalla."),
                  bg=C["card"], fg=C["muted"], font=FONT_SM, wraplength=700, justify="left").pack(anchor="w", padx=12, pady=(4, 10))
 
-        # Fila 1: Volumen y Audio
-        r1 = _row(c_sec, pady=4)
-        tk.Label(r1, text=_("🔊 Audio:"), bg=C["card"], fg=C["text2"], font=FONT_UI_B, width=12, anchor="w").pack(side="left", padx=(8, 4))
-        for txt, code, tip in [
-            (_("🔊 Vol +"), 24, _("Subir volumen")),
-            (_("🔉 Vol -"), 25, _("Bajar volumen")),
-            (_("🔇 Silenciar"), 164, _("Silenciar todo el audio")),
+        # Remoto - Layout rediseñado tipo control
+
+        remote_frame = tk.Frame(c_sec, bg=C["card"])
+        remote_frame.pack(pady=10)
+
+        # Fila 1: Pantalla y Notificaciones
+        r1 = tk.Frame(remote_frame, bg=C["card"])
+        r1.pack(pady=5)
+        for txt, code, tip, style in [
+            ("☀️ Encender Pantalla", "screen_on", "Enciende la pantalla del dispositivo", "Green.TButton"),
+            ("🌙 Apagar Pantalla", "screen_off", "Apaga la pantalla del dispositivo (equivale a alt+p en scrcpy)", "Danger.TButton"),
+            ("🔔 Notificaciones", "notifications", "Desplegar barra de notificaciones", "Secondary.TButton"),
         ]:
-            b = ttk.Button(r1, text=txt, command=lambda c=code: self.cb.get('send_keyevent')(c), style="Secondary.TButton")
-            b.pack(side="left", padx=4)
+            b = ttk.Button(r1, text=txt, command=lambda c=code: self.cb.get('send_keyevent')(c), style=style)
+            b.pack(side="left", padx=5)
             Tooltip(b, tip)
 
-        # Fila 2: Pantalla y Energía
-        r2 = _row(c_sec, pady=4)
-        tk.Label(r2, text=_("⚡ Pantalla:"), bg=C["card"], fg=C["text2"], font=FONT_UI_B, width=12, anchor="w").pack(side="left", padx=(8, 4))
-        for txt, code, tip in [
-            (_("⚡ Encender / Apagar"), 26, _("Enviar señal de botón Power")),
-            (_("🔔 Notificaciones"), "notifications", _("Desplegar barra de notificaciones")),
+        # Fila 2: Volumen y Audio
+        r2 = tk.Frame(remote_frame, bg=C["card"])
+        r2.pack(pady=5)
+        for txt, code, tip, style in [
+            ("🔊 Vol +", 24, "Subir volumen", "Primary.TButton"),
+            ("🔉 Vol -", 25, "Bajar volumen", "Primary.TButton"),
+            ("🔇 Silenciar", 164, "Silenciar todo el audio", "Warn.TButton"),
         ]:
-            b = ttk.Button(r2, text=txt, command=lambda c=code: self.cb.get('send_keyevent')(c), style="Secondary.TButton")
-            b.pack(side="left", padx=4)
+            b = ttk.Button(r2, text=txt, command=lambda c=code: self.cb.get('send_keyevent')(c), style=style)
+            b.pack(side="left", padx=5)
             Tooltip(b, tip)
 
-        # Fila 3: Navegación Android
-        r3 = _row(c_sec, pady=(4, 12))
-        tk.Label(r3, text=_("🧭 Navegación:"), bg=C["card"], fg=C["text2"], font=FONT_UI_B, width=12, anchor="w").pack(side="left", padx=(8, 4))
-        for txt, code, tip in [
-            (_("🏠 Inicio (Home)"), 3, _("Ir a la pantalla principal")),
-            (_("◀ Volver (Back)"), 4, _("Retroceder a la pantalla anterior")),
-            (_("📑 Recientes"), 187, _("Abrir el selector de aplicaciones recientes")),
+        # Fila 3: Navegación y Utilidad
+        r3 = tk.Frame(remote_frame, bg=C["card"])
+        r3.pack(pady=5)
+        for txt, code, tip, style in [
+            ("◀ Atrás", 4, "Retroceder a la pantalla anterior", "Secondary.TButton"),
+            ("🏠 Inicio", 3, "Ir a la pantalla principal", "Secondary.TButton"),
+            ("📑 Recientes", 187, "Abrir el selector de aplicaciones recientes", "Secondary.TButton"),
+            ("📋 Pegar PC", "paste_text", "Pega el texto del portapapeles del PC al dispositivo", "Purple.TButton"),
         ]:
-            b = ttk.Button(r3, text=txt, command=lambda c=code: self.cb.get('send_keyevent')(c), style="Secondary.TButton")
-            b.pack(side="left", padx=4)
+            b = ttk.Button(r3, text=txt, command=lambda c=code: self.cb.get('send_keyevent')(c), style=style)
+            b.pack(side="left", padx=5)
             Tooltip(b, tip)
 
         # ── 2. Gestor de Aplicaciones (Instalar APK) ──────────────────
