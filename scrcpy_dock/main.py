@@ -207,6 +207,8 @@ class ScrcpyDockApp:
 
         self._simple_view = tk.Frame(self.root, bg=C["bg"])
 
+        self._simple_view = tk.Frame(self.root, bg=C["bg"])
+
         self.ui.build_tab_actions(self._tab_actions)
         self.ui.build_tab_controls(self._tab_controls)
         self.ui.build_tab_device(self._tab_device)
@@ -300,8 +302,8 @@ class ScrcpyDockApp:
     def _auto_install_deps(self):
         """Instala automáticamente scrcpy y adb sin requerir comandos manuales en la terminal."""
         import urllib.request, zipfile, shutil
-        from .utils import APP_DIR, find_portable_binaries
-        target_bin_dir = os.path.join(APP_DIR, "bin")
+        from .utils import CONFIG_DIR, find_portable_binaries
+        target_bin_dir = os.path.join(CONFIG_DIR, "bin")
         os.makedirs(target_bin_dir, exist_ok=True)
 
         Toast(self.root, _("Iniciando descarga e instalación automática de scrcpy..."), "info", duration=5000)
@@ -312,7 +314,7 @@ class ScrcpyDockApp:
                     r = subprocess.run(["winget", "install", "Genymobile.scrcpy", "--silent", "--accept-source-agreements", "--accept-package-agreements"], capture_output=True, text=True)
                     if r.returncode != 0:
                         url = "https://github.com/Genymobile/scrcpy/releases/download/v2.4/scrcpy-win64-v2.4.zip"
-                        zip_path = os.path.join(APP_DIR, "scrcpy_temp.zip")
+                        zip_path = os.path.join(CONFIG_DIR, "scrcpy_temp.zip")
                         urllib.request.urlretrieve(url, zip_path)
                         with zipfile.ZipFile(zip_path, 'r') as zip_ref:
                             for member in zip_ref.namelist():
