@@ -114,6 +114,7 @@ DEFAULT_CONFIG = {
     "window_geometry": "880x680",
     "window_state": "normal",
     "onboarding_done": False,
+    "language": "es",
 }
 
 def load_config() -> dict:

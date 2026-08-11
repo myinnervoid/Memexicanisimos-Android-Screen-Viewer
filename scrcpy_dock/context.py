@@ -2,6 +2,7 @@ import queue
 import tkinter as tk
 from .utils import load_config, save_config, find_portable_binaries
 from .managers import ProfileManager, DeviceManager, SessionManager
+from .i18n import set_language
 
 class AppContext:
     def __init__(self, root: tk.Tk):
@@ -20,6 +21,10 @@ class AppContext:
         
         self.adb, self.scrcpy = find_portable_binaries()
         self._subscribers = {}
+
+        # Set language from config
+        lang = self.cfg.get("language", "es")
+        set_language(lang)
 
     def subscribe(self, event: str, callback):
         if event not in self._subscribers:
