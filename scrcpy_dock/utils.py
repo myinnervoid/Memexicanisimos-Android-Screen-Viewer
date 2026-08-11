@@ -84,7 +84,6 @@ FONT_MONO  = ("JetBrains Mono", 9) if _PLAT != "win32" else ("Consolas", 9)
 
 # ── Rutas ──────────────────────────────────────────────────────────────────
 CONFIG_DIR  = os.path.expanduser("~/.config/masv")
-APP_DIR     = CONFIG_DIR
 CONFIG_FILE = os.path.join(CONFIG_DIR, "config.json")
 LOG_FILE    = os.path.join(CONFIG_DIR, "masv.log")
 os.makedirs(CONFIG_DIR, exist_ok=True)
@@ -140,17 +139,26 @@ def save_config(cfg: dict):
 
 def find_portable_binaries():
     """Busca adb y scrcpy en la carpeta 'bin' relativa al ejecutable, en ~/.config/masv/bin, y en PATH."""
+    search_paths = []
+
     if getattr(sys, 'frozen', False):
-        base_path = sys._MEIPASS
+        # 1. Si está empaquetado, buscar en la carpeta donde está el binario ejecutable
+        exe_dir = os.path.dirname(sys.executable)
+        search_paths.append(os.path.join(exe_dir, "bin"))
+        # 2. Buscar en la carpeta temporal de PyInstaller
+        search_paths.append(os.path.join(sys._MEIPASS, "bin"))
     else:
+        # Modo desarrollo
         base_path = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        search_paths.append(os.path.join(base_path, "bin"))
 
-    bin_path1 = os.path.join(base_path, "bin")
-    bin_path2 = os.path.join(APP_DIR, "bin")
-    search_path = f"{bin_path1}{os.pathsep}{bin_path2}"
+    # 3. Buscar en la carpeta de configuración del usuario
+    search_paths.append(os.path.join(CONFIG_DIR, "bin"))
 
-    adb_path    = shutil.which("adb",    path=search_path) or shutil.which("adb")
-    scrcpy_path = shutil.which("scrcpy", path=search_path) or shutil.which("scrcpy")
+    search_path_str = os.pathsep.join(search_paths)
+
+    adb_path    = shutil.which("adb",    path=search_path_str) or shutil.which("adb")
+    scrcpy_path = shutil.which("scrcpy", path=search_path_str) or shutil.which("scrcpy")
     return adb_path, scrcpy_path
 
 def parse_ip_port(raw: str):
