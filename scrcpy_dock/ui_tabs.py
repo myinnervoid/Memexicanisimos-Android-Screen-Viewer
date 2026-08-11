@@ -1,4 +1,5 @@
 import tkinter as tk
+from .i18n import _
 from tkinter import ttk, messagebox
 import webbrowser
 from .utils import C, FONT_FAMILY, FONT_UI, FONT_UI_B, FONT_SM, FONT_LG, FONT_MONO, FONT_CARD
@@ -41,14 +42,14 @@ class UIBuilder:
         
         d_box = tk.Frame(info, bg=C["card"])
         d_box.pack(side="left")
-        tk.Label(d_box, text="Dispositivo:", bg=C["card"], fg=C["muted"], font=FONT_SM).pack(side="left", padx=(0, 4))
+        tk.Label(d_box, text=_("Dispositivo:"), bg=C["card"], fg=C["muted"], font=FONT_SM).pack(side="left", padx=(0, 4))
         self.refs['action_device_lbl'] = tk.Label(d_box, textvariable=self.ctx.active_device,
                                                   bg=C["card"], fg=C["text"], font=FONT_UI_B)
         self.refs['action_device_lbl'].pack(side="left")
 
         p_box = tk.Frame(info, bg=C["card"])
         p_box.pack(side="right")
-        tk.Label(p_box, text="Perfil:", bg=C["card"], fg=C["muted"], font=FONT_SM).pack(side="left", padx=(0, 4))
+        tk.Label(p_box, text=_("Perfil:"), bg=C["card"], fg=C["muted"], font=FONT_SM).pack(side="left", padx=(0, 4))
         self.refs['action_profile_lbl'] = tk.Label(p_box, textvariable=self.ctx.active_profile,
                                                    bg=C["card"], fg=C["cyan"], font=FONT_UI_B)
         self.refs['action_profile_lbl'].pack(side="left")
@@ -60,18 +61,18 @@ class UIBuilder:
         hero_left = tk.Frame(hero, bg=C["card"])
         hero_left.pack(side="left", fill="both", expand=True)
 
-        tk.Label(hero_left, text="Transmisión de Pantalla", bg=C["card"], fg=C["text"], font=FONT_CARD).pack(anchor="w")
-        tk.Label(hero_left, text="Inicia o detiene la sesión de scrcpy para el dispositivo activo.", bg=C["card"], fg=C["muted"], font=FONT_SM).pack(anchor="w", pady=(2, 8))
+        tk.Label(hero_left, text=_("Transmisión de Pantalla"), bg=C["card"], fg=C["text"], font=FONT_CARD).pack(anchor="w")
+        tk.Label(hero_left, text=_("Inicia o detiene la sesión de scrcpy para el dispositivo activo."), bg=C["card"], fg=C["muted"], font=FONT_SM).pack(anchor="w", pady=(2, 8))
 
         btn_bar = tk.Frame(hero_left, bg=C["card"])
         btn_bar.pack(anchor="w")
 
-        btn_start = ttk.Button(btn_bar, text="▶  Iniciar Transmisión",
+        btn_start = ttk.Button(btn_bar, text=_("▶  Iniciar Transmisión"),
                                command=self.cb.get('toggle_scene'), style="Primary.TButton")
         btn_start.pack(side="left", padx=(0, 10))
         Tooltip(btn_start, "Lanza scrcpy con el perfil seleccionado.", shortcut="Ctrl+I")
 
-        btn_stop = ttk.Button(btn_bar, text="■  Detener",
+        btn_stop = ttk.Button(btn_bar, text=_("■  Detener"),
                               command=self.cb.get('stop_current'), style="Secondary.TButton")
         btn_stop.pack(side="left", padx=(0, 10))
         Tooltip(btn_stop, "Detiene la transmisión activa del dispositivo.")
@@ -80,28 +81,28 @@ class UIBuilder:
         tools_sec = tk.Frame(hero, bg=C["card"])
         tools_sec.pack(side="right", anchor="e")
 
-        tk.Label(tools_sec, text="Herramientas:", bg=C["card"], fg=C["muted"], font=FONT_SM).pack(anchor="e", pady=(0, 4))
+        tk.Label(tools_sec, text=_("Herramientas:"), bg=C["card"], fg=C["muted"], font=FONT_SM).pack(anchor="e", pady=(0, 4))
         tb = tk.Frame(tools_sec, bg=C["card"])
         tb.pack(anchor="e")
 
-        btn_adb = ttk.Button(tb, text="↺ ADB", command=self.cb.get('restart_adb'), style="Warn.TButton")
+        btn_adb = ttk.Button(tb, text=_("↺ ADB"), command=self.cb.get('restart_adb'), style="Warn.TButton")
         btn_adb.pack(side="left", padx=2)
         Tooltip(btn_adb, "Reinicia el servidor ADB en caso de desconexión.")
 
-        btn_cam = ttk.Button(tb, text="📷 Webcam", command=self.cb.get('route_cam'), style="Purple.TButton")
+        btn_cam = ttk.Button(tb, text=_("📷 Webcam"), command=self.cb.get('route_cam'), style="Purple.TButton")
         btn_cam.pack(side="left", padx=2)
         Tooltip(btn_cam, "Enruta la cámara hacia /dev/video9 (Linux).")
 
-        btn_panic = ttk.Button(tb, text="⚠ Todo", command=self.cb.get('panic_kill'), style="Danger.TButton")
+        btn_panic = ttk.Button(tb, text=_("⚠ Todo"), command=self.cb.get('panic_kill'), style="Danger.TButton")
         btn_panic.pack(side="left", padx=2)
         Tooltip(btn_panic, "Cierra todas las sesiones activas de golpe.")
 
         # ── Tabla de Sesiones Activas ────────────────────────────────
         sf_lbl = tk.Frame(inner, bg=C["bg"])
         sf_lbl.pack(fill="x", padx=16, pady=(16, 4))
-        tk.Label(sf_lbl, text="  Sesiones activas", bg=C["bg"],
+        tk.Label(sf_lbl, text=_("  Sesiones activas"), bg=C["bg"],
                  fg=C["purple"], font=FONT_UI_B).pack(side="left")
-        tk.Label(sf_lbl, text="Supr = detener · Clic derecho = menú contextual",
+        tk.Label(sf_lbl, text=_("Supr = detener · Clic derecho = menú contextual"),
                  bg=C["bg"], fg=C["muted"], font=FONT_SM).pack(side="right")
 
         sf = tk.Frame(inner, bg=C["card2"])
@@ -134,7 +135,7 @@ class UIBuilder:
 
         btn_container = tk.Frame(inner, bg=C["bg"])
         btn_container.pack(fill="x", padx=16, pady=(6, 16))
-        ttk.Button(btn_container, text="✕  Detener sesión seleccionada",
+        ttk.Button(btn_container, text=_("✕  Detener sesión seleccionada"),
                    command=self.cb.get('stop_selected'),
                    style="Danger.TButton").pack(side="right")
 
@@ -168,28 +169,28 @@ class UIBuilder:
 
         d_box = tk.Frame(info_f, bg=C["card"])
         d_box.pack(side="left")
-        tk.Label(d_box, text="Dispositivo:", bg=C["card"], fg=C["muted"], font=FONT_SM).pack(side="left", padx=(0, 4))
+        tk.Label(d_box, text=_("Dispositivo:"), bg=C["card"], fg=C["muted"], font=FONT_SM).pack(side="left", padx=(0, 4))
         self.refs['ctrl_device_lbl'] = tk.Label(d_box, textvariable=self.ctx.active_device,
                                                 bg=C["card"], fg=C["green"], font=FONT_UI_B)
         self.refs['ctrl_device_lbl'].pack(side="left")
 
         p_box = tk.Frame(info_f, bg=C["card"])
         p_box.pack(side="right")
-        tk.Label(p_box, text="Perfil:", bg=C["card"], fg=C["muted"], font=FONT_SM).pack(side="left", padx=(0, 4))
+        tk.Label(p_box, text=_("Perfil:"), bg=C["card"], fg=C["muted"], font=FONT_SM).pack(side="left", padx=(0, 4))
         self.refs['ctrl_profile_lbl'] = tk.Label(p_box, textvariable=self.ctx.active_profile,
                                                  bg=C["card"], fg=C["cyan"], font=FONT_UI_B)
         self.refs['ctrl_profile_lbl'].pack(side="left")
 
-        tk.Label(c_sec, text="Envía señales directas de hardware y navegación al dispositivo activo sin necesidad de tocar la pantalla.",
+        tk.Label(c_sec, text=_("Envía señales directas de hardware y navegación al dispositivo activo sin necesidad de tocar la pantalla."),
                  bg=C["card"], fg=C["muted"], font=FONT_SM, wraplength=700, justify="left").pack(anchor="w", padx=12, pady=(4, 10))
 
         # Fila 1: Volumen y Audio
         r1 = _row(c_sec, pady=4)
-        tk.Label(r1, text="🔊 Audio:", bg=C["card"], fg=C["text2"], font=FONT_UI_B, width=12, anchor="w").pack(side="left", padx=(8, 4))
+        tk.Label(r1, text=_("🔊 Audio:"), bg=C["card"], fg=C["text2"], font=FONT_UI_B, width=12, anchor="w").pack(side="left", padx=(8, 4))
         for txt, code, tip in [
-            ("🔊 Vol +", 24, "Subir volumen"),
-            ("🔉 Vol -", 25, "Bajar volumen"),
-            ("🔇 Silenciar", 164, "Silenciar todo el audio"),
+            (_("🔊 Vol +"), 24, _("Subir volumen")),
+            (_("🔉 Vol -"), 25, _("Bajar volumen")),
+            (_("🔇 Silenciar"), 164, _("Silenciar todo el audio")),
         ]:
             b = ttk.Button(r1, text=txt, command=lambda c=code: self.cb.get('send_keyevent')(c), style="Secondary.TButton")
             b.pack(side="left", padx=4)
@@ -197,10 +198,10 @@ class UIBuilder:
 
         # Fila 2: Pantalla y Energía
         r2 = _row(c_sec, pady=4)
-        tk.Label(r2, text="⚡ Pantalla:", bg=C["card"], fg=C["text2"], font=FONT_UI_B, width=12, anchor="w").pack(side="left", padx=(8, 4))
+        tk.Label(r2, text=_("⚡ Pantalla:"), bg=C["card"], fg=C["text2"], font=FONT_UI_B, width=12, anchor="w").pack(side="left", padx=(8, 4))
         for txt, code, tip in [
-            ("⚡ Encender / Apagar", 26, "Enviar señal de botón Power"),
-            ("🔔 Notificaciones", "notifications", "Desplegar barra de notificaciones"),
+            (_("⚡ Encender / Apagar"), 26, _("Enviar señal de botón Power")),
+            (_("🔔 Notificaciones"), "notifications", _("Desplegar barra de notificaciones")),
         ]:
             b = ttk.Button(r2, text=txt, command=lambda c=code: self.cb.get('send_keyevent')(c), style="Secondary.TButton")
             b.pack(side="left", padx=4)
@@ -208,11 +209,11 @@ class UIBuilder:
 
         # Fila 3: Navegación Android
         r3 = _row(c_sec, pady=(4, 12))
-        tk.Label(r3, text="🧭 Navegación:", bg=C["card"], fg=C["text2"], font=FONT_UI_B, width=12, anchor="w").pack(side="left", padx=(8, 4))
+        tk.Label(r3, text=_("🧭 Navegación:"), bg=C["card"], fg=C["text2"], font=FONT_UI_B, width=12, anchor="w").pack(side="left", padx=(8, 4))
         for txt, code, tip in [
-            ("🏠 Inicio (Home)", 3, "Ir a la pantalla principal"),
-            ("◀ Volver (Back)", 4, "Retroceder a la pantalla anterior"),
-            ("📑 Recientes", 187, "Abrir el selector de aplicaciones recientes"),
+            (_("🏠 Inicio (Home)"), 3, _("Ir a la pantalla principal")),
+            (_("◀ Volver (Back)"), 4, _("Retroceder a la pantalla anterior")),
+            (_("📑 Recientes"), 187, _("Abrir el selector de aplicaciones recientes")),
         ]:
             b = ttk.Button(r3, text=txt, command=lambda c=code: self.cb.get('send_keyevent')(c), style="Secondary.TButton")
             b.pack(side="left", padx=4)
@@ -221,16 +222,16 @@ class UIBuilder:
         # ── 2. Gestor de Aplicaciones (Instalar APK) ──────────────────
         apk_sec = _section(inner, "📦  Gestor de Aplicaciones Android (Instalador APK)", pady=(8, 16))
 
-        tk.Label(apk_sec, text="Selecciona e instala archivos de aplicación (.apk) directamente desde tu computadora hacia el dispositivo seleccionado.",
+        tk.Label(apk_sec, text=_("Selecciona e instala archivos de aplicación (.apk) directamente desde tu computadora hacia el dispositivo seleccionado."),
                  bg=C["card"], fg=C["muted"], font=FONT_SM, wraplength=700, justify="left").pack(anchor="w", padx=12, pady=(4, 8))
 
         apk_r = _row(apk_sec, pady=(4, 10))
-        btn_apk = ttk.Button(apk_r, text="📦  Seleccionar e Instalar APK…",
+        btn_apk = ttk.Button(apk_r, text=_("📦  Seleccionar e Instalar APK…"),
                              command=self.cb.get('install_apk'), style="Green.TButton")
         btn_apk.pack(side="left", padx=8)
         Tooltip(btn_apk, "Abre el explorador de archivos para elegir un archivo .apk e instalarlo vía ADB.")
 
-        tk.Label(apk_r, text="💡 Tip: Durante una sesión activa de scrcpy, también puedes arrastrar el archivo .apk a la ventana de transmisión.",
+        tk.Label(apk_r, text=_("💡 Tip: Durante una sesión activa de scrcpy, también puedes arrastrar el archivo .apk a la ventana de transmisión."),
                  bg=C["card"], fg=C["cyan"], font=FONT_SM).pack(side="left", padx=12)
 
 
@@ -243,15 +244,15 @@ class UIBuilder:
 
         # ── Pantalla de dependencias faltantes ──────────────────────
         self.refs['install_frame'] = tk.Frame(p, bg=C["bg"])
-        tk.Label(self.refs['install_frame'], text="⚠️", font=(FONT_FAMILY, 48),
+        tk.Label(self.refs['install_frame'], text=_("⚠️"), font=(FONT_FAMILY, 48),
                  bg=C["bg"], fg=C["orange"]).pack(pady=(30, 8))
-        tk.Label(self.refs['install_frame'], text="Faltan dependencias: adb y/o scrcpy",
+        tk.Label(self.refs['install_frame'], text=_("Faltan dependencias: adb y/o scrcpy"),
                  bg=C["bg"], fg=C["text"], font=FONT_LG).pack()
         tk.Label(self.refs['install_frame'],
-                 text="MASV puede instalar automáticamente el núcleo sin necesidad de abrir la terminal:",
+                 text=_("MASV puede instalar automáticamente el núcleo sin necesidad de abrir la terminal:"),
                  bg=C["bg"], fg=C["muted"], font=FONT_UI).pack(pady=(8, 6))
 
-        btn_auto = tk.Button(self.refs['install_frame'], text="🚀  Instalar núcleo automáticamente (1-Clic)",
+        btn_auto = tk.Button(self.refs['install_frame'], text=_("🚀  Instalar núcleo automáticamente (1-Clic)"),
                              bg=C["green"], fg="#FFFFFF", font=(FONT_FAMILY, 11, "bold"),
                              relief="flat", bd=0, padx=20, pady=10, cursor="hand2",
                              command=self.cb.get('auto_install_deps'))
@@ -260,15 +261,15 @@ class UIBuilder:
 
         cmd_f = tk.Frame(self.refs['install_frame'], bg=C["card2"], padx=12, pady=6)
         cmd_f.pack()
-        tk.Label(cmd_f, text="Instalación manual (opcional): sudo apt install adb scrcpy", bg=C["card2"],
+        tk.Label(cmd_f, text=_("Instalación manual (opcional): sudo apt install adb scrcpy"), bg=C["card2"],
                  fg=C["muted"], font=FONT_SM).pack()
 
         btns_i = tk.Frame(self.refs['install_frame'], bg=C["bg"])
         btns_i.pack(pady=12)
-        tk.Button(btns_i, text="📋  Copiar comando", bg=C["blue"], fg="#FFF",
+        tk.Button(btns_i, text=_("📋  Copiar comando"), bg=C["blue"], fg="#FFF",
                   font=FONT_UI_B, relief="flat", bd=0, padx=14, pady=6,
                   command=self.cb.get('copy_install_cmd')).pack(side="left", padx=8)
-        tk.Button(btns_i, text="🖥  Abrir terminal", bg=C["sep"], fg=C["text"],
+        tk.Button(btns_i, text=_("🖥  Abrir terminal"), bg=C["sep"], fg=C["text"],
                   font=FONT_UI_B, relief="flat", bd=0, padx=14, pady=6,
                   command=self.cb.get('open_terminal_install')).pack(side="left", padx=8)
 
@@ -277,7 +278,7 @@ class UIBuilder:
 
         sf = _section(self.refs['dep_frame'], "🔍  Buscar dispositivos")
         r0 = _row(sf)
-        btn_scan = ttk.Button(r0, text="🔄  Buscar dispositivos",
+        btn_scan = ttk.Button(r0, text=_("🔄  Buscar dispositivos"),
                               command=self.cb.get('refresh_devices'), style="Primary.TButton")
         btn_scan.pack(side="left", padx=(0, 10))
         Tooltip(btn_scan, "Escanea dispositivos USB y WiFi.", shortcut="Ctrl+R")
@@ -300,56 +301,56 @@ class UIBuilder:
         self.refs['dev_listbox'].bind("<<ListboxSelect>>", self.cb.get('on_dev_select'))
 
         self.refs['dev_info_lbl'] = tk.Label(self.refs['dep_frame'],
-                                             text="Selecciona un dispositivo de la lista.",
+                                             text=_("Selecciona un dispositivo de la lista."),
                                              bg=C["bg"], fg=C["muted"], font=FONT_SM)
         self.refs['dev_info_lbl'].pack(padx=14, pady=4, anchor="w")
 
         self.refs['no_dev_hint'] = tk.Label(
             self.refs['dep_frame'],
-            text="¿Problemas? Consulta  →  ❓ Ayuda  →  'Cómo habilitar la Depuración USB'",
+            text=_("¿Problemas? Consulta  →  ❓ Ayuda  →  'Cómo habilitar la Depuración USB'"),
             bg=C["bg"], fg=C["cyan"], font=FONT_SM, cursor="hand2")
         self.refs['no_dev_hint'].bind("<Button-1>", lambda _: self.cb.get('go_to_help_usb')())
 
         # ── WiFi ─────────────────────────────────────────────────────
         wf = _section(self.refs['dep_frame'], "📡  Conexión WiFi (inalámbrica)", pady=(0, 4))
         wr = _row(wf)
-        tk.Label(wr, text="IP del teléfono:", bg=C["card"], fg=C["muted"],
+        tk.Label(wr, text=_("IP del teléfono:"), bg=C["card"], fg=C["muted"],
                  font=FONT_SM).pack(side="left", padx=(0, 6))
         self.refs['ip_entry'] = ttk.Entry(wr, width=18)
         self.refs['ip_entry'].insert(0, "192.168.1.")
         self.refs['ip_entry'].pack(side="left", padx=4)
         Tooltip(self.refs['ip_entry'], "IP del teléfono (Ajustes → Acerca del teléfono).")
-        tk.Label(wr, text=":", bg=C["card"], fg=C["muted"]).pack(side="left")
+        tk.Label(wr, text=_(":"), bg=C["card"], fg=C["muted"]).pack(side="left")
         self.refs['port_entry'] = ttk.Entry(wr, width=6)
         self.refs['port_entry'].insert(0, "5555")
         self.refs['port_entry'].pack(side="left", padx=4)
 
-        btn_getip = ttk.Button(wr, text="📡 Obtener IP", command=self.cb.get('get_device_ip'), style="Secondary.TButton")
+        btn_getip = ttk.Button(wr, text=_("📡 Obtener IP"), command=self.cb.get('get_device_ip'), style="Secondary.TButton")
         btn_getip.pack(side="left", padx=8)
         Tooltip(btn_getip, "Consulta automáticamente la IP WiFi del dispositivo seleccionado vía ADB.")
 
         btns_w = _row(wf)
-        ttk.Button(btns_w, text="Conectar", command=self.cb.get('connect_wifi'),
+        ttk.Button(btns_w, text=_("Conectar"), command=self.cb.get('connect_wifi'),
                    style="Primary.TButton").pack(side="left", padx=(0, 8))
-        ttk.Button(btns_w, text="Habilitar TCP/IP (USB→WiFi)",
+        ttk.Button(btns_w, text=_("Habilitar TCP/IP (USB→WiFi)"),
                    command=self.cb.get('enable_tcpip'),
                    style="Secondary.TButton").pack(side="left")
 
         # ── v4l2loopback ─────────────────────────────────────────────
         vf = _section(self.refs['dep_frame'], "📷  Webcam Virtual (v4l2loopback)")
-        self.refs['v4l2_lbl'] = tk.Label(vf, text="Verificando módulo…",
+        self.refs['v4l2_lbl'] = tk.Label(vf, text=_("Verificando módulo…"),
                                          bg=C["card"], fg=C["orange"], font=FONT_SM)
         self.refs['v4l2_lbl'].pack(anchor="w", padx=4, pady=2)
         vr = _row(vf)
-        self.refs['load_v4l2_btn'] = ttk.Button(vr, text="Cargar módulo",
+        self.refs['load_v4l2_btn'] = ttk.Button(vr, text=_("Cargar módulo"),
                                                 command=self.cb.get('setup_v4l2'),
                                                 style="Secondary.TButton")
         self.refs['load_v4l2_btn'].pack(side="left", padx=(0, 8))
-        self.refs['route_cam_btn'] = ttk.Button(vr, text="Enrutar cámara → /dev/video9",
+        self.refs['route_cam_btn'] = ttk.Button(vr, text=_("Enrutar cámara → /dev/video9"),
                                                command=self.cb.get('route_cam'),
                                                state="disabled", style="Green.TButton")
         self.refs['route_cam_btn'].pack(side="left", padx=(0, 8))
-        ttk.Button(vr, text="Ver Guía en Ayuda 🔗", command=lambda: self.cb.get('go_to_help_v4l2')(),
+        ttk.Button(vr, text=_("Ver Guía en Ayuda 🔗"), command=lambda: self.cb.get('go_to_help_v4l2')(),
                    style="Ghost.TButton").pack(side="left")
 
         if not self.ctx.adb or not self.ctx.scrcpy:
@@ -375,15 +376,15 @@ class UIBuilder:
 
         self.refs['profile_empty_lbl'] = tk.Label(
             sf,
-            text="Aún no hay perfiles.\nCrea uno con el botón  ✨ Nuevo perfil  para comenzar.",
+            text=_("Aún no hay perfiles.\nCrea uno con el botón  ✨ Nuevo perfil  para comenzar."),
             bg=C["card2"], fg=C["muted"], font=FONT_SM, justify="center", pady=12)
 
         pa = _row(sf)
-        btn_new = ttk.Button(pa, text="✨  Nuevo perfil (asistente)",
+        btn_new = ttk.Button(pa, text=_("✨  Nuevo perfil (asistente)"),
                              command=self.cb.get('open_wizard'), style="Purple.TButton")
         btn_new.pack(side="left", padx=(0, 8))
         Tooltip(btn_new, "Crea un perfil con el asistente paso a paso.")
-        btn_del = ttk.Button(pa, text="🗑  Eliminar",
+        btn_del = ttk.Button(pa, text=_("🗑  Eliminar"),
                              command=self.cb.get('delete_profile'), style="Danger.TButton")
         btn_del.pack(side="left")
         Tooltip(btn_del, "Elimina el perfil seleccionado.")
@@ -395,7 +396,7 @@ class UIBuilder:
 
         af = _section(p, "🎯  Perfil activo para la próxima sesión")
         ar = _row(af)
-        tk.Label(ar, text="Perfil:", bg=C["card"], fg=C["muted"],
+        tk.Label(ar, text=_("Perfil:"), bg=C["card"], fg=C["muted"],
                  font=FONT_SM).pack(side="left", padx=(0, 6))
         self.refs['active_profile_combo'] = ttk.Combobox(
             ar, textvariable=self.ctx.active_profile, state="readonly", width=24)
@@ -403,7 +404,7 @@ class UIBuilder:
         self.refs['active_profile_combo'].bind("<<ComboboxSelected>>",
                                               self.cb.get('on_active_profile_change'))
 
-        btn_start_prof = ttk.Button(ar, text="▶  Iniciar transmisión con este perfil",
+        btn_start_prof = ttk.Button(ar, text=_("▶  Iniciar transmisión con este perfil"),
                                     command=self.cb.get('start_profile'), style="Primary.TButton")
         btn_start_prof.pack(side="right", padx=(8, 0))
         Tooltip(btn_start_prof, "Activa este perfil y lanza la sesión inmediatamente con el dispositivo seleccionado.")
@@ -420,17 +421,17 @@ class UIBuilder:
         p = parent
         tb = tk.Frame(p, bg=C["card2"], pady=4, padx=8)
         tb.pack(fill="x", side="top")
-        tk.Label(tb, text="Filtrar:", bg=C["card2"], fg=C["muted"],
+        tk.Label(tb, text=_("Filtrar:"), bg=C["card2"], fg=C["muted"],
                  font=FONT_SM).pack(side="left", padx=(4, 6))
 
-        for name, filter_key in [("Todos", "ALL"), ("Errores", "ERROR"),
-                                  ("ADB", "ADB"), ("Scrcpy", "INFO")]:
+        for name, filter_key in [(_("Todos"), _("ALL")), (_("Errores"), _("ERROR")),
+                                  (_("ADB"), _("ADB")), (_("Scrcpy"), _("INFO"))]:
             btn = tk.Button(tb, text=name, bg=C["card"], fg=C["text"],
                             font=FONT_SM, relief="flat", bd=0, padx=10, pady=3,
                             command=lambda k=filter_key: self.cb.get('filter_log')(k))
             btn.pack(side="left", padx=2)
 
-        tk.Button(tb, text="📋  Copiar todo", bg=C["sep"], fg=C["text"],
+        tk.Button(tb, text=_("📋  Copiar todo"), bg=C["sep"], fg=C["text"],
                   font=FONT_SM, relief="flat", bd=0, padx=10, pady=3,
                   command=self.cb.get('copy_log')).pack(side="right", padx=4)
 
@@ -444,15 +445,15 @@ class UIBuilder:
         log_sb.pack(side="right", fill="y")
 
         for tag, color in [("ERROR", C["red"]), ("WARNING", C["orange"]),
-                           ("INFO", C["cyan"]), ("ADB", "#A0D8EF"), ("OK", C["green"])]:
+                           ("INFO", C["cyan"]), (_("ADB"), _("#A0D8EF")), ("OK", C["green"])]:
             self.refs['log_txt'].tag_config(tag, foreground=color)
 
         cb = tk.Frame(p, bg=C["card2"])
         cb.pack(fill="x", side="bottom")
-        tk.Button(cb, text="🗑  Limpiar consola", bg=C["sep"], fg=C["text"],
+        tk.Button(cb, text=_("🗑  Limpiar consola"), bg=C["sep"], fg=C["text"],
                   font=FONT_SM, relief="flat", bd=0, padx=12, pady=6,
                   command=self.cb.get('clear_log')).pack(side="left", padx=8, pady=4)
-        tk.Button(cb, text="📄  Abrir archivo de log", bg=C["bg"], fg=C["muted"],
+        tk.Button(cb, text=_("📄  Abrir archivo de log"), bg=C["bg"], fg=C["muted"],
                   font=FONT_SM, relief="flat", bd=0, padx=12, pady=6,
                   command=self.cb.get('open_log')).pack(side="right", padx=8, pady=4)
 
@@ -467,9 +468,9 @@ class UIBuilder:
 
         hdr = tk.Frame(p, bg=C["card"], pady=8)
         hdr.pack(fill="x")
-        tk.Label(hdr, text="❓  Preguntas Frecuentes y Documentación",
+        tk.Label(hdr, text=_("❓  Preguntas Frecuentes y Documentación"),
                  bg=C["card"], fg=C["purple"], font=FONT_LG).pack(side="left", padx=16)
-        tk.Label(hdr, text="Ctrl+H",
+        tk.Label(hdr, text=_("Ctrl+H"),
                  bg=C["card"], fg=C["muted"], font=FONT_SM).pack(side="right", padx=16)
 
         tk.Frame(p, bg=C["sep"], height=1).pack(fill="x")
@@ -514,7 +515,7 @@ class UIBuilder:
 
         # ── 1. Depuración USB ─────────────────────────────────────────
         def _faq_usb_debug(f):
-            tk.Label(f, text="Paso 1 — Activa las Opciones de desarrollador:",
+            tk.Label(f, text=_("Paso 1 — Activa las Opciones de desarrollador:"),
                      bg=C["bg"], fg=C["text2"], font=FONT_UI_B, anchor="w").pack(fill="x", padx=20, pady=(4, 2))
             for line in [
                 "   a. Abre Ajustes en tu teléfono.",
@@ -524,7 +525,7 @@ class UIBuilder:
             ]:
                 tk.Label(f, text=line, bg=C["bg"], fg=C["text2"], font=FONT_UI, anchor="w").pack(fill="x", padx=20, pady=1)
 
-            tk.Label(f, text="Paso 2 — Activa la Depuración USB:",
+            tk.Label(f, text=_("Paso 2 — Activa la Depuración USB:"),
                      bg=C["bg"], fg=C["text2"], font=FONT_UI_B, anchor="w").pack(fill="x", padx=20, pady=(8, 2))
             for line in [
                 "   a. Regresa a Ajustes → Sistema → Opciones para desarrolladores.",
@@ -537,7 +538,7 @@ class UIBuilder:
 
         # ── 2. Dispositivo no detectado ───────────────────────────────
         def _faq_not_found(f):
-            tk.Label(f, text="Si tu dispositivo no aparece o dice 'unauthorized':", bg=C["bg"], fg=C["text2"], font=FONT_UI_B).pack(anchor="w", padx=20, pady=4)
+            tk.Label(f, text=_("Si tu dispositivo no aparece o dice 'unauthorized':"), bg=C["bg"], fg=C["text2"], font=FONT_UI_B).pack(anchor="w", padx=20, pady=4)
             _cmd_chip(f, "adb kill-server", root_ref)
             _cmd_chip(f, "adb start-server", root_ref)
             _cmd_chip(f, "adb devices", root_ref)
@@ -573,26 +574,26 @@ class UIBuilder:
 
         # ── 5. SECCIÓN DEDICADA: WEBCAM VIRTUAL (V4L2LOOPBACK) ────────
         def _faq_v4l2(f):
-            tk.Label(f, text="¿Qué es y para qué sirve?", bg=C["bg"], fg=C["cyan"], font=FONT_UI_B).pack(anchor="w", padx=20, pady=(4, 2))
-            tk.Label(f, text="La función Webcam Virtual te permite transmitir la cámara de tu teléfono Android como una cámara de vídeo nativa (/dev/video9) en Linux. Esto permite usar tu celular como cámara de alta definición en OBS Studio, Discord, Zoom o Google Meet sin lags ni marcas de agua.",
+            tk.Label(f, text=_("¿Qué es y para qué sirve?"), bg=C["bg"], fg=C["cyan"], font=FONT_UI_B).pack(anchor="w", padx=20, pady=(4, 2))
+            tk.Label(f, text=_("La función Webcam Virtual te permite transmitir la cámara de tu teléfono Android como una cámara de vídeo nativa (/dev/video9) en Linux. Esto permite usar tu celular como cámara de alta definición en OBS Studio, Discord, Zoom o Google Meet sin lags ni marcas de agua."),
                      bg=C["bg"], fg=C["text2"], font=FONT_UI, wraplength=680, justify="left").pack(anchor="w", padx=20, pady=(0, 8))
 
-            tk.Label(f, text="Requisitos:", bg=C["bg"], fg=C["text2"], font=FONT_UI_B).pack(anchor="w", padx=20, pady=(4, 2))
-            tk.Label(f, text="• Sistema operativo Linux.\n• Paquete v4l2loopback-dkms instalado.", bg=C["bg"], fg=C["muted"], font=FONT_SM).pack(anchor="w", padx=20, pady=(0, 6))
+            tk.Label(f, text=_("Requisitos:"), bg=C["bg"], fg=C["text2"], font=FONT_UI_B).pack(anchor="w", padx=20, pady=(4, 2))
+            tk.Label(f, text=_("• Sistema operativo Linux.\n• Paquete v4l2loopback-dkms instalado."), bg=C["bg"], fg=C["muted"], font=FONT_SM).pack(anchor="w", padx=20, pady=(0, 6))
 
-            tk.Label(f, text="Comandos de instalación y configuración (haz clic en 📋 Copiar):", bg=C["bg"], fg=C["text2"], font=FONT_UI_B).pack(anchor="w", padx=20, pady=(6, 2))
+            tk.Label(f, text=_("Comandos de instalación y configuración (haz clic en 📋 Copiar):"), bg=C["bg"], fg=C["text2"], font=FONT_UI_B).pack(anchor="w", padx=20, pady=(6, 2))
 
-            tk.Label(f, text="1. Instalar el módulo en el sistema:", bg=C["bg"], fg=C["muted"], font=FONT_SM).pack(anchor="w", padx=20)
+            tk.Label(f, text=_("1. Instalar el módulo en el sistema:"), bg=C["bg"], fg=C["muted"], font=FONT_SM).pack(anchor="w", padx=20)
             _cmd_chip(f, "sudo apt install v4l2loopback-dkms v4l2loopback-utils", root_ref)
 
-            tk.Label(f, text="2. Cargar el módulo manualmente:", bg=C["bg"], fg=C["muted"], font=FONT_SM).pack(anchor="w", padx=20, pady=(4, 0))
+            tk.Label(f, text=_("2. Cargar el módulo manualmente:"), bg=C["bg"], fg=C["muted"], font=FONT_SM).pack(anchor="w", padx=20, pady=(4, 0))
             _cmd_chip(f, "sudo modprobe v4l2loopback devices=1 video_nr=9 card_label='MASV Webcam' exclusive_caps=1", root_ref)
 
-            tk.Label(f, text="3. Configurar carga automática en cada arranque:", bg=C["bg"], fg=C["muted"], font=FONT_SM).pack(anchor="w", padx=20, pady=(4, 0))
+            tk.Label(f, text=_("3. Configurar carga automática en cada arranque:"), bg=C["bg"], fg=C["muted"], font=FONT_SM).pack(anchor="w", padx=20, pady=(4, 0))
             _cmd_chip(f, "echo 'v4l2loopback' | sudo tee -a /etc/modules", root_ref)
             _cmd_chip(f, "echo 'options v4l2loopback devices=1 video_nr=9 card_label=\"MASV Webcam\" exclusive_caps=1' | sudo tee /etc/modprobe.d/masv.conf", root_ref)
 
-            tk.Label(f, text="4. Comando scrcpy equivalente en terminal:", bg=C["bg"], fg=C["muted"], font=FONT_SM).pack(anchor="w", padx=20, pady=(4, 0))
+            tk.Label(f, text=_("4. Comando scrcpy equivalente en terminal:"), bg=C["bg"], fg=C["muted"], font=FONT_SM).pack(anchor="w", padx=20, pady=(4, 0))
             _cmd_chip(f, "scrcpy --video-source=camera --v4l2-sink=/dev/video9 --no-playback", root_ref)
 
         _add("📷  Cámara Virtual v4l2loopback (Linux)", _faq_v4l2)
@@ -600,9 +601,9 @@ class UIBuilder:
         # ── 6. Perfiles ───────────────────────────────────────────────
         def _faq_profiles(f):
             for param, desc in [
-                ("Bitrate", "Velocidad de datos. 4M = liviano, 16M = alta calidad para juegos."),
-                ("Resolución", "Altura máxima en px (720p, 1080p, 1920p). 0 = resolución nativa."),
-                ("Códec", "H.264 (alta compatibilidad), H.265 (mejor compresión), AV1 (moderno)."),
+                (_("Bitrate"), _("Velocidad de datos. 4M = liviano, 16M = alta calidad para juegos.")),
+                (_("Resolución"), _("Altura máxima en px (720p, 1080p, 1920p). 0 = resolución nativa.")),
+                (_("Códec"), _("H.264 (alta compatibilidad), H.265 (mejor compresión), AV1 (moderno).")),
             ]:
                 row = tk.Frame(f, bg=C["card"], padx=10, pady=4)
                 row.pack(fill="x", padx=20, pady=2)
@@ -614,17 +615,17 @@ class UIBuilder:
         # ── 7. Atajos Nativo Scrcpy ───────────────────────────────────
         def _faq_scrcpy_keys(f):
             for combo, desc in [
-                ("Alt + Up / MOD + u", "🔊 Subir volumen"),
-                ("Alt + Down / MOD + d", "🔉 Bajar volumen"),
-                ("MOD + p", "⚡ Encendido / Apagar pantalla"),
-                ("MOD + h", "🏠 Ir a Inicio (Home)"),
-                ("MOD + b / Backspace", "◀ Volver Atrás (Back)"),
-                ("MOD + s", "📑 Ver aplicaciones recientes"),
-                ("MOD + f", "🖥️ Pantalla completa"),
-                ("MOD + m", "🔇 Silenciar / Activar audio"),
-                ("MOD + n", "🔔 Desplegar notificaciones"),
-                ("MOD + v", "📋 Pegar portapapeles del PC"),
-                ("Arrastrar .apk", "📦 Instalar archivo APK en el teléfono"),
+                (_("Alt + Up / MOD + u"), _("🔊 Subir volumen")),
+                (_("Alt + Down / MOD + d"), _("🔉 Bajar volumen")),
+                (_("MOD + p"), _("⚡ Encendido / Apagar pantalla")),
+                (_("MOD + h"), _("🏠 Ir a Inicio (Home)")),
+                (_("MOD + b / Backspace"), _("◀ Volver Atrás (Back)")),
+                (_("MOD + s"), _("📑 Ver aplicaciones recientes")),
+                (_("MOD + f"), _("🖥️ Pantalla completa")),
+                (_("MOD + m"), _("🔇 Silenciar / Activar audio")),
+                (_("MOD + n"), _("🔔 Desplegar notificaciones")),
+                (_("MOD + v"), _("📋 Pegar portapapeles del PC")),
+                (_("Arrastrar .apk"), _("📦 Instalar archivo APK en el teléfono")),
             ]:
                 row = tk.Frame(f, bg=C["card"], padx=10, pady=3)
                 row.pack(fill="x", padx=20, pady=1)
@@ -635,15 +636,15 @@ class UIBuilder:
 
         # ── 8. NUEVO FAQ: Controles Remotos (Mando) ───────────────────
         def _faq_controls(f):
-            tk.Label(f, text="¿Cómo funcionan los controles remotos?", bg=C["bg"], fg=C["cyan"], font=FONT_UI_B).pack(anchor="w", padx=20, pady=(4, 2))
-            tk.Label(f, text="Desde la pestaña 🎮 Controles puedes enviar señales directas de hardware y comandos de navegación a tu dispositivo Android sin necesidad de tocar la pantalla física.",
+            tk.Label(f, text=_("¿Cómo funcionan los controles remotos?"), bg=C["bg"], fg=C["cyan"], font=FONT_UI_B).pack(anchor="w", padx=20, pady=(4, 2))
+            tk.Label(f, text=_("Desde la pestaña 🎮 Controles puedes enviar señales directas de hardware y comandos de navegación a tu dispositivo Android sin necesidad de tocar la pantalla física."),
                      bg=C["bg"], fg=C["text2"], font=FONT_UI, wraplength=680, justify="left").pack(anchor="w", padx=20, pady=(0, 6))
 
-            tk.Label(f, text="Agrupación de botones disponibles:", bg=C["bg"], fg=C["text2"], font=FONT_UI_B).pack(anchor="w", padx=20, pady=(4, 2))
+            tk.Label(f, text=_("Agrupación de botones disponibles:"), bg=C["bg"], fg=C["text2"], font=FONT_UI_B).pack(anchor="w", padx=20, pady=(4, 2))
             groups = [
-                ("🔊 Audio", "Vol+ (subir volumen), Vol- (bajar volumen), Silenciar (mute instantáneo)."),
-                ("⚡ Pantalla", "Encender/Apagar (señal Power) y Notificaciones (desplegar barra de estado)."),
-                ("🧭 Navegación", "Inicio (pantalla principal), Volver (Atrás), Recientes (selector de apps)."),
+                (_("🔊 Audio"), _("Vol+ (subir volumen), Vol- (bajar volumen), Silenciar (mute instantáneo).")),
+                (_("⚡ Pantalla"), _("Encender/Apagar (señal Power) y Notificaciones (desplegar barra de estado).")),
+                (_("🧭 Navegación"), _("Inicio (pantalla principal), Volver (Atrás), Recientes (selector de apps).")),
             ]
             for title, desc in groups:
                 r = tk.Frame(f, bg=C["card"], padx=10, pady=4)
@@ -651,19 +652,19 @@ class UIBuilder:
                 tk.Label(r, text=title, bg=C["card"], fg=C["purple"], font=FONT_UI_B, width=14, anchor="w").pack(side="left")
                 tk.Label(r, text=desc, bg=C["card"], fg=C["text2"], font=FONT_SM, wraplength=520, justify="left").pack(side="left")
 
-            tk.Label(f, text="⚠️ Requisito: Debes tener un dispositivo activo seleccionado en la pestaña 📱 Dispositivo para enviar los comandos.",
+            tk.Label(f, text=_("⚠️ Requisito: Debes tener un dispositivo activo seleccionado en la pestaña 📱 Dispositivo para enviar los comandos."),
                      bg=C["bg"], fg=C["orange"], font=FONT_SM, wraplength=680, justify="left").pack(anchor="w", padx=20, pady=(6, 4))
 
         _add("🎮  Controles Remotos (Mando)", _faq_controls)
 
         # ── 9. NUEVO FAQ: Instalación de APKs ─────────────────────────
         def _faq_apks(f):
-            tk.Label(f, text="Existen dos métodos sencillos para instalar aplicaciones (.apk) en tu teléfono:",
+            tk.Label(f, text=_("Existen dos métodos sencillos para instalar aplicaciones (.apk) en tu teléfono:"),
                      bg=C["bg"], fg=C["text2"], font=FONT_UI, wraplength=680, justify="left").pack(anchor="w", padx=20, pady=(4, 6))
 
             methods = [
-                ("a) Botón de instalación en la app:", "Ve a la pestaña 🎮 Controles y pulsa '📦 Seleccionar e Instalar APK…'. Abre el explorador de archivos, elige el archivo .apk y MASV lo instalará vía ADB."),
-                ("b) Arrastrar y soltar en scrcpy:", "Durante una transmisión activa, arrastra el archivo .apk desde tu explorador de archivos directamente sobre la ventana de vídeo de scrcpy."),
+                (_("a) Botón de instalación en la app:"), _("Ve a la pestaña 🎮 Controles y pulsa '📦 Seleccionar e Instalar APK…'. Abre el explorador de archivos, elige el archivo .apk y MASV lo instalará vía ADB.")),
+                (_("b) Arrastrar y soltar en scrcpy:"), _("Durante una transmisión activa, arrastra el archivo .apk desde tu explorador de archivos directamente sobre la ventana de vídeo de scrcpy.")),
             ]
             for title, desc in methods:
                 r = tk.Frame(f, bg=C["card"], padx=12, pady=6)
@@ -671,23 +672,23 @@ class UIBuilder:
                 tk.Label(r, text=title, bg=C["card"], fg=C["green"], font=FONT_UI_B).pack(anchor="w")
                 tk.Label(r, text=desc, bg=C["card"], fg=C["text2"], font=FONT_SM, wraplength=640, justify="left").pack(anchor="w", pady=(2, 0))
 
-            tk.Label(f, text="Comando equivalente manual en terminal:", bg=C["bg"], fg=C["muted"], font=FONT_SM).pack(anchor="w", padx=20, pady=(6, 0))
+            tk.Label(f, text=_("Comando equivalente manual en terminal:"), bg=C["bg"], fg=C["muted"], font=FONT_SM).pack(anchor="w", padx=20, pady=(6, 0))
             _cmd_chip(f, "adb install -r nombre.apk", root_ref)
 
         _add("📦  Instalación de APKs", _faq_apks)
 
         # ── 10. NUEVO FAQ: Atajos de la aplicación MASV ───────────────
         def _faq_masv_keys(f):
-            tk.Label(f, text="Atajos globales y combinaciones de teclado dentro de MASV:",
+            tk.Label(f, text=_("Atajos globales y combinaciones de teclado dentro de MASV:"),
                      bg=C["bg"], fg=C["muted"], font=FONT_SM, anchor="w").pack(fill="x", padx=20, pady=(2, 6))
 
             masv_shortcuts = [
-                ("Ctrl + I", "🚀 Iniciar / Detener transmisión activa"),
-                ("Ctrl + R", "🔄 Buscar y refrescar dispositivos conectados"),
-                ("Ctrl + H", "❓ Abrir pestaña de Ayuda y FAQ"),
-                ("Ctrl + Q", "❌ Salir de la aplicación"),
-                ("Supr (Delete)", "✕ Detener la sesión seleccionada en la tabla"),
-                ("Clic derecho (tabla)", "📋 Menú contextual: copiar serial, copiar comando, forzar cierre"),
+                (_("Ctrl + I"), _("🚀 Iniciar / Detener transmisión activa")),
+                (_("Ctrl + R"), _("🔄 Buscar y refrescar dispositivos conectados")),
+                (_("Ctrl + H"), _("❓ Abrir pestaña de Ayuda y FAQ")),
+                (_("Ctrl + Q"), _("❌ Salir de la aplicación")),
+                (_("Supr (Delete)"), _("✕ Detener la sesión seleccionada en la tabla")),
+                (_("Clic derecho (tabla)"), _("📋 Menú contextual: copiar serial, copiar comando, forzar cierre")),
             ]
             for combo, desc in masv_shortcuts:
                 row = tk.Frame(f, bg=C["card"], padx=10, pady=3)
@@ -700,9 +701,9 @@ class UIBuilder:
         # ── 11. Problemas Comunes ──────────────────────────────────────
         def _faq_troubleshoot(f):
             for prob, desc in [
-                ("Error: device offline", "Desconecta y vuelve a conectar el cable USB o ejecuta 'adb reconnect'."),
-                ("Error: more than one device", "Selecciona el dispositivo deseado en la pestaña 📱 Dispositivo."),
-                ("La sesión no se detiene", "Usa el botón '⚠ Todo' en Acciones o clic derecho → Forzar cierre."),
+                (_("Error: device offline"), _("Desconecta y vuelve a conectar el cable USB o ejecuta 'adb reconnect'.")),
+                (_("Error: more than one device"), _("Selecciona el dispositivo deseado en la pestaña 📱 Dispositivo.")),
+                (_("La sesión no se detiene"), _("Usa el botón '⚠ Todo' en Acciones o clic derecho → Forzar cierre.")),
             ]:
                 row = tk.Frame(f, bg=C["card"], padx=12, pady=6)
                 row.pack(fill="x", padx=20, pady=2)
@@ -714,7 +715,7 @@ class UIBuilder:
         # Footer
         ft = tk.Frame(sf, bg=C["bg"])
         ft.pack(fill="x", padx=12, pady=(12, 16))
-        tk.Label(ft, text="MASV — Memexicanisimos Android Screen Viewer", bg=C["bg"], fg=C["muted"], font=FONT_SM).pack(side="left")
-        link = tk.Label(ft, text="🔗 GitHub", bg=C["bg"], fg=C["blue"], font=FONT_SM, cursor="hand2")
+        tk.Label(ft, text=_("MASV — Memexicanisimos Android Screen Viewer"), bg=C["bg"], fg=C["muted"], font=FONT_SM).pack(side="left")
+        link = tk.Label(ft, text=_("🔗 GitHub"), bg=C["bg"], fg=C["blue"], font=FONT_SM, cursor="hand2")
         link.pack(side="right")
         link.bind("<Button-1>", lambda _: webbrowser.open("https://github.com/myinnervoid/Memexicanisimos-Android-Screen-Viewer"))

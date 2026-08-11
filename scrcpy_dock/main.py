@@ -1,4 +1,5 @@
 import tkinter as tk
+from .i18n import _
 from tkinter import ttk, messagebox, filedialog
 import queue
 import time
@@ -34,7 +35,7 @@ class ScrcpyDockApp:
         self._setup_styles()
 
         # ── Restaurar geometría guardada ───────────────────────
-        geo = self.ctx.cfg.get("window_geometry", "860x680")
+        geo = self.ctx.cfg.get(_("window_geometry"), _("860x680"))
         self.root.geometry(geo)
         if self.ctx.cfg.get("window_state") == "zoomed":
             try: self.root.state("zoomed")
@@ -140,7 +141,7 @@ class ScrcpyDockApp:
                     foreground=C["text2"], font=FONT_UI_B, relief="flat")
         s.map("Treeview",
               background=[("selected", C["blue"])],
-              foreground=[("selected", "#FFFFFF")])
+              foreground=[(_("selected"), _("#FFFFFF"))])
         s.configure("TScrollbar", background=C["sep"], troughcolor=C["card"],
                     arrowcolor=C["muted"], borderwidth=0)
 
@@ -152,7 +153,7 @@ class ScrcpyDockApp:
                   background=[("active", hover), ("disabled", dis_bg),
                                ("focus", bg)],
                   foreground=[("disabled", dis_fg)],
-                  relief=[("focus", "solid")])
+                  relief=[(_("focus"), _("solid"))])
 
         _btn("Primary.TButton",   C["indigo"], "#FFF", C["indigo_hover"])
         _btn("Danger.TButton",    C["red"],    "#FFF", C["red_hover"])
@@ -170,9 +171,9 @@ class ScrcpyDockApp:
         # Icono + nombre
         brand = tk.Frame(hdr, bg=C["card"])
         brand.pack(side="left", padx=16, pady=10)
-        tk.Label(brand, text="MASV", bg=C["card"], fg=C["purple"],
+        tk.Label(brand, text=_("MASV"), bg=C["card"], fg=C["purple"],
                  font=(FONT_FAMILY, 18, "bold")).pack(side="left")
-        tk.Label(brand, text="  Memexicanisimos Android Screen Viewer",
+        tk.Label(brand, text=_("  Memexicanisimos Android Screen Viewer"),
                  bg=C["card"], fg=C["muted"], font=FONT_SM).pack(side="left", pady=(2, 0))
 
         right_hdr = tk.Frame(hdr, bg=C["card"])
@@ -197,12 +198,12 @@ class ScrcpyDockApp:
         self._tab_help     = tk.Frame(self._nb, bg=C["bg"])
 
         # Pestañas en orden lógico limpio: Acciones(0), Controles(1), Dispositivo(2), Perfiles(3), Consola(4), Ayuda(5)
-        self._nb.add(self._tab_actions,  text="🚀  Acciones")
-        self._nb.add(self._tab_controls, text="🎮  Controles")
-        self._nb.add(self._tab_device,   text="📱  Dispositivo")
-        self._nb.add(self._tab_profile,  text="⚙️  Perfiles")
-        self._nb.add(self._tab_console,  text="🖥  Consola")
-        self._nb.add(self._tab_help,     text="❓  Ayuda")
+        self._nb.add(self._tab_actions,  text=_("🚀  Acciones"))
+        self._nb.add(self._tab_controls, text=_("🎮  Controles"))
+        self._nb.add(self._tab_device,   text=_("📱  Dispositivo"))
+        self._nb.add(self._tab_profile,  text=_("⚙️  Perfiles"))
+        self._nb.add(self._tab_console,  text=_("🖥  Consola"))
+        self._nb.add(self._tab_help,     text=_("❓  Ayuda"))
 
         self.ui.build_tab_actions(self._tab_actions)
         self.ui.build_tab_controls(self._tab_controls)
@@ -214,11 +215,27 @@ class ScrcpyDockApp:
         bar = tk.Frame(self.root, bg=C["card2"], height=34)
         bar.pack(fill="x", side="bottom")
         bar.pack_propagate(False)
-        self._status_lbl = tk.Label(bar, text="Iniciando…", bg=C["card2"],
+        self._status_lbl = tk.Label(bar, text=_("Iniciando…"), bg=C["card2"],
                                     fg=C["muted"], font=FONT_SM, anchor="w")
         self._status_lbl.pack(side="left", padx=14, pady=4)
-        tk.Label(bar, text=f"v1.1  |  Ctrl+H → Ayuda  |  Ctrl+Q → Salir",
-                 bg=C["card2"], fg=C["muted"], font=FONT_SM).pack(side="right", padx=14)
+
+        # Language switcher
+        from .i18n import get_language, set_language
+        lang_btn = tk.Button(bar, text="🇺🇸" if get_language() == "es" else "🇲🇽",
+                             bg=C["card2"], fg=C["text"], bd=0, relief="flat", cursor="hand2", font=FONT_SM)
+        lang_btn.pack(side="right", padx=(4, 14), pady=4)
+
+        def _toggle_language():
+            new_lang = "en" if get_language() == "es" else "es"
+            set_language(new_lang)
+            self.ctx.cfg["language"] = new_lang
+            save_config(self.ctx.cfg)
+            messagebox.showinfo(_("Reinicio requerido"), _("Por favor, reinicia la aplicación para aplicar los cambios de idioma."))
+
+        lang_btn.config(command=_toggle_language)
+
+        tk.Label(bar, text=_("v1.1  |  Ctrl+H → Ayuda  |  Ctrl+Q → Salir"),
+                 bg=C["card2"], fg=C["muted"], font=FONT_SM).pack(side="right", padx=4)
 
         self.ui.refs['profile_listbox'].bind("<<ListboxSelect>>", self._on_profile_listbox_sel)
         self._refresh_profile_listbox()
@@ -252,8 +269,8 @@ class ScrcpyDockApp:
             self.ui.refs['dep_frame'].pack_forget()
             self.ui.refs['install_frame'].pack(fill="both", expand=True, padx=20, pady=20)
         else:
-            self._dep_lbl.config(text="✔  ADB + scrcpy OK", fg=C["green"])
-            self._set_status("✔  Dependencias OK. Conecta un dispositivo.", C["green"])
+            self._dep_lbl.config(text=_("✔  ADB + scrcpy OK"), fg=C["green"])
+            self._set_status(_("✔  Dependencias OK. Conecta un dispositivo."), C["green"])
             self.ui.refs['install_frame'].pack_forget()
             self.ui.refs['dep_frame'].pack(fill="both", expand=True)
             self.root.after(700, self._check_v4l2)
@@ -265,7 +282,7 @@ class ScrcpyDockApp:
         target_bin_dir = os.path.join(APP_DIR, "bin")
         os.makedirs(target_bin_dir, exist_ok=True)
 
-        Toast(self.root, "Iniciando descarga e instalación automática de scrcpy...", "info", duration=5000)
+        Toast(self.root, _("Iniciando descarga e instalación automática de scrcpy..."), "info", duration=5000)
 
         def task():
             try:
@@ -294,7 +311,7 @@ class ScrcpyDockApp:
                     self.ctx.scrcpy = scrcpy_path
                     self.root.after(0, self._on_deps_installed_success)
                 else:
-                    self.root.after(0, lambda: Toast(self.root, "No se pudo completar la instalación automática.", "error"))
+                    self.root.after(0, lambda: Toast(self.root, _("No se pudo completar la instalación automática."), "error"))
             except Exception as e:
                 self.root.after(0, lambda: Toast(self.root, f"Error en instalación: {e}", "error"))
 
@@ -305,14 +322,14 @@ class ScrcpyDockApp:
             self.ui.refs['install_frame'].pack_forget()
         if 'dep_frame' in self.ui.refs:
             self.ui.refs['dep_frame'].pack(fill="both", expand=True)
-        self._dep_lbl.config(text="✔  ADB + scrcpy OK", fg=C["green"])
-        Toast(self.root, "¡scrcpy y adb instalados con éxito! Ya puedes conectar tu teléfono.", "success", duration=5000)
+        self._dep_lbl.config(text=_("✔  ADB + scrcpy OK"), fg=C["green"])
+        Toast(self.root, _("¡scrcpy y adb instalados con éxito! Ya puedes conectar tu teléfono."), "success", duration=5000)
         self._refresh_devices()
 
     def _copy_install_cmd(self):
         self.root.clipboard_clear()
         self.root.clipboard_append("sudo apt install adb scrcpy")
-        messagebox.showinfo("Copiado ✔", "Comando copiado al portapapeles.\n\nPégalo en tu terminal con Ctrl+Shift+V.")
+        messagebox.showinfo(_("Copiado ✔"), _("Comando copiado al portapapeles.\n\nPégalo en tu terminal con Ctrl+Shift+V."))
 
     def _open_terminal_install(self):
         cmd_str = "sudo apt install adb scrcpy"
@@ -332,8 +349,8 @@ class ScrcpyDockApp:
 
     # ── Devices Tab ───────────────────────────────────────────────────
     def _refresh_devices(self):
-        self.ui.refs['scan_lbl'].config(text="Buscando…", fg=C["cyan"])
-        self._set_status("🔄  Escaneando dispositivos ADB…", C["cyan"])
+        self.ui.refs['scan_lbl'].config(text=_("Buscando…"), fg=C["cyan"])
+        self._set_status(_("🔄  Escaneando dispositivos ADB…"), C["cyan"])
         self.ctx.device_mgr.scan_devices(self._update_devs_ui, self.ctx.log)
 
     def _update_devs_ui(self, found: list):
@@ -355,9 +372,9 @@ class ScrcpyDockApp:
         else:
             self.ctx.active_device_serial = None
             self.ctx.active_device.set("Sin dispositivo")
-            self.ui.refs['dev_info_lbl'].config(text="Sin dispositivos. Conecta un cable USB o activa ADB WiFi.", fg=C["orange"])
-            self.ui.refs['scan_lbl'].config(text="Sin dispositivos", fg=C["orange"])
-            self._set_status("Sin dispositivos. Conecta un cable USB y activa la Depuración USB.", C["orange"])
+            self.ui.refs['dev_info_lbl'].config(text=_("Sin dispositivos. Conecta un cable USB o activa ADB WiFi."), fg=C["orange"])
+            self.ui.refs['scan_lbl'].config(text=_("Sin dispositivos"), fg=C["orange"])
+            self._set_status(_("Sin dispositivos. Conecta un cable USB y activa la Depuración USB."), C["orange"])
 
     def _on_dev_select(self, _=None):
         listbox = self.ui.refs['dev_listbox']
@@ -373,7 +390,7 @@ class ScrcpyDockApp:
         state = next((s for sr, mo, s in self.ctx.device_mgr.devices if sr == serial), "other")
         if state == "unauth":
             self.ui.refs['dev_info_lbl'].config(text=f"🟠  {serial}  —  ¡Acepta el permiso de depuración en la pantalla del teléfono!", fg=C["orange"])
-            self._set_status("⚠  Dispositivo no autorizado. Acepta el diálogo en el teléfono.", C["orange"])
+            self._set_status(_("⚠  Dispositivo no autorizado. Acepta el diálogo en el teléfono."), C["orange"])
         elif state == "ok":
             self.ui.refs['dev_info_lbl'].config(text=f"🟢  {model}  ({serial})  —  Conectado y autorizado.", fg=C["green"])
             self._set_status(f"✔  {model}  —  {serial}", C["green"])
@@ -407,7 +424,7 @@ class ScrcpyDockApp:
     def _enable_tcpip(self):
         serial = self.ctx.active_device_serial
         if not serial or not self.ctx.adb:
-            messagebox.showerror("Error", "Selecciona un dispositivo USB primero.")
+            messagebox.showerror(_("Error"), _("Selecciona un dispositivo USB primero."))
             return
         self.ctx.log("ADB", f"[{serial}] TCP/IP 5555…")
         def task():
@@ -415,7 +432,7 @@ class ScrcpyDockApp:
                 r = subprocess.run([self.ctx.adb, "-s", serial, "tcpip", "5555"],
                                    capture_output=True, text=True, timeout=8)
                 self.ctx.log("ADB", r.stdout.strip())
-                self.ctx.log("OK", "Puerto 5555 abierto. Desconecta el cable.")
+                self.ctx.log(_("OK"), _("Puerto 5555 abierto. Desconecta el cable."))
                 self.root.after(0, lambda: messagebox.showinfo(
                     "TCP/IP habilitado",
                     f"Dispositivo {serial} listo en el puerto 5555.\n"
@@ -431,7 +448,7 @@ class ScrcpyDockApp:
             messagebox.showwarning("Sin dispositivo",
                                    "Selecciona un dispositivo en la lista primero.")
             return
-        self._set_status("Obteniendo IP del dispositivo…", C["cyan"])
+        self._set_status(_("Obteniendo IP del dispositivo…"), C["cyan"])
         def task():
             ip = None
             try:
@@ -466,8 +483,8 @@ class ScrcpyDockApp:
                     self._set_status(f"IP detectada: {ip}", C["green"])
                     Toast(self.root, f"IP del dispositivo: {ip}", "success")
                 else:
-                    self._set_status("No se detectó IP WiFi.", C["orange"])
-                    Toast(self.root, "No se pudo detectar la IP. ¿Está conectado por WiFi?", "warning")
+                    self._set_status(_("No se detectó IP WiFi."), C["orange"])
+                    Toast(self.root, _("No se pudo detectar la IP. ¿Está conectado por WiFi?"), "warning")
             self.root.after(0, apply)
         threading.Thread(target=task, daemon=True).start()
 
@@ -493,7 +510,7 @@ class ScrcpyDockApp:
         """Envía un keyevent de control remoto al dispositivo activo vía ADB."""
         serial = self.ctx.active_device_serial
         if not serial or not self.ctx.adb:
-            messagebox.showwarning("Sin dispositivo", "Selecciona un dispositivo activo en la lista primero.")
+            messagebox.showwarning(_("Sin dispositivo"), _("Selecciona un dispositivo activo en la lista primero."))
             return
         def task():
             try:
@@ -509,11 +526,11 @@ class ScrcpyDockApp:
         """Abre un diálogo para seleccionar un APK e instalarlo vía ADB."""
         serial = self.ctx.active_device_serial
         if not serial or not self.ctx.adb:
-            messagebox.showwarning("Sin dispositivo", "Selecciona un dispositivo activo en la lista primero.")
+            messagebox.showwarning(_("Sin dispositivo"), _("Selecciona un dispositivo activo en la lista primero."))
             return
         apk_path = filedialog.askopenfilename(
             title="Seleccionar archivo APK para instalar",
-            filetypes=[("Archivos Android APK", "*.apk"), ("Todos los archivos", "*.*")]
+            filetypes=[(_("Archivos Android APK"), _("*.apk")), (_("Todos los archivos"), _("*.*"))]
         )
         if not apk_path:
             return
@@ -544,19 +561,19 @@ class ScrcpyDockApp:
     def _check_v4l2(self):
         if _PLAT != "linux":
             if 'v4l2_lbl' in self.ui.refs:
-                self.ui.refs['v4l2_lbl'].config(text="Solo disponible en Linux.", fg=C["muted"])
+                self.ui.refs['v4l2_lbl'].config(text=_("Solo disponible en Linux."), fg=C["muted"])
             return
         if os.path.exists("/sys/module/v4l2loopback"):
             devs = sorted(d for d in os.listdir("/dev") if re.match(r"video\d+", d))
             self.ui.refs['v4l2_lbl'].config(text=f"✔  v4l2loopback activo  —  {', '.join(devs) or 'sin /dev/videoX'}", fg=C["green"])
             self.ui.refs['route_cam_btn'].config(state="normal")
         else:
-            self.ui.refs['v4l2_lbl'].config(text="✘  v4l2loopback no cargado.", fg=C["red"])
+            self.ui.refs['v4l2_lbl'].config(text=_("✘  v4l2loopback no cargado."), fg=C["red"])
             self.ui.refs['route_cam_btn'].config(state="disabled")
 
     def _setup_v4l2(self):
         if _PLAT != "linux":
-            messagebox.showerror("Error", "Solo funciona en Linux.")
+            messagebox.showerror(_("Error"), _("Solo funciona en Linux."))
             return
         try:
             if "v4l2loopback" in subprocess.run(["lsmod"],capture_output=True,text=True).stdout:
@@ -613,12 +630,12 @@ class ScrcpyDockApp:
                 
             for stream in [proc.stdout, proc.stderr]:
                 threading.Thread(target=_read_stream, args=(stream, serial), daemon=True).start()
-            messagebox.showinfo("Cámara enrutada", "Feed en /dev/video9 activo.\n\nEn OBS Studio:\n  + Fuente → Dispositivo de captura de vídeo (V4L2)\n  → Selecciona 'Scrcpy Virtual Camera'")
+            messagebox.showinfo(_("Cámara enrutada"), _("Feed en /dev/video9 activo.\n\nEn OBS Studio:\n  + Fuente → Dispositivo de captura de vídeo (V4L2)\n  → Selecciona 'Scrcpy Virtual Camera'"))
         except Exception as e:
             self.ctx.log("ERROR",f"Enrutar cámara: {e}")
 
     def _v4l2_help(self):
-        messagebox.showinfo("Instrucciones v4l2loopback", "Instalación:\n\n  sudo apt install v4l2loopback-dkms v4l2loopback-utils\n\nCargar módulo manualmente:\n\n  sudo modprobe v4l2loopback devices=1 video_nr=9 \\\n    card_label='Scrcpy Virtual Camera' exclusive_caps=1\n\nPara cargar en cada arranque, crea:\n  /etc/modprobe.d/v4l2loopback.conf\nCon el contenido:\n  options v4l2loopback devices=1 video_nr=9 \\\n    card_label='Scrcpy Virtual Camera' exclusive_caps=1\n\nY añade 'v4l2loopback' a /etc/modules.")
+        messagebox.showinfo(_("Instrucciones v4l2loopback"), _("Instalación:\n\n  sudo apt install v4l2loopback-dkms v4l2loopback-utils\n\nCargar módulo manualmente:\n\n  sudo modprobe v4l2loopback devices=1 video_nr=9 \\\n    card_label='Scrcpy Virtual Camera' exclusive_caps=1\n\nPara cargar en cada arranque, crea:\n  /etc/modprobe.d/v4l2loopback.conf\nCon el contenido:\n  options v4l2loopback devices=1 video_nr=9 \\\n    card_label='Scrcpy Virtual Camera' exclusive_caps=1\n\nY añade 'v4l2loopback' a /etc/modules."))
 
     # ── Profiles Tab ───────────────────────────────────────────────────
     def _refresh_profile_listbox(self):
@@ -694,12 +711,12 @@ class ScrcpyDockApp:
         if not listbox: return
         sel = listbox.curselection()
         if not sel:
-            messagebox.showwarning("Seleccionar perfil", "Selecciona un perfil en la lista primero.")
+            messagebox.showwarning(_("Seleccionar perfil"), _("Selecciona un perfil en la lista primero."))
             return
         name = listbox.get(sel[0]).strip()
         
         if not self.ctx.active_device_serial:
-            Toast(self.root, "Selecciona un dispositivo en la pestaña Dispositivo.", "warning")
+            Toast(self.root, _("Selecciona un dispositivo en la pestaña Dispositivo."), "warning")
             self._nb.select(2)  # Pestaña Dispositivo (índice 2)
             return
 
@@ -711,11 +728,11 @@ class ScrcpyDockApp:
         listbox = self.ui.refs['profile_listbox']
         sel = listbox.curselection()
         if not sel:
-            messagebox.showwarning("Atención", "Selecciona un perfil en la lista.")
+            messagebox.showwarning(_("Atención"), _("Selecciona un perfil en la lista."))
             return
         name = listbox.get(sel[0]).strip()
         if len(self.ctx.profile_mgr.get_profiles()) <= 1:
-            messagebox.showerror("Error", "Debe existir al menos un perfil.")
+            messagebox.showerror(_("Error"), _("Debe existir al menos un perfil."))
             return
         if messagebox.askyesno("Confirmar", f"¿Eliminar el perfil '{name}'?"):
             self.ctx.cfg["profiles"].pop(name, None)
@@ -734,7 +751,7 @@ class ScrcpyDockApp:
     def _toggle_scene(self):
         serial = self.ctx.active_device_serial
         if not serial:
-            messagebox.showerror("Sin dispositivo", "Selecciona un dispositivo en la pestaña Dispositivo.")
+            messagebox.showerror(_("Sin dispositivo"), _("Selecciona un dispositivo en la pestaña Dispositivo."))
             self._nb.select(2) # Fallback to device tab which is index 2 now
             return
         if serial in self.ctx.session_mgr.sessions:
@@ -758,31 +775,31 @@ class ScrcpyDockApp:
     def _stop_current(self):
         serial = self.ctx.active_device_serial
         if not serial or serial not in self.ctx.session_mgr.sessions:
-            messagebox.showinfo("Sin sesión", "No hay ninguna sesión activa para el dispositivo seleccionado.")
+            messagebox.showinfo(_("Sin sesión"), _("No hay ninguna sesión activa para el dispositivo seleccionado."))
             return
         self.ctx.session_mgr.stop_session(serial)
         self._refresh_table()
-        self._set_status("Sesión detenida.", C["muted"])
+        self._set_status(_("Sesión detenida."), C["muted"])
 
     def _panic_kill(self):
         if not self.ctx.session_mgr.sessions:
-            messagebox.showinfo("Sin sesiones", "No hay sesiones activas.")
+            messagebox.showinfo(_("Sin sesiones"), _("No hay sesiones activas."))
             return
-        if messagebox.askyesno("Confirmar", "¿Cerrar TODAS las sesiones de scrcpy?"):
+        if messagebox.askyesno(_("Confirmar"), _("¿Cerrar TODAS las sesiones de scrcpy?")):
             self.ctx.session_mgr.stop_all()
             self._refresh_table()
-            self.ctx.log("WARNING", "Pánico: todas las sesiones cerradas.")
-            self._set_status("Todas las sesiones cerradas.", C["orange"])
+            self.ctx.log(_("WARNING"), _("Pánico: todas las sesiones cerradas."))
+            self._set_status(_("Todas las sesiones cerradas."), C["orange"])
 
     def _restart_adb(self):
         if not self.ctx.adb: return
-        self.ctx.log("ADB", "Reiniciando servidor ADB…")
-        self._set_status("Reiniciando ADB…", C["cyan"])
+        self.ctx.log(_("ADB"), _("Reiniciando servidor ADB…"))
+        self._set_status(_("Reiniciando ADB…"), C["cyan"])
         def task():
             subprocess.run([self.ctx.adb, "kill-server"], capture_output=True)
             time.sleep(0.5)
             subprocess.run([self.ctx.adb, "start-server"], capture_output=True)
-            self.ctx.log("OK", "Servidor ADB reiniciado.")
+            self.ctx.log(_("OK"), _("Servidor ADB reiniciado."))
             self.root.after(600, self._refresh_devices)
         threading.Thread(target=task, daemon=True).start()
 
@@ -790,7 +807,7 @@ class ScrcpyDockApp:
         tree = self.ui.refs['sess_tree']
         sel = tree.selection()
         if not sel:
-            messagebox.showwarning("Atención", "Selecciona una sesión en la tabla.")
+            messagebox.showwarning(_("Atención"), _("Selecciona una sesión en la tabla."))
             return
         serial = tree.item(sel[0], "values")[0]
         self.ctx.session_mgr.stop_session(serial)
@@ -801,7 +818,7 @@ class ScrcpyDockApp:
         if self.ctx.active_device_serial:
             self.ui.refs['action_device_lbl'].config(text=f"📱  {self.ctx.active_device_serial}", fg=C["text"])
         else:
-            self.ui.refs['action_device_lbl'].config(text="📱  Sin dispositivo seleccionado", fg=C["muted"])
+            self.ui.refs['action_device_lbl'].config(text=_("📱  Sin dispositivo seleccionado"), fg=C["muted"])
         self.ui.refs['action_profile_lbl'].config(text=f"⚙️  {self.ctx.active_profile.get()}", fg=C["cyan"])
 
     # ── Logging Tab ───────────────────────────────────────────────────
@@ -823,7 +840,7 @@ class ScrcpyDockApp:
         log_txt.insert(tk.END, f"[{ts}] [{level}] {msg}\n", level)
         log_txt.see(tk.END)
         if int(log_txt.index("end-1c").split(".")[0]) > 600:
-            log_txt.delete("1.0", "100.0")
+            log_txt.delete(_("1.0"), _("100.0"))
         log_txt.config(state="disabled")
 
     def _clear_log(self):
@@ -862,7 +879,7 @@ class ScrcpyDockApp:
         self.root.clipboard_clear()
         self.root.clipboard_append(content)
         from .ui_widgets import Toast
-        Toast(self.root, "Consola copiada al portapapeles", "success")
+        Toast(self.root, _("Consola copiada al portapapeles"), "success")
 
     # ── Sessions Monitor ──────────────────────────────────────────────
     def _refresh_table(self):
@@ -944,7 +961,7 @@ class ScrcpyDockApp:
         cmd = self.ctx.session_mgr._build_cmd(self.ctx.scrcpy, serial, p)
         self.root.clipboard_clear()
         self.root.clipboard_append(" ".join(cmd))
-        Toast(self.root, "Comando copiado al portapapeles", "success")
+        Toast(self.root, _("Comando copiado al portapapeles"), "success")
 
     def _force_kill_sess(self, serial: str):
         sess = self.ctx.session_mgr.sessions.get(serial)
@@ -1005,16 +1022,16 @@ class ScrcpyDockApp:
         prog_f.pack()
         dots = []
         for _ in range(len(steps)):
-            d = tk.Label(prog_f, text="●", bg=C["bg"], fg=C["sep"], font=(FONT_FAMILY, 8))
+            d = tk.Label(prog_f, text=_("●"), bg=C["bg"], fg=C["sep"], font=(FONT_FAMILY, 8))
             d.pack(side="left", padx=3)
             dots.append(d)
 
         nav = tk.Frame(win, bg=C["card2"])
         nav.pack(fill="x", side="bottom", pady=(20, 0))
-        skip_btn = tk.Button(nav, text="Omitir", bg=C["card2"], fg=C["muted"],
+        skip_btn = tk.Button(nav, text=_("Omitir"), bg=C["card2"], fg=C["muted"],
                              font=FONT_SM, relief="flat", bd=0, padx=12, pady=8)
         skip_btn.pack(side="left", padx=8, pady=6)
-        next_btn = tk.Button(nav, text="Siguiente  ▶", bg=C["blue"], fg="#FFF",
+        next_btn = tk.Button(nav, text=_("Siguiente  ▶"), bg=C["blue"], fg="#FFF",
                              font=FONT_UI_B, relief="flat", bd=0, padx=16, pady=8)
         next_btn.pack(side="right", padx=8, pady=6)
 
@@ -1026,7 +1043,7 @@ class ScrcpyDockApp:
             for j, d in enumerate(dots):
                 d.config(fg=C["blue"] if j <= i else C["sep"])
             last = (i == len(steps) - 1)
-            next_btn.config(text="🎉  ¡Comenzar!" if last else "Siguiente  ▶",
+            next_btn.config(text=_("🎉  ¡Comenzar!") if last else "Siguiente  ▶",
                             bg=C["green"] if last else C["blue"])
 
         def next_step():
@@ -1061,7 +1078,7 @@ class ScrcpyDockApp:
         if TRAY_AVAILABLE and self.ctx.session_mgr.sessions:
             self.root.withdraw()
             self._start_tray()
-            self.ctx.log("INFO", "App minimizada a la bandeja del sistema.")
+            self.ctx.log(_("INFO"), _("App minimizada a la bandeja del sistema."))
         else:
             self._exit()
 

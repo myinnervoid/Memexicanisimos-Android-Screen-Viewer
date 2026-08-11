@@ -1,14 +1,15 @@
 <!DOCTYPE html>
+
 <html lang="es">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>MASV — Memexicanisimos Android Screen Viewer</title>
-  <meta name="description" content="GUI avanzada para controlar y transmitir pantallas Android a tu PC con scrcpy. Perfiles, WiFi, Webcam virtual, controles remotos y más." />
-  <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700;900&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet" />
-  <style>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>MASV — Memexicanisimos Android Screen Viewer</title>
+<meta content="GUI avanzada para controlar y transmitir pantallas Android a tu PC con scrcpy. Perfiles, WiFi, Webcam virtual, controles remotos y más." name="description"/>
+<link href="https://fonts.googleapis.com" rel="preconnect"/>
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700;900&amp;family=JetBrains+Mono:wght@500;700&amp;display=swap" rel="stylesheet"/>
+<style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
     :root {
@@ -527,325 +528,454 @@
   </style>
 </head>
 <body>
-
 <!-- ── HERO ──────────────────────────────────────────────────────────── -->
 <section class="hero">
-  <div class="hero-badge">v1.1 · Open Source · Python · Scrcpy</div>
-  <h1>Memexicanisimos<br /><span>Android Screen Viewer</span></h1>
-  <p class="hero-sub">
+<button id="lang-toggle" onclick="toggleLanguage()" style="position:absolute; top:20px; right:20px; background:var(--card); color:var(--text); border:1px solid var(--sep); padding:8px 12px; border-radius:8px; cursor:pointer; font-weight:bold; font-size: 14px; z-index: 10;">🇺🇸 English</button>
+<div class="hero-badge">v1.1 · Open Source · Python · Scrcpy</div>
+<h1>Memexicanisimos<br/><span>Android Screen Viewer</span></h1>
+<p class="hero-sub" id="hero_sub">
     GUI avanzada para transmitir, controlar y gestionar múltiples dispositivos Android
     simultáneamente desde tu PC. Creada por y para la comunidad latina.
   </p>
-
-  <div class="btn-group">
-    <a href="https://github.com/myinnervoid/Memexicanisimos-Android-Screen-Viewer/releases/latest"
-       class="btn btn-primary">
+<div class="btn-group">
+<a class="btn btn-primary" href="https://github.com/myinnervoid/Memexicanisimos-Android-Screen-Viewer/releases/latest" id="btn_dl">
       ⬇ Descargar última versión
     </a>
-    <a href="https://github.com/myinnervoid/Memexicanisimos-Android-Screen-Viewer"
-       class="btn btn-outline">
+<a class="btn btn-outline" href="https://github.com/myinnervoid/Memexicanisimos-Android-Screen-Viewer">
       ⭐ GitHub
     </a>
-  </div>
-  <p class="download-note">Disponible para Linux · Windows · macOS</p>
+</div>
+<p class="download-note" id="dl_note">Disponible para Linux · Windows · macOS</p>
 </section>
-
 <!-- ── BARRA DE NAVEGACIÓN ───────────────────────────────────────────── -->
 <nav class="nav-bar">
-  <a href="#descargas">⬇ Descargas</a>
-  <a href="#caracteristicas">✨ Características</a>
-  <a href="#guia-usb">🔌 Activación USB</a>
-  <a href="#atajos">⌨️ Atajos de teclado</a>
-  <a href="#controles">🎮 Controles y APK</a>
-  <a href="#requisitos">📦 Requisitos</a>
+<a href="#descargas" id="nav_dl">⬇ Descargas</a>
+<a href="#caracteristicas" id="nav_feat">✨ Características</a>
+<a href="#guia-usb" id="nav_usb">🔌 Activación USB</a>
+<a href="#atajos" id="nav_keys">⌨️ Atajos de teclado</a>
+<a href="#controles" id="nav_ctrl">🎮 Controles y APK</a>
+<a href="#requisitos" id="nav_req">📦 Requisitos</a>
 </nav>
-
 <!-- ── DESCARGA ──────────────────────────────────────────────────────── -->
 <section class="downloads" id="descargas">
-  <h2 class="section-title">Descargas directas</h2>
-  <p class="section-subtitle">Elige tu sistema operativo y descarga el paquete compilado listo para usar.</p>
-
-  <div class="download-cards">
-    <div class="dl-card">
-      <div class="dl-icon">🐧</div>
-      <h3>Linux</h3>
-      <p>Debian · Ubuntu · Arch · Fedora<br/>Paquete <code>.tar.gz</code></p>
-      <a href="https://github.com/myinnervoid/Memexicanisimos-Android-Screen-Viewer/releases/latest/download/MASV-Linux.tar.gz"
-         class="dl-btn">Descargar .tar.gz</a>
-    </div>
-
-    <div class="dl-card">
-      <div class="dl-icon">🪟</div>
-      <h3>Windows</h3>
-      <p>Windows 10 / 11<br/>Ejecutable <code>.exe</code> portable</p>
-      <a href="https://github.com/myinnervoid/Memexicanisimos-Android-Screen-Viewer/releases/latest/download/MASV-Windows.exe"
-         class="dl-btn">Descargar .exe</a>
-    </div>
-
-    <div class="dl-card">
-      <div class="dl-icon">🍎</div>
-      <h3>macOS</h3>
-      <p>macOS 12 Monterey o superior<br/>Binario ejecutable</p>
-      <a href="https://github.com/myinnervoid/Memexicanisimos-Android-Screen-Viewer/releases/latest/download/MASV-macOS"
-         class="dl-btn">Descargar binario</a>
-    </div>
-  </div>
+<h2 class="section-title" id="dl_title">Descargas directas</h2>
+<p class="section-subtitle" id="dl_sub">Elige tu sistema operativo y descarga el paquete compilado listo para usar.</p>
+<div class="download-cards">
+<div class="dl-card">
+<div class="dl-icon">🐧</div>
+<h3>Linux</h3>
+<p id="dl_linux">Debian · Ubuntu · Arch · Fedora<br/>Paquete <code>.tar.gz</code></p>
+<a class="dl-btn" href="https://github.com/myinnervoid/Memexicanisimos-Android-Screen-Viewer/releases/latest/download/MASV-Linux.tar.gz">Descargar .tar.gz</a>
+</div>
+<div class="dl-card">
+<div class="dl-icon">🪟</div>
+<h3>Windows</h3>
+<p id="dl_win">Windows 10 / 11<br/>Ejecutable <code>.exe</code> portable</p>
+<a class="dl-btn" href="https://github.com/myinnervoid/Memexicanisimos-Android-Screen-Viewer/releases/latest/download/MASV-Windows.exe">Descargar .exe</a>
+</div>
+<div class="dl-card">
+<div class="dl-icon">🍎</div>
+<h3>macOS</h3>
+<p id="dl_mac">macOS 12 Monterey o superior<br/>Binario ejecutable</p>
+<a class="dl-btn" href="https://github.com/myinnervoid/Memexicanisimos-Android-Screen-Viewer/releases/latest/download/MASV-macOS">Descargar binario</a>
+</div>
+</div>
 </section>
-
 <!-- ── FEATURES ─────────────────────────────────────────────────────── -->
 <section class="features" id="caracteristicas">
-  <div class="features-grid">
-    <div class="feat">
-      <div class="feat-icon">🎮</div>
-      <div>
-        <h3>Soporte Multidispositivo</h3>
-        <p>Controla múltiples teléfonos en paralelo con diferentes perfiles simultáneamente.</p>
-      </div>
-    </div>
-    <div class="feat">
-      <div class="feat-icon">⚙️</div>
-      <div>
-        <h3>Perfiles Personalizados</h3>
-        <p>Guarda configuraciones de resolución, FPS, bitrate, códec y audio para cada uso.</p>
-      </div>
-    </div>
-    <div class="feat">
-      <div class="feat-icon">📡</div>
-      <div>
-        <h3>Conexión WiFi ADB</h3>
-        <p>Conecta y transmite sin cables. Detecta la IP automáticamente desde la interfaz.</p>
-      </div>
-    </div>
-    <div class="feat">
-      <div class="feat-icon">📷</div>
-      <div>
-        <h3>Webcam Virtual (Linux)</h3>
-        <p>Enruta la cámara trasera como <code>/dev/video9</code> directamente a OBS Studio.</p>
-      </div>
-    </div>
-    <div class="feat">
-      <div class="feat-icon">🎛️</div>
-      <div>
-        <h3>Mando de Controles Remotos</h3>
-        <p>Botones directos para volumen, inicio, atrás, recientes, encendido e instalación de APKs.</p>
-      </div>
-    </div>
-    <div class="feat">
-      <div class="feat-icon">❓</div>
-      <div>
-        <h3>FAQ Interactiva</h3>
-        <p>Guía de inicio rápido, depuración USB, WiFi, v4l2loopback y solución de problemas comunes.</p>
-      </div>
-    </div>
-  </div>
+<div class="features-grid">
+<div class="feat">
+<div class="feat-icon">🎮</div>
+<div>
+<h3 id="feat_1_title">Soporte Multidispositivo</h3>
+<p id="feat_1_desc">Controla múltiples teléfonos en paralelo con diferentes perfiles simultáneamente.</p>
+</div>
+</div>
+<div class="feat">
+<div class="feat-icon">⚙️</div>
+<div>
+<h3 id="feat_2_title">Perfiles Personalizados</h3>
+<p id="feat_2_desc">Guarda configuraciones de resolución, FPS, bitrate, códec y audio para cada uso.</p>
+</div>
+</div>
+<div class="feat">
+<div class="feat-icon">📡</div>
+<div>
+<h3 id="feat_3_title">Conexión WiFi ADB</h3>
+<p id="feat_3_desc">Conecta y transmite sin cables. Detecta la IP automáticamente desde la interfaz.</p>
+</div>
+</div>
+<div class="feat">
+<div class="feat-icon">📷</div>
+<div>
+<h3 id="feat_4_title">Webcam Virtual (Linux)</h3>
+<p id="feat_4_desc">Enruta la cámara trasera como <code>/dev/video9</code> directamente a OBS Studio.</p>
+</div>
+</div>
+<div class="feat">
+<div class="feat-icon">🎛️</div>
+<div>
+<h3 id="feat_5_title">Mando de Controles Remotos</h3>
+<p id="feat_5_desc">Botones directos para volumen, inicio, atrás, recientes, encendido e instalación de APKs.</p>
+</div>
+</div>
+<div class="feat">
+<div class="feat-icon">❓</div>
+<div>
+<h3 id="feat_6_title">FAQ Interactiva</h3>
+<p id="feat_6_desc">Guía de inicio rápido, depuración USB, WiFi, v4l2loopback y solución de problemas comunes.</p>
+</div>
+</div>
+</div>
 </section>
-
 <!-- ── GUÍA VISUAL ACTIVACIÓN USB ───────────────────────────────────── -->
 <section class="guide-section" id="guia-usb">
-  <h2 class="section-title">🔌 Cómo habilitar la Depuración USB en Android</h2>
-  <p class="section-subtitle">Sigue estos 3 sencillos pasos en tu teléfono antes de conectar por primera vez.</p>
-
-  <div class="setup-steps">
-    <!-- Paso 1 -->
-    <div class="step-card">
-      <div class="step-badge">1</div>
-      <h3>Activa las Opciones de Desarrollador</h3>
-      <p>Abre <strong>Ajustes → Acerca del teléfono</strong>. Toca <strong>7 veces continuas</strong> sobre el campo <em>Número de compilación</em>.</p>
-
-      <div class="phone-mockup">
-        <div class="mockup-header">
-          <span>09:41</span>
-          <span>Ajustes</span>
-        </div>
-        <div class="mockup-item">
-          <div>
-            <div class="mockup-title">Modelo del dispositivo</div>
-            <div class="mockup-sub">Android 13 / 14</div>
+<h2 class="section-title" id="usb_title">🔌 Cómo habilitar la Depuración USB en Android</h2>
+<p class="section-subtitle" id="usb_sub">Sigue estos 3 sencillos pasos en tu teléfono antes de conectar por primera vez.</p>
+<div class="setup-steps">
+<!-- Paso 1 -->
+<div class="step-card">
+<div class="step-badge">1</div>
+<h3 id="usb_1_title">Activa las Opciones de Desarrollador</h3>
+<p id="usb_1_desc">Abre <strong>Ajustes → Acerca del teléfono</strong>. Toca <strong>7 veces continuas</strong> sobre el campo <em>Número de compilación</em>.</p>
+<div class="phone-mockup">
+<div class="mockup-header">
+<span>09:41</span>
+<span>Ajustes</span>
+</div>
+<div class="mockup-item">
+<div>
+<div class="mockup-title">Modelo del dispositivo</div>
+<div class="mockup-sub">Android 13 / 14</div>
+</div>
+</div>
+<div class="mockup-item active">
+<div>
+<div class="mockup-title">Número de compilación</div>
+<div class="mockup-sub">Toca 7 veces seguidas</div>
+</div>
+<span style="color:var(--purple);font-size:.7rem;font-weight:700;">👈 Tocar 7x</span>
+</div>
+<div class="toast-mockup">✔ ¡Ahora eres desarrollador!</div>
+</div>
+</div>
+<!-- Paso 2 -->
+<div class="step-card">
+<div class="step-badge">2</div>
+<h3 id="usb_2_title">Habilita la Depuración USB</h3>
+<p id="usb_2_desc">Regresa a <strong>Ajustes → Sistema → Opciones para desarrolladores</strong>. Busca e interrupta la casilla <strong>Depuración USB</strong>.</p>
+<div class="phone-mockup">
+<div class="mockup-header">
+<span>09:41</span>
+<span>Opciones de desarrollador</span>
+</div>
+<div class="mockup-item active">
+<div>
+<div class="mockup-title">Depuración USB</div>
+<div class="mockup-sub">Modo de depuración cuando USB se conecta</div>
+</div>
+<div class="toggle-on"></div>
+</div>
+<div class="mockup-item">
+<div>
+<div class="mockup-title">Permanecer activo</div>
+<div class="mockup-sub">Pantalla no se apaga cargando</div>
+</div>
+</div>
+</div>
+</div>
+<!-- Paso 3 -->
+<div class="step-card">
+<div class="step-badge">3</div>
+<h3 id="usb_3_title">Autoriza tu Computadora (RSA)</h3>
+<p id="usb_3_desc">Conecta el cable USB. Aparecerá una ventana emergente en el teléfono. Acepta y marca la opción para recordar este equipo.</p>
+<div class="phone-mockup">
+<div class="mockup-header">
+<span>09:41</span>
+<span>Pantalla de inicio</span>
+</div>
+<div class="dialog-mockup">
+<div class="dialog-title">¿Permitir depuración USB?</div>
+<div class="dialog-body">La huella digital de la clave RSA del equipo es:<br/><code style="color:var(--cyan)">FC:9A:88:12:44:B1</code></div>
+<div class="dialog-check">
+<span>[✔]</span> Permitir siempre desde este equipo
           </div>
-        </div>
-        <div class="mockup-item active">
-          <div>
-            <div class="mockup-title">Número de compilación</div>
-            <div class="mockup-sub">Toca 7 veces seguidas</div>
-          </div>
-          <span style="color:var(--purple);font-size:.7rem;font-weight:700;">👈 Tocar 7x</span>
-        </div>
-        <div class="toast-mockup">✔ ¡Ahora eres desarrollador!</div>
-      </div>
-    </div>
-
-    <!-- Paso 2 -->
-    <div class="step-card">
-      <div class="step-badge">2</div>
-      <h3>Habilita la Depuración USB</h3>
-      <p>Regresa a <strong>Ajustes → Sistema → Opciones para desarrolladores</strong>. Busca e interrupta la casilla <strong>Depuración USB</strong>.</p>
-
-      <div class="phone-mockup">
-        <div class="mockup-header">
-          <span>09:41</span>
-          <span>Opciones de desarrollador</span>
-        </div>
-        <div class="mockup-item active">
-          <div>
-            <div class="mockup-title">Depuración USB</div>
-            <div class="mockup-sub">Modo de depuración cuando USB se conecta</div>
-          </div>
-          <div class="toggle-on"></div>
-        </div>
-        <div class="mockup-item">
-          <div>
-            <div class="mockup-title">Permanecer activo</div>
-            <div class="mockup-sub">Pantalla no se apaga cargando</div>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <!-- Paso 3 -->
-    <div class="step-card">
-      <div class="step-badge">3</div>
-      <h3>Autoriza tu Computadora (RSA)</h3>
-      <p>Conecta el cable USB. Aparecerá una ventana emergente en el teléfono. Acepta y marca la opción para recordar este equipo.</p>
-
-      <div class="phone-mockup">
-        <div class="mockup-header">
-          <span>09:41</span>
-          <span>Pantalla de inicio</span>
-        </div>
-        <div class="dialog-mockup">
-          <div class="dialog-title">¿Permitir depuración USB?</div>
-          <div class="dialog-body">La huella digital de la clave RSA del equipo es:<br/><code style="color:var(--cyan)">FC:9A:88:12:44:B1</code></div>
-          <div class="dialog-check">
-            <span>[✔]</span> Permitir siempre desde este equipo
-          </div>
-          <div class="dialog-btns">
-            <span>CANCELAR</span>
-            <span style="color:var(--green)">PERMITIR</span>
-          </div>
-        </div>
-      </div>
-    </div>
-  </div>
+<div class="dialog-btns">
+<span>CANCELAR</span>
+<span style="color:var(--green)">PERMITIR</span>
+</div>
+</div>
+</div>
+</div>
+</div>
 </section>
-
 <!-- ── ATAJOS NATIVOS SCRCPY ────────────────────────────────────────── -->
 <section class="shortcuts-section" id="atajos">
-  <div class="shortcuts-container">
-    <h2 class="section-title">⌨️ Atajos nativos de scrcpy (Cheat Sheet)</h2>
-    <p class="section-subtitle">Cuando la ventana de scrcpy esté enfocada, puedes usar estos atajos directo con tu teclado:</p>
-
-    <div class="keys-grid">
-      <div class="key-card">
-        <div class="key-combo"><kbd>Alt</kbd> + <kbd>↑</kbd> / <kbd>MOD</kbd> + <kbd>u</kbd></div>
-        <div class="key-desc">🔊 Subir volumen</div>
-      </div>
-      <div class="key-card">
-        <div class="key-combo"><kbd>Alt</kbd> + <kbd>↓</kbd> / <kbd>MOD</kbd> + <kbd>d</kbd></div>
-        <div class="key-desc">🔉 Bajar volumen</div>
-      </div>
-      <div class="key-card">
-        <div class="key-combo"><kbd>MOD</kbd> + <kbd>p</kbd></div>
-        <div class="key-desc">⚡ Encendido / Pantalla</div>
-      </div>
-      <div class="key-card">
-        <div class="key-combo"><kbd>MOD</kbd> + <kbd>h</kbd></div>
-        <div class="key-desc">🏠 Ir a Inicio (Home)</div>
-      </div>
-      <div class="key-card">
-        <div class="key-combo"><kbd>MOD</kbd> + <kbd>b</kbd> / <kbd>Backspace</kbd></div>
-        <div class="key-desc">◀ Volver Atrás (Back)</div>
-      </div>
-      <div class="key-card">
-        <div class="key-combo"><kbd>MOD</kbd> + <kbd>s</kbd></div>
-        <div class="key-desc">📑 Aplicaciones recientes</div>
-      </div>
-      <div class="key-card">
-        <div class="key-combo"><kbd>MOD</kbd> + <kbd>f</kbd></div>
-        <div class="key-desc">🖥️ Pantalla completa</div>
-      </div>
-      <div class="key-card">
-        <div class="key-combo"><kbd>MOD</kbd> + <kbd>m</kbd></div>
-        <div class="key-desc">🔇 Silenciar / Activar audio</div>
-      </div>
-      <div class="key-card">
-        <div class="key-combo"><kbd>MOD</kbd> + <kbd>Shift</kbd> + <kbd>o</kbd></div>
-        <div class="key-desc">☀️ Encender pantalla física</div>
-      </div>
-      <div class="key-card">
-        <div class="key-combo"><kbd>MOD</kbd> + <kbd>n</kbd></div>
-        <div class="key-desc">🔔 Panel de notificaciones</div>
-      </div>
-      <div class="key-card">
-        <div class="key-combo"><kbd>MOD</kbd> + <kbd>v</kbd></div>
-        <div class="key-desc">📋 Pegar texto del PC</div>
-      </div>
-      <div class="key-card">
-        <div class="key-combo"><kbd>Arrastrar .apk</kbd></div>
-        <div class="key-desc">📦 Instalar aplicación</div>
-      </div>
-    </div>
-  </div>
+<div class="shortcuts-container">
+<h2 class="section-title" id="keys_title">⌨️ Atajos nativos de scrcpy (Cheat Sheet)</h2>
+<p class="section-subtitle" id="keys_sub">Cuando la ventana de scrcpy esté enfocada, puedes usar estos atajos directo con tu teclado:</p>
+<div class="keys-grid">
+<div class="key-card">
+<div class="key-combo"><kbd>Alt</kbd> + <kbd>↑</kbd> / <kbd>MOD</kbd> + <kbd>u</kbd></div>
+<div class="key-desc">🔊 Subir volumen</div>
+</div>
+<div class="key-card">
+<div class="key-combo"><kbd>Alt</kbd> + <kbd>↓</kbd> / <kbd>MOD</kbd> + <kbd>d</kbd></div>
+<div class="key-desc">🔉 Bajar volumen</div>
+</div>
+<div class="key-card">
+<div class="key-combo"><kbd>MOD</kbd> + <kbd>p</kbd></div>
+<div class="key-desc">⚡ Encendido / Pantalla</div>
+</div>
+<div class="key-card">
+<div class="key-combo"><kbd>MOD</kbd> + <kbd>h</kbd></div>
+<div class="key-desc">🏠 Ir a Inicio (Home)</div>
+</div>
+<div class="key-card">
+<div class="key-combo"><kbd>MOD</kbd> + <kbd>b</kbd> / <kbd>Backspace</kbd></div>
+<div class="key-desc">◀ Volver Atrás (Back)</div>
+</div>
+<div class="key-card">
+<div class="key-combo"><kbd>MOD</kbd> + <kbd>s</kbd></div>
+<div class="key-desc">📑 Aplicaciones recientes</div>
+</div>
+<div class="key-card">
+<div class="key-combo"><kbd>MOD</kbd> + <kbd>f</kbd></div>
+<div class="key-desc">🖥️ Pantalla completa</div>
+</div>
+<div class="key-card">
+<div class="key-combo"><kbd>MOD</kbd> + <kbd>m</kbd></div>
+<div class="key-desc">🔇 Silenciar / Activar audio</div>
+</div>
+<div class="key-card">
+<div class="key-combo"><kbd>MOD</kbd> + <kbd>Shift</kbd> + <kbd>o</kbd></div>
+<div class="key-desc">☀️ Encender pantalla física</div>
+</div>
+<div class="key-card">
+<div class="key-combo"><kbd>MOD</kbd> + <kbd>n</kbd></div>
+<div class="key-desc">🔔 Panel de notificaciones</div>
+</div>
+<div class="key-card">
+<div class="key-combo"><kbd>MOD</kbd> + <kbd>v</kbd></div>
+<div class="key-desc">📋 Pegar texto del PC</div>
+</div>
+<div class="key-card">
+<div class="key-combo"><kbd>Arrastrar .apk</kbd></div>
+<div class="key-desc">📦 Instalar aplicación</div>
+</div>
+</div>
+</div>
 </section>
-
 <!-- ── CONTROLES Y APK EN MASV ──────────────────────────────────────── -->
 <section class="control-section" id="controles">
-  <div class="control-card">
-    <h2 class="section-title" style="text-align:left;margin-bottom:8px;">🎮 Controles remotos e instalación de APKs en MASV</h2>
-    <p style="color:var(--muted);font-size:.9rem;margin-bottom:20px;">
+<div class="control-card">
+<h2 class="section-title" id="ctrl_title" style="text-align:left;margin-bottom:8px;">🎮 Controles remotos e instalación de APKs en MASV</h2>
+<p id="ctrl_sub" style="color:var(--muted);font-size:.9rem;margin-bottom:20px;">
       Sin necesidad de tocar la pantalla del teléfono, MASV incluye un mando de controles rápidos vía ADB directamente en la pestaña <strong>Acciones</strong>:
     </p>
-
-    <div class="control-buttons-preview">
-      <span class="ctrl-pill">🔊 Vol +</span>
-      <span class="ctrl-pill">🔉 Vol -</span>
-      <span class="ctrl-pill">🔇 Mute</span>
-      <span class="ctrl-pill active">⚡ Encender</span>
-      <span class="ctrl-pill">🏠 Inicio</span>
-      <span class="ctrl-pill">◀ Atrás</span>
-      <span class="ctrl-pill">📑 Recientes</span>
-      <span class="ctrl-pill">🔔 Notificaciones</span>
-      <span class="ctrl-pill active" style="border-color:var(--green);color:var(--green);">📦 Instalar APK...</span>
-    </div>
-
-    <p style="color:var(--text2);font-size:.85rem;line-height:1.6;">
-      <strong>¿Cómo instalar aplicaciones (APK)?</strong><br/>
+<div class="control-buttons-preview">
+<span class="ctrl-pill">🔊 Vol +</span>
+<span class="ctrl-pill">🔉 Vol -</span>
+<span class="ctrl-pill">🔇 Mute</span>
+<span class="ctrl-pill active">⚡ Encender</span>
+<span class="ctrl-pill">🏠 Inicio</span>
+<span class="ctrl-pill">◀ Atrás</span>
+<span class="ctrl-pill">📑 Recientes</span>
+<span class="ctrl-pill">🔔 Notificaciones</span>
+<span class="ctrl-pill active" style="border-color:var(--green);color:var(--green);">📦 Instalar APK...</span>
+</div>
+<p id="ctrl_desc" style="color:var(--text2);font-size:.85rem;line-height:1.6;">
+<strong>¿Cómo instalar aplicaciones (APK)?</strong><br/>
       • En MASV: Haz clic en el botón <code>📦 Instalar APK en dispositivo...</code>, selecciona el archivo <code>.apk</code> de tu PC y se instalará automáticamente.<br/>
       • En scrcpy: Durante una sesión activa, simplemente <strong>arrastra y suelta</strong> el archivo <code>.apk</code> sobre la ventana de scrcpy.
     </p>
-  </div>
+</div>
 </section>
-
 <!-- ── REQUISITOS ────────────────────────────────────────────────────── -->
 <section class="requirements" id="requisitos">
-  <h2 class="section-title">Requisitos previos del sistema</h2>
-  <p style="color:var(--muted);text-align:center;margin-bottom:28px;font-size:.9rem;">
+<h2 class="section-title" id="req_title">Requisitos previos del sistema</h2>
+<p id="req_sub" style="color:var(--muted);text-align:center;margin-bottom:28px;font-size:.9rem;">
     MASV utiliza <strong>adb</strong> y <strong>scrcpy</strong> como motor subyacente.
   </p>
-
-  <p style="color:var(--text2);font-weight:600;margin-bottom:8px;">🐧 Linux (Debian/Ubuntu):</p>
-  <div class="code-block">sudo apt install adb scrcpy</div>
-
-  <p style="color:var(--text2);font-weight:600;margin-bottom:8px;margin-top:16px;">🪟 Windows (Comando silencioso o ejecutable portable):</p>
-  <div class="code-block">winget install Genymobile.scrcpy --silent</div>
-  <p style="color:var(--muted);font-size:.8rem;margin-top:4px;">Nota: El ejecutable <code>MASV-Windows.exe</code> también puede empaquetar los binarios de <code>scrcpy</code> en la carpeta <code>bin/</code> para ejecutarse 100% sin instalación previa.</p>
-
-  <p style="color:var(--text2);font-weight:600;margin-bottom:8px;margin-top:16px;">🍎 macOS (Homebrew):</p>
-  <div class="code-block">brew install scrcpy android-platform-tools</div>
+<p style="color:var(--text2);font-weight:600;margin-bottom:8px;">🐧 Linux (Debian/Ubuntu):</p>
+<div class="code-block">sudo apt install adb scrcpy</div>
+<p style="color:var(--text2);font-weight:600;margin-bottom:8px;margin-top:16px;">🪟 Windows (Comando silencioso o ejecutable portable):</p>
+<div class="code-block">winget install Genymobile.scrcpy --silent</div>
+<p style="color:var(--muted);font-size:.8rem;margin-top:4px;">Nota: El ejecutable <code>MASV-Windows.exe</code> también puede empaquetar los binarios de <code>scrcpy</code> en la carpeta <code>bin/</code> para ejecutarse 100% sin instalación previa.</p>
+<p id="req_win_note" style="color:var(--text2);font-weight:600;margin-bottom:8px;margin-top:16px;">🍎 macOS (Homebrew):</p>
+<div class="code-block">brew install scrcpy android-platform-tools</div>
 </section>
-
 <!-- ── FOOTER ────────────────────────────────────────────────────────── -->
 <footer>
-  <p>
+<p id="footer_made">
     Hecho con ❤️ por la comunidad Memexicanisimos ·
     Powered by <a href="https://github.com/Genymobile/scrcpy" target="_blank">scrcpy</a> &amp;
     <a href="https://developer.android.com/tools/adb" target="_blank">ADB</a>
-  </p>
-  <p style="margin-top:8px;">
-    <a href="https://github.com/myinnervoid/Memexicanisimos-Android-Screen-Viewer" target="_blank">GitHub</a> ·
+</p>
+<p id="footer_links" style="margin-top:8px;">
+<a href="https://github.com/myinnervoid/Memexicanisimos-Android-Screen-Viewer" target="_blank">GitHub</a> ·
     <a href="https://github.com/myinnervoid/Memexicanisimos-Android-Screen-Viewer/issues" target="_blank">Reportar un bug</a> ·
     Licencia MIT
   </p>
 </footer>
+<script>
+const translations = {
+  "es": {
+    "lang_toggle": "🇺🇸 English",
+    "hero_sub": "GUI avanzada para transmitir, controlar y gestionar múltiples dispositivos Android simultáneamente desde tu PC. Creada por y para la comunidad latina.",
+    "btn_dl": "⬇ Descargar última versión",
+    "dl_note": "Disponible para Linux · Windows · macOS",
+    "nav_dl": "⬇ Descargas",
+    "nav_feat": "✨ Características",
+    "nav_usb": "🔌 Activación USB",
+    "nav_keys": "⌨️ Atajos de teclado",
+    "nav_ctrl": "🎮 Controles y APK",
+    "nav_req": "📦 Requisitos",
+    "dl_title": "Descargas directas",
+    "dl_sub": "Elige tu sistema operativo y descarga el paquete compilado listo para usar.",
+    "dl_linux": "Debian · Ubuntu · Arch · Fedora<br/>Paquete <code>.tar.gz</code>",
+    "dl_win": "Windows 10 / 11<br/>Ejecutable <code>.exe</code> portable",
+    "dl_mac": "macOS 12 Monterey o superior<br/>Binario ejecutable",
+    "feat_1_title": "Soporte Multidispositivo",
+    "feat_1_desc": "Controla múltiples teléfonos en paralelo con diferentes perfiles simultáneamente.",
+    "feat_2_title": "Perfiles Personalizados",
+    "feat_2_desc": "Guarda configuraciones de resolución, FPS, bitrate, códec y audio para cada uso.",
+    "feat_3_title": "Conexión WiFi ADB",
+    "feat_3_desc": "Conecta y transmite sin cables. Detecta la IP automáticamente desde la interfaz.",
+    "feat_4_title": "Webcam Virtual (Linux)",
+    "feat_4_desc": "Enruta la cámara trasera como <code>/dev/video9</code> directamente a OBS Studio.",
+    "feat_5_title": "Mando de Controles Remotos",
+    "feat_5_desc": "Botones directos para volumen, inicio, atrás, recientes, encendido e instalación de APKs.",
+    "feat_6_title": "FAQ Interactiva",
+    "feat_6_desc": "Guía de inicio rápido, depuración USB, WiFi, v4l2loopback y solución de problemas comunes.",
+    "usb_title": "🔌 Cómo habilitar la Depuración USB en Android",
+    "usb_sub": "Sigue estos 3 sencillos pasos en tu teléfono antes de conectar por primera vez.",
+    "usb_1_title": "Activa las Opciones de Desarrollador",
+    "usb_1_desc": "Abre <strong>Ajustes → Acerca del teléfono</strong>. Toca <strong>7 veces continuas</strong> sobre el campo <em>Número de compilación</em>.",
+    "usb_2_title": "Habilita la Depuración USB",
+    "usb_2_desc": "Regresa a <strong>Ajustes → Sistema → Opciones para desarrolladores</strong>. Busca e interrupta la casilla <strong>Depuración USB</strong>.",
+    "usb_3_title": "Autoriza tu Computadora (RSA)",
+    "usb_3_desc": "Conecta el cable USB. Aparecerá una ventana emergente en el teléfono. Acepta y marca la opción para recordar este equipo.",
+    "keys_title": "⌨️ Atajos nativos de scrcpy (Cheat Sheet)",
+    "keys_sub": "Cuando la ventana de scrcpy esté enfocada, puedes usar estos atajos directo con tu teclado:",
+    "ctrl_title": "🎮 Controles remotos e instalación de APKs en MASV",
+    "ctrl_sub": "Sin necesidad de tocar la pantalla del teléfono, MASV incluye un mando de controles rápidos vía ADB directamente en la pestaña <strong>Acciones</strong>:",
+    "ctrl_desc": "<strong>¿Cómo instalar aplicaciones (APK)?</strong><br/>• En MASV: Haz clic en el botón <code>📦 Instalar APK en dispositivo...</code>, selecciona el archivo <code>.apk</code> de tu PC y se instalará automáticamente.<br/>• En scrcpy: Durante una sesión activa, simplemente <strong>arrastra y suelta</strong> el archivo <code>.apk</code> sobre la ventana de scrcpy.",
+    "req_title": "Requisitos previos del sistema",
+    "req_sub": "MASV utiliza <strong>adb</strong> y <strong>scrcpy</strong> como motor subyacente.",
+    "req_win_note": "Nota: El ejecutable <code>MASV-Windows.exe</code> también puede empaquetar los binarios de <code>scrcpy</code> en la carpeta <code>bin/</code> para ejecutarse 100% sin instalación previa.",
+    "footer_made": 'Hecho con ❤️ por la comunidad Memexicanisimos · Powered by <a href="https://github.com/Genymobile/scrcpy" target="_blank">scrcpy</a> &amp; <a href="https://developer.android.com/tools/adb" target="_blank">ADB</a>',
+    "footer_links": '<a href="https://github.com/myinnervoid/Memexicanisimos-Android-Screen-Viewer" target="_blank">GitHub</a> · <a href="https://github.com/myinnervoid/Memexicanisimos-Android-Screen-Viewer/issues" target="_blank">Reportar un bug</a> · Licencia MIT'
+  },
+  "en": {
+    "lang_toggle": "🇲🇽 Español",
+    "hero_sub": "Advanced GUI to cast, control, and manage multiple Android devices simultaneously from your PC. Built by and for the community.",
+    "btn_dl": "⬇ Download latest version",
+    "dl_note": "Available for Linux · Windows · macOS",
+    "nav_dl": "⬇ Downloads",
+    "nav_feat": "✨ Features",
+    "nav_usb": "🔌 USB Activation",
+    "nav_keys": "⌨️ Keyboard Shortcuts",
+    "nav_ctrl": "🎮 Controls and APK",
+    "nav_req": "📦 Requirements",
+    "dl_title": "Direct Downloads",
+    "dl_sub": "Choose your operating system and download the ready-to-use compiled package.",
+    "dl_linux": "Debian · Ubuntu · Arch · Fedora<br/><code>.tar.gz</code> Package",
+    "dl_win": "Windows 10 / 11<br/>Portable <code>.exe</code> executable",
+    "dl_mac": "macOS 12 Monterey or higher<br/>Executable binary",
+    "feat_1_title": "Multi-Device Support",
+    "feat_1_desc": "Control multiple phones in parallel with different profiles simultaneously.",
+    "feat_2_title": "Custom Profiles",
+    "feat_2_desc": "Save resolution, FPS, bitrate, codec, and audio configurations for every use case.",
+    "feat_3_title": "WiFi ADB Connection",
+    "feat_3_desc": "Connect and cast wirelessly. Automatically detects IP from the interface.",
+    "feat_4_title": "Virtual Webcam (Linux)",
+    "feat_4_desc": "Routes the rear camera as <code>/dev/video9</code> directly into OBS Studio.",
+    "feat_5_title": "Remote Control Pad",
+    "feat_5_desc": "Direct buttons for volume, home, back, recents, power, and APK installation.",
+    "feat_6_title": "Interactive FAQ",
+    "feat_6_desc": "Quick start guide, USB debugging, WiFi, v4l2loopback, and troubleshooting common issues.",
+    "usb_title": "🔌 How to enable USB Debugging on Android",
+    "usb_sub": "Follow these 3 simple steps on your phone before connecting for the first time.",
+    "usb_1_title": "Enable Developer Options",
+    "usb_1_desc": "Open <strong>Settings → About phone</strong>. Tap <strong>7 times consecutively</strong> on the <em>Build number</em> field.",
+    "usb_2_title": "Enable USB Debugging",
+    "usb_2_desc": "Go back to <strong>Settings → System → Developer options</strong>. Find and toggle the <strong>USB Debugging</strong> switch.",
+    "usb_3_title": "Authorize Your Computer (RSA)",
+    "usb_3_desc": "Connect the USB cable. A pop-up will appear on your phone. Accept and check the option to remember this computer.",
+    "keys_title": "⌨️ Native scrcpy shortcuts (Cheat Sheet)",
+    "keys_sub": "When the scrcpy window is focused, you can use these shortcuts directly on your keyboard:",
+    "ctrl_title": "🎮 Remote Controls and APK Installation in MASV",
+    "ctrl_sub": "Without needing to touch the phone's screen, MASV includes a quick control pad via ADB directly in the <strong>Actions</strong> tab:",
+    "ctrl_desc": "<strong>How to install applications (APK)?</strong><br/>• In MASV: Click the <code>📦 Install APK on device...</code> button, select the <code>.apk</code> file from your PC and it will be installed automatically.<br/>• In scrcpy: During an active session, simply <strong>drag and drop</strong> the <code>.apk</code> file onto the scrcpy window.",
+    "req_title": "System Prerequisites",
+    "req_sub": "MASV uses <strong>adb</strong> and <strong>scrcpy</strong> as the underlying engine.",
+    "req_win_note": "Note: The <code>MASV-Windows.exe</code> executable can also package the <code>scrcpy</code> binaries in the <code>bin/</code> folder to run 100% without prior installation.",
+    "footer_made": 'Made with ❤️ by the Memexicanisimos community · Powered by <a href="https://github.com/Genymobile/scrcpy" target="_blank">scrcpy</a> &amp; <a href="https://developer.android.com/tools/adb" target="_blank">ADB</a>',
+    "footer_links": '<a href="https://github.com/myinnervoid/Memexicanisimos-Android-Screen-Viewer" target="_blank">GitHub</a> · <a href="https://github.com/myinnervoid/Memexicanisimos-Android-Screen-Viewer/issues" target="_blank">Report a bug</a> · MIT License'
+  }
+};
 
+let currentLang = localStorage.getItem('lang') || 'es';
+
+function toggleLanguage() {
+  currentLang = currentLang === 'es' ? 'en' : 'es';
+  localStorage.setItem('lang', currentLang);
+  applyLanguage();
+}
+
+function applyLanguage() {
+  const t = translations[currentLang];
+  document.documentElement.lang = currentLang;
+
+  document.getElementById('lang-toggle').innerHTML = t.lang_toggle;
+  document.getElementById('hero_sub').innerHTML = t.hero_sub;
+  document.getElementById('btn_dl').innerHTML = t.btn_dl;
+  document.getElementById('dl_note').innerHTML = t.dl_note;
+  document.getElementById('nav_dl').innerHTML = t.nav_dl;
+  document.getElementById('nav_feat').innerHTML = t.nav_feat;
+  document.getElementById('nav_usb').innerHTML = t.nav_usb;
+  document.getElementById('nav_keys').innerHTML = t.nav_keys;
+  document.getElementById('nav_ctrl').innerHTML = t.nav_ctrl;
+  document.getElementById('nav_req').innerHTML = t.nav_req;
+  document.getElementById('dl_title').innerHTML = t.dl_title;
+  document.getElementById('dl_sub').innerHTML = t.dl_sub;
+  document.getElementById('dl_linux').innerHTML = t.dl_linux;
+  document.getElementById('dl_win').innerHTML = t.dl_win;
+  document.getElementById('dl_mac').innerHTML = t.dl_mac;
+  document.getElementById('feat_1_title').innerHTML = t.feat_1_title;
+  document.getElementById('feat_1_desc').innerHTML = t.feat_1_desc;
+  document.getElementById('feat_2_title').innerHTML = t.feat_2_title;
+  document.getElementById('feat_2_desc').innerHTML = t.feat_2_desc;
+  document.getElementById('feat_3_title').innerHTML = t.feat_3_title;
+  document.getElementById('feat_3_desc').innerHTML = t.feat_3_desc;
+  document.getElementById('feat_4_title').innerHTML = t.feat_4_title;
+  document.getElementById('feat_4_desc').innerHTML = t.feat_4_desc;
+  document.getElementById('feat_5_title').innerHTML = t.feat_5_title;
+  document.getElementById('feat_5_desc').innerHTML = t.feat_5_desc;
+  document.getElementById('feat_6_title').innerHTML = t.feat_6_title;
+  document.getElementById('feat_6_desc').innerHTML = t.feat_6_desc;
+  document.getElementById('usb_title').innerHTML = t.usb_title;
+  document.getElementById('usb_sub').innerHTML = t.usb_sub;
+  document.getElementById('usb_1_title').innerHTML = t.usb_1_title;
+  document.getElementById('usb_1_desc').innerHTML = t.usb_1_desc;
+  document.getElementById('usb_2_title').innerHTML = t.usb_2_title;
+  document.getElementById('usb_2_desc').innerHTML = t.usb_2_desc;
+  document.getElementById('usb_3_title').innerHTML = t.usb_3_title;
+  document.getElementById('usb_3_desc').innerHTML = t.usb_3_desc;
+  document.getElementById('keys_title').innerHTML = t.keys_title;
+  document.getElementById('keys_sub').innerHTML = t.keys_sub;
+  document.getElementById('ctrl_title').innerHTML = t.ctrl_title;
+  document.getElementById('ctrl_sub').innerHTML = t.ctrl_sub;
+  document.getElementById('ctrl_desc').innerHTML = t.ctrl_desc;
+  document.getElementById('req_title').innerHTML = t.req_title;
+  document.getElementById('req_sub').innerHTML = t.req_sub;
+  document.getElementById('req_win_note').innerHTML = t.req_win_note;
+  document.getElementById('footer_made').innerHTML = t.footer_made;
+  document.getElementById('footer_links').innerHTML = t.footer_links;
+}
+
+document.addEventListener('DOMContentLoaded', applyLanguage);
+</script>
 </body>
 </html>

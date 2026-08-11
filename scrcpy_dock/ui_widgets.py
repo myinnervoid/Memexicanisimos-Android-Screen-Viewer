@@ -1,4 +1,5 @@
 import tkinter as tk
+from .i18n import _
 from tkinter import ttk, messagebox
 from .utils import C, FONT_FAMILY, FONT_UI, FONT_UI_B, FONT_SM, FONT_LG, FONT_MONO, FONT_CARD
 
@@ -145,10 +146,10 @@ def _cmd_chip(parent, cmd: str, root: tk.Tk = None) -> tk.Frame:
         target = root or chip
         target.clipboard_clear()
         target.clipboard_append(cmd)
-        copy_btn.config(text="✔ Copiado", fg=C["green"])
-        chip.after(2000, lambda: copy_btn.config(text="📋 Copiar", fg=C["muted"]))
+        copy_btn.config(text=_("✔ Copiado"), fg=C["green"])
+        chip.after(2000, lambda: copy_btn.config(text=_("📋 Copiar"), fg=C["muted"]))
 
-    copy_btn = tk.Label(chip, text="📋 Copiar", bg=C["card2"], fg=C["muted"],
+    copy_btn = tk.Label(chip, text=_("📋 Copiar"), bg=C["card2"], fg=C["muted"],
                         font=FONT_SM, cursor="hand2")
     copy_btn.pack(side="right", padx=4)
     copy_btn.bind("<Button-1>", copy)
@@ -172,7 +173,7 @@ class AccordionItem(tk.Frame):
         self._hdr = tk.Frame(self, bg=C["card2"], cursor="hand2")
         self._hdr.pack(fill="x")
 
-        self._arrow = tk.Label(self._hdr, text="▶", bg=C["card2"],
+        self._arrow = tk.Label(self._hdr, text=_("▶"), bg=C["card2"],
                                fg=C["purple"], font=FONT_UI_B, width=2)
         self._arrow.pack(side="left", padx=(12, 4), pady=10)
 
@@ -213,11 +214,11 @@ class AccordionItem(tk.Frame):
     def _toggle(self, _=None):
         if self._expanded:
             self._content_outer.pack_forget()
-            self._arrow.config(text="▶")
+            self._arrow.config(text=_("▶"))
             self._expanded = False
         else:
             self._content_outer.pack(fill="x")
-            self._arrow.config(text="▼")
+            self._arrow.config(text=_("▼"))
             self._expanded = True
 
     def expand(self):
@@ -285,7 +286,7 @@ class ProfileChipsView(tk.Frame):
             w.destroy()
 
         if not p:
-            tk.Label(self, text="Selecciona un perfil para ver sus detalles.",
+            tk.Label(self, text=_("Selecciona un perfil para ver sus detalles."),
                      bg=C["card2"], fg=C["muted"], font=FONT_SM).pack(padx=16, pady=20)
             return
 
@@ -298,11 +299,11 @@ class ProfileChipsView(tk.Frame):
         grid_frame.pack(fill="both", expand=True, padx=8, pady=4)
 
         chips_data = [
-            ("📺 Resolución",  f"{p.get('max_size','Nativa')}p",  C["blue"]),
-            ("⚡ FPS máx",     f"{p.get('max_fps','60')} FPS",    C["cyan"]),
-            ("📊 Bitrate",     f"{p.get('bitrate','8M')}",        C["purple"]),
-            ("🎥 Códec",       f"{p.get('video_codec','H.264').upper()}", C["green"]),
-            ("🔊 Audio",       f"{p.get('audio_source','playback')}",     C["orange"]),
+            (_("📺 Resolución"), f"{p.get('max_size','Nativa')}p", C["blue"]),
+            (_("⚡ FPS máx"), f"{p.get('max_fps','60')} FPS", C["cyan"]),
+            (_("📊 Bitrate"), f"{p.get('bitrate','8M')}", C["purple"]),
+            (_("🎥 Códec"), f"{p.get('video_codec','H.264').upper()}", C["green"]),
+            (_("🔊 Audio"), f"{p.get('audio_source','playback')}", C["orange"]),
             ("🌙 Pantalla Off","Sí" if p.get('turn_screen_off') else "No",
              C["red"] if p.get('turn_screen_off') else C["muted"]),
             ("☀️ Despierto",   "Sí" if p.get('stay_awake') else "No",
@@ -337,10 +338,10 @@ class ProfileChipsView(tk.Frame):
 class ProfileWizard(tk.Toplevel):
     STEPS = [
         ("📝", "Nombre del perfil",   "Elige un nombre descriptivo para identificar este perfil fácilmente."),
-        ("🎯", "¿Qué quieres hacer?", "Selecciona un caso de uso predefinido o personaliza cada ajuste."),
+        (_("🎯"), "¿Qué quieres hacer?", _("Selecciona un caso de uso predefinido o personaliza cada ajuste.")),
         ("🖼️", "Calidad de imagen",   "Define la resolución, fotogramas por segundo, bitrate y códec de vídeo."),
         ("🔊", "Fuente de audio",     "Configura la captura de sonido del sistema, micrófono o modo solo audio."),
-        ("🔋", "Opciones de batería", "Controla el apagado de pantalla y suspensión durante la transmisión."),
+        (_("🔋"), "Opciones de batería", _("Controla el apagado de pantalla y suspensión durante la transmisión.")),
         ("🧩", "Ajustes avanzados",   "ID de cámara trasera y argumentos adicionales para el comando scrcpy."),
         ("✅", "Resumen",             "Revisa toda la configuración antes de guardar el perfil."),
     ]
@@ -410,7 +411,7 @@ class ProfileWizard(tk.Toplevel):
         self._prog_frame.pack(side="right", padx=14)
         self._prog_dots = []
         for i in range(len(self.STEPS)):
-            d = tk.Label(self._prog_frame, text="●", bg=C["card"], fg=C["sep"],
+            d = tk.Label(self._prog_frame, text=_("●"), bg=C["card"], fg=C["sep"],
                          font=(FONT_FAMILY, 7))
             d.grid(row=0, column=i, padx=2)
             self._prog_dots.append(d)
@@ -420,13 +421,13 @@ class ProfileWizard(tk.Toplevel):
 
         nav = tk.Frame(self, bg=C["card2"])
         nav.pack(fill="x", side="bottom")
-        self._back_btn   = tk.Button(nav, text="◀  Atrás", bg=C["sep"], fg=C["text"],
+        self._back_btn   = tk.Button(nav, text=_("◀  Atrás"), bg=C["sep"], fg=C["text"],
                                      font=FONT_UI_B, relief="flat", bd=0, padx=16, pady=8, command=self._prev)
         self._back_btn.pack(side="left", padx=10, pady=8)
-        self._next_btn   = tk.Button(nav, text="Siguiente  ▶", bg=C["blue"], fg="#FFFFFF",
+        self._next_btn   = tk.Button(nav, text=_("Siguiente  ▶"), bg=C["blue"], fg="#FFFFFF",
                                      font=FONT_UI_B, relief="flat", bd=0, padx=16, pady=8, command=self._next)
         self._next_btn.pack(side="right", padx=10, pady=8)
-        self._cancel_btn = tk.Button(nav, text="Cancelar", bg=C["bg"], fg=C["muted"],
+        self._cancel_btn = tk.Button(nav, text=_("Cancelar"), bg=C["bg"], fg=C["muted"],
                                      font=FONT_SM, relief="flat", bd=0, padx=10, pady=8, command=self.destroy)
         self._cancel_btn.pack(side="right", padx=4, pady=8)
 
@@ -440,7 +441,7 @@ class ProfileWizard(tk.Toplevel):
             d.config(fg=C["blue"] if i <= step else C["sep"])
         self._back_btn.config(state="normal" if step > 0 else "disabled")
         last = (step == len(self.STEPS) - 1)
-        self._next_btn.config(text="💾  Guardar perfil" if last else "Siguiente  ▶",
+        self._next_btn.config(text=_("💾  Guardar perfil") if last else "Siguiente  ▶",
                               bg=C["green"] if last else C["blue"])
         for w in self._content.winfo_children():
             w.destroy()
@@ -461,7 +462,7 @@ class ProfileWizard(tk.Toplevel):
         if step == 0:
             name = self._name_var.get().strip()
             if not name:
-                messagebox.showerror("Error", "El nombre no puede estar vacío.", parent=self)
+                messagebox.showerror(_("Error"), _("El nombre no puede estar vacío."), parent=self)
                 return False
             self._data["name"] = name
         elif step == 1:
@@ -497,17 +498,17 @@ class ProfileWizard(tk.Toplevel):
         self._cb(self._data)
 
     def _step_0(self):
-        tk.Label(self._content, text="Nombre del perfil:", bg=C["bg"],
+        tk.Label(self._content, text=_("Nombre del perfil:"), bg=C["bg"],
                  fg=C["text2"], font=FONT_UI_B).pack(anchor="w", pady=(20, 6))
         self._name_var = tk.StringVar(value=self._data.get("name", ""))
         e = ttk.Entry(self._content, textvariable=self._name_var,
                       font=(FONT_FAMILY, 13), width=32)
         e.pack(anchor="w"); e.focus_set()
-        tk.Label(self._content, text="Ejemplo: 'Juego Vivo', 'Stream Huawei mic', 'Cámara OBS'",
+        tk.Label(self._content, text=_("Ejemplo: 'Juego Vivo', 'Stream Huawei mic', 'Cámara OBS'"),
                  bg=C["bg"], fg=C["muted"], font=FONT_SM).pack(anchor="w", pady=(6, 0))
 
     def _step_1(self):
-        tk.Label(self._content, text="Elige un caso de uso (preselecciona todo):",
+        tk.Label(self._content, text=_("Elige un caso de uso (preselecciona todo):"),
                  bg=C["bg"], fg=C["text2"], font=FONT_UI_B).pack(anchor="w", pady=(8, 10))
         self._preset_var = tk.StringVar(value="(Personalizado)")
         for opt in list(self.PRESETS.keys()) + ["(Personalizado)"]:
@@ -536,15 +537,15 @@ class ProfileWizard(tk.Toplevel):
         pair("Códec de vídeo:",    self._codec_var, ["h264","h265","av1"])
 
     def _step_3(self):
-        self._audio_var   = tk.StringVar(value=self._data.get("audio_source", "playback"))
+        self._audio_var   = tk.StringVar(value=self._data.get(_("audio_source"), _("playback")))
         self._novideo_var = tk.BooleanVar(value=self._data.get("no_video", False))
         self._usemic_var  = tk.BooleanVar(value=(self._data.get("audio_source") == "mic"))
 
-        tk.Label(self._content, text="Selecciona la fuente de audio:",
+        tk.Label(self._content, text=_("Selecciona la fuente de audio:"),
                  bg=C["bg"], fg=C["text2"], font=FONT_UI_B).pack(anchor="w", pady=(4, 6))
 
         for emoji_lbl, val, tip in [
-            ("🔈 playback (sistema)", "playback", "Audio del sistema interno del teléfono."),
+            (_("🔈 playback (sistema)"), "playback", _("Audio del sistema interno del teléfono.")),
             ("🎤 mic (micrófono)",     "mic",      "Micrófono físico del teléfono."),
             ("📻 system (sonido)",     "system",   "Audio directo del sistema Android."),
             ("🔇 none (sin audio)",    "none",     "Solo transmisión de vídeo, sin captura de audio."),
@@ -561,7 +562,7 @@ class ProfileWizard(tk.Toplevel):
 
         f_extra = tk.Frame(self._content, bg=C["card"], pady=6, padx=10)
         f_extra.pack(fill="x", pady=4)
-        tk.Checkbutton(f_extra, text=" 🚫 Solo audio (sin video --no-video)", variable=self._novideo_var,
+        tk.Checkbutton(f_extra, text=_(" 🚫 Solo audio (sin video --no-video)"), variable=self._novideo_var,
                        bg=C["card"], fg=C["text"], selectcolor=C["card2"],
                        activebackground=C["card"], font=FONT_UI_B).pack(anchor="w")
         Tooltip(f_extra, "Transmite únicamente el sonido del teléfono sin abrir la ventana de vídeo.")
@@ -571,7 +572,7 @@ class ProfileWizard(tk.Toplevel):
         def _on_mic_toggle():
             if self._usemic_var.get():
                 self._audio_var.set("mic")
-        tk.Checkbutton(f_mic, text=" 🎤 Usar micrófono como entrada de audio principal", variable=self._usemic_var,
+        tk.Checkbutton(f_mic, text=_(" 🎤 Usar micrófono como entrada de audio principal"), variable=self._usemic_var,
                        command=_on_mic_toggle, bg=C["card"], fg=C["text"], selectcolor=C["card2"],
                        activebackground=C["card"], font=FONT_UI_B).pack(anchor="w")
 
@@ -594,18 +595,18 @@ class ProfileWizard(tk.Toplevel):
                      font=FONT_SM, wraplength=280).pack(side="left", padx=10)
 
     def _step_5(self):
-        tk.Label(self._content, text="ID de Cámara trasera (para webcam):",
+        tk.Label(self._content, text=_("ID de Cámara trasera (para webcam):"),
                  bg=C["bg"], fg=C["text2"], font=FONT_UI_B).pack(anchor="w", pady=(8, 4))
-        self._camid_var = tk.StringVar(value=self._data.get("camera_id", "0"))
+        self._camid_var = tk.StringVar(value=self._data.get(_("camera_id"), _("0")))
         cb_cam = ttk.Combobox(self._content, textvariable=self._camid_var, values=["0", "1", "2"], width=8, state="readonly")
         cb_cam.pack(anchor="w", padx=4, pady=(0, 10))
 
-        tk.Label(self._content, text="Argumentos adicionales de scrcpy (extra_args):",
+        tk.Label(self._content, text=_("Argumentos adicionales de scrcpy (extra_args):"),
                  bg=C["bg"], fg=C["text2"], font=FONT_UI_B).pack(anchor="w", pady=(8, 4))
         self._extra_var = tk.StringVar(value=self._data.get("extra_args", ""))
         e_extra = ttk.Entry(self._content, textvariable=self._extra_var, width=42, font=FONT_MONO)
         e_extra.pack(anchor="w", padx=4)
-        tk.Label(self._content, text="Ejemplos: '--no-control', '--max-fps 30', '--no-audio'",
+        tk.Label(self._content, text=_("Ejemplos: '--no-control', '--max-fps 30', '--no-audio'"),
                  bg=C["bg"], fg=C["muted"], font=FONT_SM).pack(anchor="w", padx=4, pady=(4, 0))
 
     def _step_6(self):
@@ -626,12 +627,12 @@ class ProfileWizard(tk.Toplevel):
         ]
         if d.get("extra_args"):
             lines.append(f"  Args extra       : {d['extra_args']}")
-        tk.Label(self._content, text="Perfil listo para guardar:", bg=C["bg"],
+        tk.Label(self._content, text=_("Perfil listo para guardar:"), bg=C["bg"],
                  fg=C["text2"], font=FONT_UI_B).pack(anchor="w", pady=(6, 4))
         box = tk.Text(self._content, bg=C["card2"], fg=C["text"], font=FONT_MONO,
                       height=11, relief="flat", bd=0, state="normal", wrap="word")
         box.insert("1.0", "\n".join(lines))
         box.config(state="disabled")
         box.pack(fill="both", expand=True, pady=4)
-        tk.Label(self._content, text="✔  Pulsa 'Guardar perfil' para finalizar.",
+        tk.Label(self._content, text=_("✔  Pulsa 'Guardar perfil' para finalizar."),
                  bg=C["bg"], fg=C["green"], font=FONT_UI_B).pack(pady=(4, 0))
