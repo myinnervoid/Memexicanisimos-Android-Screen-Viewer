@@ -1100,7 +1100,7 @@ class ScrcpyDockApp:
         prog_f = tk.Frame(win, bg=C["bg"])
         prog_f.pack()
         dots = []
-        for _ in range(len(steps)):
+        for _idx in range(len(steps)):
             d = tk.Label(prog_f, text=_("●"), bg=C["bg"], fg=C["sep"], font=(FONT_FAMILY, 8))
             d.pack(side="left", padx=3)
             dots.append(d)
