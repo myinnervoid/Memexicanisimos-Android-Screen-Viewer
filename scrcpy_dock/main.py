@@ -220,7 +220,6 @@ class ScrcpyDockApp:
         bar = tk.Frame(self.root, bg=C["card2"], height=34)
         bar.pack(fill="x", side="bottom")
         bar.pack_propagate(False)
-        self._status_lbl = tk.Label(bar, text=_("Iniciando…"), bg=C["card2"],
 
         self.is_advanced_view = True
         self.btn_toggle_view = tk.Button(bar, text="Cambiar a Vista Simple", bg=C["sep"], fg=C["text"],
@@ -717,7 +716,7 @@ class ScrcpyDockApp:
         if simple_combo:
             simple_combo['values'] = names
 
-    def _on_profile_listbox_sel(self, _=None):
+    def _on_profile_listbox_sel(self, event=None):
         listbox = self.ui.refs['profile_listbox']
         sel = listbox.curselection()
         if not sel: return
@@ -799,7 +798,7 @@ class ScrcpyDockApp:
             self.ctx.active_profile.set(pl[0])
             self.ctx.log("INFO", f"Perfil '{name}' eliminado.")
 
-    def _on_active_profile_change(self, _=None):
+    def _on_active_profile_change(self, event=None):
         self.ctx.save_current_config()
         self._set_status(f"Perfil activo: {self.ctx.active_profile.get()}", C["cyan"])
 
@@ -878,7 +877,7 @@ class ScrcpyDockApp:
         self._refresh_table()
         self.ctx.log("INFO", f"[{serial}] Sesión detenida.")
 
-    def _on_tab_changed(self, _=None):
+    def _on_tab_changed(self, event=None):
         if self.ctx.active_device_serial:
             self.ui.refs['action_device_lbl'].config(text=f"📱  {self.ctx.active_device_serial}", fg=C["text"])
         else:
