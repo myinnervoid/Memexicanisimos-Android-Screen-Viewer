@@ -84,9 +84,13 @@ FONT_MONO  = ("JetBrains Mono", 9) if _PLAT != "win32" else ("Consolas", 9)
 
 # ── Rutas ──────────────────────────────────────────────────────────────────
 CONFIG_DIR  = os.path.expanduser("~/.config/masv")
+APP_DIR     = CONFIG_DIR
 CONFIG_FILE = os.path.join(CONFIG_DIR, "config.json")
 LOG_FILE    = os.path.join(CONFIG_DIR, "masv.log")
 os.makedirs(CONFIG_DIR, exist_ok=True)
+if sys.platform != "win32":
+    try: os.chmod(CONFIG_DIR, 0o700)
+    except Exception: pass
 
 DEFAULT_CONFIG = {
     "profiles": {
@@ -132,11 +136,18 @@ def load_config() -> dict:
         return dict(DEFAULT_CONFIG)
 
 def save_config(cfg: dict):
+    tmp_file = f"{CONFIG_FILE}.tmp"
     try:
-        with open(CONFIG_FILE, "w", encoding="utf-8") as f:
+        with open(tmp_file, "w", encoding="utf-8") as f:
             json.dump(cfg, f, indent=4, ensure_ascii=False)
+            f.flush()
+            os.fsync(f.fileno())
+        os.replace(tmp_file, CONFIG_FILE)
     except Exception as e:
         print(f"Error saving config: {e}")
+        if os.path.exists(tmp_file):
+            try: os.remove(tmp_file)
+            except Exception: pass
 
 def find_portable_binaries():
     """Busca adb y scrcpy en la carpeta 'bin' relativa al ejecutable, en ~/.config/masv/bin, y en PATH."""
@@ -198,6 +209,13 @@ def log_msg(level: str, msg: str):
     line = f"[{ts}] [{level}] {msg}\n"
     print(line, end="")
     try:
+        if os.path.exists(LOG_FILE) and os.path.getsize(LOG_FILE) > 5 * 1024 * 1024:
+            old_file = f"{LOG_FILE}.1"
+            if os.path.exists(old_file):
+                try: os.remove(old_file)
+                except Exception: pass
+            try: os.rename(LOG_FILE, old_file)
+            except Exception: pass
         with open(LOG_FILE, "a", encoding="utf-8") as f:
             f.write(line)
     except Exception:

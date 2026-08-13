@@ -484,8 +484,11 @@ class ProfileWizard(tk.Toplevel):
             self._data["stay_awake"]               = self._awake_var.get()
             self._data["force_screen_off_keyevent"] = self._kev_var.get()
         elif step == 5:
-            self._data["camera_id"]  = self._camid_var.get()
-            self._data["extra_args"] = self._extra_var.get().strip()
+            self._data["video_source"]  = self._vsource_var.get()
+            self._data["camera_facing"] = self._camfacing_var.get()
+            self._data["audio_codec"]   = self._acodec_var.get()
+            self._data["camera_id"]     = self._camid_var.get()
+            self._data["extra_args"]    = self._extra_var.get().strip()
         return True
 
     def _finish(self):
@@ -534,7 +537,7 @@ class ProfileWizard(tk.Toplevel):
         pair("Bitrate (calidad):", self._br_var, ["2M","4M","8M","12M","16M","24M","32M"])
         pair("Resolución máx:",    self._sz_var, ["720","1080","1440","1920","0"])
         pair("FPS máximos:",       self._fps_var, ["24","30","60","90","120"])
-        pair("Códec de vídeo:",    self._codec_var, ["h264","h265","av1"])
+        pair("Códec de vídeo:",    self._codec_var, ["h264","h265","av1","vp8","vp9"])
 
     def _step_3(self):
         self._audio_var   = tk.StringVar(value=self._data.get(_("audio_source"), _("playback")))
@@ -595,18 +598,30 @@ class ProfileWizard(tk.Toplevel):
                      font=FONT_SM, wraplength=280).pack(side="left", padx=10)
 
     def _step_5(self):
-        tk.Label(self._content, text=_("ID de Cámara trasera (para webcam):"),
-                 bg=C["bg"], fg=C["text2"], font=FONT_UI_B).pack(anchor="w", pady=(8, 4))
-        self._camid_var = tk.StringVar(value=self._data.get(_("camera_id"), _("0")))
-        cb_cam = ttk.Combobox(self._content, textvariable=self._camid_var, values=["0", "1", "2"], width=8, state="readonly")
-        cb_cam.pack(anchor="w", padx=4, pady=(0, 10))
+        def pair(lbl, var, values, tip=""):
+            r = tk.Frame(self._content, bg=C["bg"])
+            r.pack(fill="x", pady=4)
+            tk.Label(r, text=lbl, bg=C["bg"], fg=C["text2"],
+                     font=FONT_UI, width=22, anchor="e").pack(side="left", padx=(0,8))
+            cb = ttk.Combobox(r, textvariable=var, values=values, width=14, state="readonly")
+            cb.pack(side="left")
+            if tip: Tooltip(cb, tip)
+
+        self._vsource_var = tk.StringVar(value=self._data.get("video_source", "display"))
+        self._camfacing_var = tk.StringVar(value=self._data.get("camera_facing", "back"))
+        self._camid_var = tk.StringVar(value=self._data.get("camera_id", "0"))
+        self._acodec_var = tk.StringVar(value=self._data.get("audio_codec", "opus"))
+
+        pair("Fuente de vídeo:", self._vsource_var, ["display", "camera"], "Pantalla del teléfono o transmisión directa de cámara.")
+        pair("Orientación cámara:", self._camfacing_var, ["back", "front"], "Cámara trasera o frontal (Android 12+).")
+        pair("Códec de audio:", self._acodec_var, ["opus", "aac", "flac", "raw"], "Formato de compresión de audio.")
 
         tk.Label(self._content, text=_("Argumentos adicionales de scrcpy (extra_args):"),
-                 bg=C["bg"], fg=C["text2"], font=FONT_UI_B).pack(anchor="w", pady=(8, 4))
+                 bg=C["bg"], fg=C["text2"], font=FONT_UI_B).pack(anchor="w", pady=(10, 4))
         self._extra_var = tk.StringVar(value=self._data.get("extra_args", ""))
         e_extra = ttk.Entry(self._content, textvariable=self._extra_var, width=42, font=FONT_MONO)
         e_extra.pack(anchor="w", padx=4)
-        tk.Label(self._content, text=_("Ejemplos: '--no-control', '--max-fps 30', '--no-audio'"),
+        tk.Label(self._content, text=_("Ejemplos: '--no-control', '--max-fps 30', '--v4l2-buffer 50'"),
                  bg=C["bg"], fg=C["muted"], font=FONT_SM).pack(anchor="w", padx=4, pady=(4, 0))
 
     def _step_6(self):

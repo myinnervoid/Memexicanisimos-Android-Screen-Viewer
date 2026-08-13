@@ -41,6 +41,8 @@ class ScrcpyDockApp:
             try: self.root.state("zoomed")
             except Exception: pass
 
+        self.root.protocol("WM_DELETE_WINDOW", self._on_app_close)
+
         # ── Icono de ventana ───────────────────────────────────
         try:
             _ico = _make_tray_icon(32)
@@ -269,6 +271,20 @@ class ScrcpyDockApp:
             self._nb.pack(fill="both", expand=True, padx=8, pady=(4, 0))
             self.btn_toggle_view.config(text="Cambiar a Vista Simple")
             self.is_advanced_view = True
+
+    def _on_app_close(self):
+        """Detiene todas las sesiones activas de scrcpy y guarda la geometría antes de salir."""
+        try:
+            if hasattr(self, 'ctx') and self.ctx and self.ctx.session_mgr:
+                self.ctx.session_mgr.stop_all()
+            if hasattr(self, 'root') and self.root:
+                self.ctx.cfg["window_geometry"] = self.root.geometry()
+                self.ctx.save_current_config()
+        except Exception as e:
+            print(f"Error durante el cierre: {e}")
+        finally:
+            try: self.root.destroy()
+            except Exception: pass
 
     def _set_status(self, msg: str, color: str = None):
         self._status_lbl.config(text=msg, fg=color or C["muted"])

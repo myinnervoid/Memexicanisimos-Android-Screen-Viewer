@@ -47,6 +47,8 @@ class ProfileManager:
             save_cb(self.cfg)
 
 
+from concurrent.futures import ThreadPoolExecutor
+
 class DeviceManager:
     def __init__(self):
         self.devices = []
@@ -58,26 +60,44 @@ class DeviceManager:
             return
         self.refreshing = True
         
+        def _fetch_model(serial: str) -> str:
+            try:
+                m = subprocess.run(
+                    [self.adb, "-s", serial, "shell", "getprop", "ro.product.model"],
+                    capture_output=True, text=True, timeout=2.5)
+                return m.stdout.strip() or "Android"
+            except Exception:
+                return "Android"
+
         def task():
             try:
                 r = subprocess.run([self.adb, "devices"], capture_output=True, text=True, timeout=6)
                 lines = r.stdout.strip().split("\n")[1:]
-                found = []
+                device_entries = []
                 for ln in lines:
                     if not ln.strip():
                         continue
-                    parts  = ln.split()
+                    parts = ln.split()
                     serial, state = parts[0], parts[1]
+                    device_entries.append((serial, state))
+
+                found = []
+                dev_serials = [s for s, st in device_entries if st == "device"]
+                models = {}
+                if dev_serials:
+                    with ThreadPoolExecutor(max_workers=min(5, len(dev_serials))) as executor:
+                        future_map = {s: executor.submit(_fetch_model, s) for s in dev_serials}
+                        for s, fut in future_map.items():
+                            models[s] = fut.result()
+
+                for serial, state in device_entries:
                     if state == "device":
-                        m = subprocess.run(
-                            [self.adb, "-s", serial, "shell", "getprop", "ro.product.model"],
-                            capture_output=True, text=True, timeout=4)
-                        model = m.stdout.strip() or "Android"
-                        found.append((serial, model, "ok"))
+                        found.append((serial, models.get(serial, "Android"), "ok"))
                     elif state == "unauthorized":
                         found.append((serial, "⚠  Acepta el permiso en el teléfono", "unauth"))
                     else:
                         found.append((serial, f"[{state}]", "other"))
+                        
                 self.devices = found
                 if callback_update_ui:
                     callback_update_ui(found)
@@ -103,30 +123,57 @@ class SessionManager:
             self.log_q.put(("ERROR", "No se encontró el binario scrcpy"))
             return
 
-        cmd = [self.scrcpy, "-s", serial, "--window-title", f"Dock: {profile_name}"]
+        cmd = [self.scrcpy, "-s", serial, "--window-title", f"MASV: {profile_name}"]
+        
+        # Rendimiento de Vídeo y Códecs
         if profile_data.get("bitrate"):
             cmd.extend(["--video-bit-rate", profile_data["bitrate"]])
         if profile_data.get("max_size"):
             cmd.extend(["--max-size", profile_data["max_size"]])
         if profile_data.get("max_fps"):
             cmd.extend(["--max-fps", profile_data["max_fps"]])
-        
+        if profile_data.get("video_codec"):
+            cmd.extend(["--video-codec", profile_data["video_codec"]])
+
+        # Fuentes de Vídeo (Pantalla vs Cámara)
+        v_source = profile_data.get("video_source", "display")
+        if v_source == "camera":
+            cmd.extend(["--video-source", "camera"])
+            if profile_data.get("camera_facing"):
+                cmd.extend(["--camera-facing", profile_data["camera_facing"]])
+            if profile_data.get("camera_id"):
+                cmd.extend(["--camera-id", str(profile_data["camera_id"])])
+
+        # Configuración de Audio
         a_src = profile_data.get("audio_source", "playback")
         if a_src != "none":
             cmd.extend(["--audio-source", a_src])
+            if profile_data.get("audio_codec"):
+                cmd.extend(["--audio-codec", profile_data["audio_codec"]])
         else:
             cmd.append("--no-audio")
-            
-        if profile_data.get("camera_id") and a_src == "mic":
-            pass 
-            
+
+        # Comportamiento de Pantalla y Estado
         if profile_data.get("turn_screen_off"):
             cmd.append("--turn-screen-off")
         if profile_data.get("stay_awake"):
             cmd.append("--stay-awake")
+            
+        # Opciones V4L2 Buffer & Shortcuts
+        if profile_data.get("v4l2_buffer"):
+            cmd.extend(["--v4l2-buffer", str(profile_data["v4l2_buffer"])])
+        if profile_data.get("shortcut_mod"):
+            cmd.extend(["--shortcut-mod", profile_data["shortcut_mod"]])
+        if profile_data.get("start_app"):
+            cmd.extend(["--start-app", profile_data["start_app"]])
+
+        # Argumentos extra escapados con shlex
         if profile_data.get("extra_args"):
             import shlex
-            cmd.extend(shlex.split(profile_data["extra_args"]))
+            try:
+                cmd.extend(shlex.split(profile_data["extra_args"]))
+            except ValueError as ve:
+                self.log_q.put(("ERROR", f"Error en extra_args ({ve}). Revisa las comillas."))
 
         def task():
             try:
