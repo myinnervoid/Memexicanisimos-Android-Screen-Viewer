@@ -1,981 +1,552 @@
 <!DOCTYPE html>
-
 <html lang="es">
 <head>
-<meta charset="utf-8"/>
-<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
-<title>MASV — Memexicanisimos Android Screen Viewer</title>
-<meta content="GUI avanzada para controlar y transmitir pantallas Android a tu PC con scrcpy. Perfiles, WiFi, Webcam virtual, controles remotos y más." name="description"/>
-<link href="https://fonts.googleapis.com" rel="preconnect"/>
-<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700;900&amp;family=JetBrains+Mono:wght@500;700&amp;display=swap" rel="stylesheet"/>
-<style>
-    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>MASV — Memexicanisimos Android Screen Viewer | Control y Transmisión de Pantalla Android a PC</title>
+  <meta name="description" content="MASV es la GUI nativa, liviana y potente para scrcpy. Transmite tu pantalla Android a PC a 120 FPS, conecta por Wi-Fi, convierte tu celular en webcam virtual HD y usa controles remotos sin instalar nada en tu teléfono."/>
+  <meta name="keywords" content="MASV, Memexicanisimos, scrcpy gui, controlar android desde pc, transmitir pantalla android pc, depuracion usb samsung xiaomi motorola, webcam celular linux obs v4l2, scrcpy wifi tcpip, android screen mirror, app streaming android"/>
+  <meta name="author" content="Memexicanisimos Studio"/>
+  <meta name="robots" content="index, follow"/>
 
+  <!-- OpenGraph Metadata -->
+  <meta property="og:title" content="MASV — Memexicanisimos Android Screen Viewer (v1.2)"/>
+  <meta property="og:description" content="GUI avanzada de 1-clic para scrcpy. Controla tu pantalla Android en PC, transmite audio, conecta por Wi-Fi y usa tu cámara como Webcam HD."/>
+  <meta property="og:type" content="website"/>
+  <meta property="og:url" content="https://memexicanisimos.com/masv"/>
+  <meta property="og:image" content="https://raw.githubusercontent.com/myinnervoid/Memexicanisimos-Android-Screen-Viewer/main/assets/banner.png"/>
+
+  <!-- Twitter Card Metadata -->
+  <meta name="twitter:card" content="summary_large_image"/>
+  <meta name="twitter:title" content="MASV v1.2 — Android Screen Viewer"/>
+  <meta name="twitter:description" content="Transmite tu celular Android a PC a 120 FPS con scrcpy nativo. 100% portable para Linux y Windows."/>
+
+  <!-- Fonts & Icons -->
+  <link rel="preconnect" href="https://fonts.googleapis.com"/>
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin=""/>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet"/>
+
+  <!-- JSON-LD Structured Data (SEO Schema) -->
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "SoftwareApplication",
+    "name": "MASV — Memexicanisimos Android Screen Viewer",
+    "operatingSystem": "Linux, Windows, macOS",
+    "applicationCategory": "UtilitiesApplication",
+    "offers": {
+      "@type": "Offer",
+      "price": "0",
+      "priceCurrency": "USD"
+    },
+    "description": "Herramienta nativa de escritorio para transmitir y controlar dispositivos Android en PC usando el núcleo de scrcpy y ADB."
+  }
+  </script>
+
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "HowTo",
+    "name": "Cómo activar la Depuración USB en cualquier Android",
+    "description": "Guía paso a paso para habilitar las Opciones de Desarrollador y la Depuración USB en Samsung, Xiaomi, Motorola, Huawei y Google Pixel.",
+    "step": [
+      {
+        "@type": "HowToStep",
+        "name": "Paso 1: Abrir Ajustes de Android",
+        "text": "Ve a Ajustes -> Acerca del teléfono o Información del software."
+      },
+      {
+        "@type": "HowToStep",
+        "name": "Paso 2: Activar Opciones de Desarrollador",
+        "text": "Presiona 7 veces seguidas sobre 'Número de compilación' hasta que aparezca el mensaje de éxito."
+      },
+      {
+        "@type": "HowToStep",
+        "name": "Paso 3: Habilitar Depuración USB",
+        "text": "Entra a Opciones de desarrollador y activa la casilla 'Depuración por USB'."
+      }
+    ]
+  }
+  </script>
+
+  <style>
     :root {
-      --bg:       #121212;
-      --card:     #1C1C1E;
-      --card2:    #2C2C2E;
-      --card3:    #383838;
-      --sep:      #3A3A3C;
-      --blue:     #0A84FF;
-      --purple:   #BF5AF2;
-      --green:    #32D74B;
-      --orange:   #FF9F0A;
-      --red:      #FF453A;
-      --cyan:     #64D2FF;
-      --text:     #FFFFFF;
-      --text2:    #EBEBF5;
-      --muted:    #8E8E93;
+      --bg: #1C1917;         /* Warm Stone 900 */
+      --card: #262422;       /* Warm Stone 850 */
+      --card2: #322E2B;      /* Warm Stone 800 */
+      --border: #44403C;     /* Warm Stone Border */
+      --amber: #F59E0B;      /* Ámbar Dorado */
+      --amber-hover: #D97706;
+      --terracotta: #EA580C; /* Terracota Cálido */
+      --emerald: #10B981;    /* Esmeralda */
+      --crimson: #F43F5E;    /* Rosa/Rojo Cálido */
+      --text: #FAFAF9;       /* Off-White */
+      --text-muted: #A8A29E; /* Stone Muted */
+      --text-sub: #D6D3D1;   /* Stone 200 */
+      --font-main: 'Plus Jakarta Sans', system-ui, sans-serif;
+      --font-mono: 'JetBrains Mono', monospace;
     }
 
-    html { scroll-behavior: smooth; }
-
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html { scroll-behavior: smooth; font-size: 16px; }
     body {
-      font-family: 'Inter', system-ui, sans-serif;
-      background: var(--bg);
+      font-family: var(--font-main);
+      background-color: var(--bg);
       color: var(--text);
-      min-height: 100vh;
-      line-height: 1.5;
-    }
-
-    /* ── Hero ─────────────────────────────────────────────── */
-    .hero {
-      position: relative;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      text-align: center;
-      padding: 96px 24px 64px;
-      overflow: hidden;
-    }
-
-    .hero::before {
-      content: "";
-      position: absolute;
-      inset: 0;
-      background: radial-gradient(ellipse 80% 60% at 50% 0%, rgba(191,90,242,.25) 0%, transparent 70%);
-      pointer-events: none;
-    }
-
-    .hero-badge {
-      display: inline-block;
-      background: rgba(191, 90, 242, .18);
-      border: 1px solid rgba(191, 90, 242, .45);
-      color: var(--purple);
-      font-size: .78rem;
-      font-weight: 700;
-      letter-spacing: .08em;
-      text-transform: uppercase;
-      padding: 4px 14px;
-      border-radius: 100px;
-      margin-bottom: 20px;
-    }
-
-    .hero h1 {
-      font-size: clamp(2.4rem, 6vw, 4.2rem);
-      font-weight: 900;
-      letter-spacing: -.04em;
-      line-height: 1.1;
-      margin-bottom: 10px;
-    }
-
-    .hero h1 span { color: var(--purple); }
-
-    .hero-sub {
-      font-size: clamp(1rem, 2vw, 1.25rem);
-      font-weight: 300;
-      color: var(--muted);
-      max-width: 600px;
-      margin-bottom: 40px;
       line-height: 1.6;
+      overflow-x: hidden;
     }
 
-    /* ── Botones ──────────────────────────────────────────── */
-    .btn-group {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 12px;
-      justify-content: center;
-      margin-bottom: 16px;
+    /* ── Layout & Container ───────────────────────────────── */
+    .container { width: 100%; max-width: 1200px; margin: 0 auto; padding: 0 24px; }
+    section { padding: 80px 0; border-bottom: 1px solid var(--border); }
+
+    /* ── Header Nav ────────────────────────────────────────── */
+    header {
+      position: sticky; top: 0; z-index: 100;
+      background: rgba(28, 25, 23, 0.88);
+      backdrop-filter: blur(12px);
+      border-bottom: 1px solid var(--border);
+    }
+    .nav-wrapper {
+      display: flex; align-items: center; justify-content: space-between;
+      height: 72px;
+    }
+    .brand-logo {
+      display: flex; align-items: center; gap: 12px;
+      text-decoration: none; color: var(--text); font-weight: 800; font-size: 1.25rem;
+    }
+    .brand-logo span { color: var(--amber); }
+    .brand-badge {
+      background: rgba(245, 158, 11, 0.15); border: 1px solid rgba(245, 158, 11, 0.4);
+      color: var(--amber); font-size: 0.72rem; font-weight: 700; padding: 2px 8px; border-radius: 6px;
+    }
+    .nav-menu { display: flex; align-items: center; gap: 24px; list-style: none; }
+    .nav-link { color: var(--text-sub); text-decoration: none; font-size: 0.92rem; font-weight: 600; transition: color 0.2s; }
+    .nav-link:hover { color: var(--amber); }
+    .btn-nav {
+      background: var(--amber); color: #000; font-weight: 700; padding: 8px 18px;
+      border-radius: 8px; text-decoration: none; transition: background 0.2s, transform 0.15s;
+    }
+    .btn-nav:hover { background: var(--amber-hover); transform: translateY(-1px); }
+
+    /* ── Hero Section ──────────────────────────────────────── */
+    .hero {
+      position: relative; text-align: center; padding: 100px 0 80px;
+      background: radial-gradient(circle at 50% 20%, rgba(245, 158, 11, 0.12) 0%, transparent 60%);
+    }
+    .hero-tag {
+      display: inline-flex; align-items: center; gap: 8px;
+      background: var(--card2); border: 1px solid var(--border);
+      padding: 6px 16px; border-radius: 100px; font-size: 0.85rem; font-weight: 600; color: var(--amber);
+      margin-bottom: 24px;
+    }
+    .hero h1 {
+      font-size: clamp(2.4rem, 5.5vw, 4.2rem); font-weight: 800; line-height: 1.15;
+      letter-spacing: -0.03em; margin-bottom: 20px;
+    }
+    .hero h1 span {
+      background: linear-gradient(135deg, var(--amber) 0%, var(--terracotta) 100%);
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+    }
+    .hero-sub {
+      font-size: 1.2rem; color: var(--text-muted); max-width: 720px; margin: 0 auto 36px; font-weight: 400;
+    }
+    .cta-group { display: flex; flex-wrap: wrap; justify-content: center; gap: 16px; margin-bottom: 40px; }
+    .btn-hero-primary {
+      background: linear-gradient(135deg, var(--amber) 0%, var(--terracotta) 100%);
+      color: #FFF; font-weight: 700; font-size: 1.05rem; padding: 14px 32px; border-radius: 10px;
+      text-decoration: none; box-shadow: 0 8px 24px rgba(234, 88, 12, 0.35); transition: all 0.2s;
+    }
+    .btn-hero-primary:hover { transform: translateY(-2px); box-shadow: 0 12px 32px rgba(234, 88, 12, 0.45); }
+    .btn-hero-secondary {
+      background: var(--card); border: 1px solid var(--border); color: var(--text);
+      font-weight: 600; font-size: 1.05rem; padding: 14px 28px; border-radius: 10px; text-decoration: none; transition: all 0.2s;
+    }
+    .btn-hero-secondary:hover { background: var(--card2); border-color: var(--amber); }
+
+    .hero-badges { display: flex; justify-content: center; gap: 24px; flex-wrap: wrap; font-size: 0.88rem; color: var(--text-sub); }
+    .hero-badges span { display: flex; align-items: center; gap: 6px; }
+
+    /* ── Features Grid ─────────────────────────────────────── */
+    .section-title { text-align: center; margin-bottom: 56px; }
+    .section-title h2 { font-size: 2.2rem; font-weight: 800; letter-spacing: -0.02em; margin-bottom: 12px; }
+    .section-title p { color: var(--text-muted); font-size: 1.1rem; max-width: 640px; margin: 0 auto; }
+
+    .grid-features { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 28px; }
+    .feature-card {
+      background: var(--card); border: 1px solid var(--border); border-radius: 16px; padding: 32px;
+      transition: transform 0.2s, border-color 0.2s;
+    }
+    .feature-card:hover { transform: translateY(-4px); border-color: var(--amber); }
+    .feature-icon {
+      width: 52px; height: 52px; background: rgba(245, 158, 11, 0.12); border-radius: 12px;
+      display: flex; align-items: center; justify-content: center; font-size: 1.6rem; margin-bottom: 20px; color: var(--amber);
+    }
+    .feature-card h3 { font-size: 1.3rem; font-weight: 700; margin-bottom: 10px; }
+    .feature-card p { color: var(--text-muted); font-size: 0.95rem; }
+
+    /* ── Community Tutorial Section (Stand-Alone Guides) ───── */
+    .tutorial-section { background: var(--card); border-radius: 20px; padding: 48px 36px; border: 1px solid var(--border); margin-top: 40px; }
+    .tab-buttons { display: flex; gap: 12px; overflow-x: auto; padding-bottom: 12px; margin-bottom: 32px; border-bottom: 1px solid var(--border); }
+    .tab-btn {
+      background: var(--card2); border: 1px solid var(--border); color: var(--text-sub);
+      padding: 10px 20px; border-radius: 8px; font-weight: 600; font-size: 0.92rem; cursor: pointer; white-space: nowrap; transition: all 0.2s;
+    }
+    .tab-btn.active, .tab-btn:hover { background: var(--amber); color: #000; border-color: var(--amber); }
+    
+    .tab-pane { display: none; }
+    .tab-pane.active { display: block; animation: fadeIn 0.3s ease; }
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
+
+    .guide-steps { display: flex; flex-direction: column; gap: 20px; }
+    .step-item {
+      display: flex; gap: 16px; background: var(--bg); border: 1px solid var(--border); padding: 20px; border-radius: 12px;
+    }
+    .step-num {
+      width: 36px; height: 36px; background: var(--amber); color: #000; font-weight: 800;
+      border-radius: 50%; display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+    }
+    .step-content h4 { font-size: 1.1rem; font-weight: 700; margin-bottom: 6px; }
+    .step-content p { color: var(--text-muted); font-size: 0.93rem; }
+    .code-box {
+      background: #12100E; border: 1px solid var(--border); padding: 12px 16px; border-radius: 8px;
+      font-family: var(--font-mono); font-size: 0.88rem; color: var(--amber); margin-top: 10px; overflow-x: auto;
     }
 
-    .btn {
-      display: inline-flex;
-      align-items: center;
-      gap: 8px;
-      padding: 13px 24px;
-      border-radius: 10px;
-      font-size: .95rem;
-      font-weight: 600;
-      text-decoration: none;
-      transition: transform .15s, box-shadow .15s, opacity .15s;
+    /* ── FAQ Accordion ─────────────────────────────────────── */
+    .search-box {
+      max-width: 480px; margin: 0 auto 36px; position: relative;
     }
-
-    .btn:hover { transform: translateY(-2px); opacity: .92; }
-
-    .btn-primary {
-      background: var(--blue);
-      color: #fff;
-      box-shadow: 0 4px 24px rgba(10,132,255,.35);
+    .search-box input {
+      width: 100%; padding: 14px 20px; background: var(--card); border: 1px solid var(--border);
+      border-radius: 10px; color: var(--text); font-family: var(--font-main); font-size: 0.95rem; outline: none;
     }
+    .search-box input:focus { border-color: var(--amber); }
 
-    .btn-outline {
-      background: transparent;
-      border: 1px solid var(--sep);
-      color: var(--text2);
+    .faq-list { display: flex; flex-direction: column; gap: 16px; max-width: 800px; margin: 0 auto; }
+    .faq-item {
+      background: var(--card); border: 1px solid var(--border); border-radius: 12px; overflow: hidden;
     }
-
-    .btn-outline:hover { border-color: var(--purple); color: var(--purple); }
-
-    .download-note {
-      font-size: .78rem;
-      color: var(--muted);
+    .faq-question {
+      padding: 20px 24px; font-weight: 700; font-size: 1.05rem; cursor: pointer;
+      display: flex; justify-content: space-between; align-items: center; user-select: none;
     }
+    .faq-question::after { content: "＋"; font-size: 1.2rem; color: var(--amber); transition: transform 0.2s; }
+    .faq-item.open .faq-question::after { content: "－"; }
+    .faq-answer { display: none; padding: 0 24px 20px; color: var(--text-muted); font-size: 0.95rem; }
+    .faq-item.open .faq-answer { display: block; }
 
-    /* ── Navegación rápida ──────────────────────────────── */
-    .nav-bar {
-      display: flex;
-      justify-content: center;
-      gap: 20px;
-      padding: 16px 24px;
-      background: var(--card);
-      border-top: 1px solid var(--sep);
-      border-bottom: 1px solid var(--sep);
-      flex-wrap: wrap;
+    /* ── Footer ────────────────────────────────────────────── */
+    footer { padding: 48px 0; background: #12100E; border-top: 1px solid var(--border); text-align: center; }
+    .footer-links { display: flex; justify-content: center; gap: 24px; margin-bottom: 20px; flex-wrap: wrap; }
+    .footer-links a { color: var(--text-sub); text-decoration: none; font-size: 0.9rem; transition: color 0.2s; }
+    .footer-links a:hover { color: var(--amber); }
+    .copyright { color: var(--text-muted); font-size: 0.85rem; }
+
+    @media (max-width: 768px) {
+      .nav-menu { display: none; }
+      .hero { padding: 60px 0 40px; }
+      .feature-card { padding: 24px; }
+      .tutorial-section { padding: 28px 20px; }
     }
-
-    .nav-bar a {
-      color: var(--text2);
-      font-size: .85rem;
-      font-weight: 600;
-      text-decoration: none;
-      transition: color .15s;
-    }
-
-    .nav-bar a:hover { color: var(--purple); }
-
-    /* ── Sección de descarga ─────────────────────────────── */
-    .downloads {
-      max-width: 900px;
-      margin: 0 auto;
-      padding: 64px 24px;
-    }
-
-    .section-title {
-      text-align: center;
-      font-size: 1.6rem;
-      font-weight: 800;
-      margin-bottom: 12px;
-      color: var(--text);
-    }
-
-    .section-subtitle {
-      text-align: center;
-      font-size: .9rem;
-      color: var(--muted);
-      max-width: 600px;
-      margin: 0 auto 36px;
-    }
-
-    .download-cards {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
-      gap: 16px;
-    }
-
-    .dl-card {
-      background: var(--card);
-      border: 1px solid var(--sep);
-      border-radius: 16px;
-      padding: 28px 20px 24px;
-      text-align: center;
-      transition: border-color .2s, transform .2s;
-    }
-
-    .dl-card:hover {
-      border-color: var(--purple);
-      transform: translateY(-4px);
-    }
-
-    .dl-icon { font-size: 2.4rem; margin-bottom: 12px; }
-
-    .dl-card h3 {
-      font-size: 1.05rem;
-      font-weight: 700;
-      margin-bottom: 6px;
-    }
-
-    .dl-card p {
-      font-size: .82rem;
-      color: var(--muted);
-      margin-bottom: 20px;
-    }
-
-    .dl-btn {
-      display: inline-block;
-      background: var(--card2);
-      border: 1px solid var(--sep);
-      color: var(--text2);
-      font-size: .85rem;
-      font-weight: 600;
-      padding: 9px 18px;
-      border-radius: 8px;
-      text-decoration: none;
-      transition: background .15s, border-color .15s;
-    }
-
-    .dl-btn:hover { background: var(--purple); border-color: var(--purple); color: #fff; }
-
-    /* ── Features ──────────────────────────────────────────── */
-    .features {
-      background: var(--card);
-      border-top: 1px solid var(--sep);
-      border-bottom: 1px solid var(--sep);
-      padding: 72px 24px;
-    }
-
-    .features-grid {
-      max-width: 960px;
-      margin: 0 auto;
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
-      gap: 32px;
-    }
-
-    .feat {
-      display: flex;
-      align-items: flex-start;
-      gap: 16px;
-    }
-
-    .feat-icon {
-      font-size: 1.8rem;
-      flex-shrink: 0;
-      margin-top: 2px;
-    }
-
-    .feat h3 {
-      font-size: .95rem;
-      font-weight: 700;
-      margin-bottom: 4px;
-    }
-
-    .feat p {
-      font-size: .82rem;
-      color: var(--muted);
-      line-height: 1.55;
-    }
-
-    /* ── Guía Visual Android Setup ──────────────────────── */
-    .guide-section {
-      max-width: 1000px;
-      margin: 0 auto;
-      padding: 72px 24px;
-    }
-
-    .setup-steps {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(290px, 1fr));
-      gap: 24px;
-      margin-top: 36px;
-    }
-
-    .step-card {
-      background: var(--card);
-      border: 1px solid var(--sep);
-      border-radius: 16px;
-      padding: 24px;
-      display: flex;
-      flex-direction: column;
-    }
-
-    .step-badge {
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      width: 28px;
-      height: 28px;
-      background: var(--purple);
-      color: #fff;
-      font-weight: 700;
-      font-size: .85rem;
-      border-radius: 50%;
-      margin-bottom: 14px;
-    }
-
-    .step-card h3 {
-      font-size: 1rem;
-      font-weight: 700;
-      margin-bottom: 8px;
-    }
-
-    .step-card p {
-      font-size: .83rem;
-      color: var(--muted);
-      margin-bottom: 18px;
-      line-height: 1.5;
-    }
-
-    /* Phone Mockup Styling */
-    .phone-mockup {
-      background: #000;
-      border: 2px solid var(--sep);
-      border-radius: 18px;
-      padding: 14px 12px;
-      margin-top: auto;
-      box-shadow: 0 8px 24px rgba(0,0,0,.5);
-    }
-
-    .mockup-header {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      font-size: .7rem;
-      color: var(--muted);
-      margin-bottom: 12px;
-      padding: 0 4px;
-    }
-
-    .mockup-item {
-      background: var(--card2);
-      border-radius: 8px;
-      padding: 10px 12px;
-      margin-bottom: 8px;
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      font-size: .78rem;
-    }
-
-    .mockup-item.active {
-      border: 1px solid var(--purple);
-      background: rgba(191,90,242,.12);
-    }
-
-    .mockup-title { font-weight: 600; color: var(--text); }
-    .mockup-sub { font-size: .7rem; color: var(--muted); margin-top: 2px; }
-
-    .toggle-on {
-      width: 32px;
-      height: 18px;
-      background: var(--green);
-      border-radius: 10px;
-      position: relative;
-    }
-    .toggle-on::after {
-      content: "";
-      position: absolute;
-      right: 2px;
-      top: 2px;
-      width: 14px;
-      height: 14px;
-      background: #fff;
-      border-radius: 50%;
-    }
-
-    .toast-mockup {
-      background: rgba(44,44,46,.95);
-      border: 1px solid var(--sep);
-      color: var(--green);
-      font-size: .72rem;
-      font-weight: 600;
-      text-align: center;
-      padding: 6px 10px;
-      border-radius: 20px;
-      margin-top: 10px;
-    }
-
-    .dialog-mockup {
-      background: var(--card2);
-      border: 1px solid var(--sep);
-      border-radius: 12px;
-      padding: 14px;
-      font-size: .78rem;
-    }
-    .dialog-title { font-weight: 700; color: var(--text); margin-bottom: 6px; }
-    .dialog-body { color: var(--muted); font-size: .72rem; margin-bottom: 10px; }
-    .dialog-check { display: flex; align-items: center; gap: 6px; font-size: .72rem; color: var(--cyan); margin-bottom: 12px; }
-    .dialog-btns { display: flex; justify-content: flex-end; gap: 10px; font-size: .75rem; font-weight: 700; color: var(--blue); }
-
-    /* ── Keyboard Shortcuts Section ──────────────────────── */
-    .shortcuts-section {
-      background: var(--card);
-      border-top: 1px solid var(--sep);
-      border-bottom: 1px solid var(--sep);
-      padding: 72px 24px;
-    }
-
-    .shortcuts-container {
-      max-width: 960px;
-      margin: 0 auto;
-    }
-
-    .keys-grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-      gap: 16px;
-      margin-top: 32px;
-    }
-
-    .key-card {
-      background: var(--card2);
-      border: 1px solid var(--sep);
-      border-radius: 12px;
-      padding: 14px 18px;
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 12px;
-    }
-
-    .key-combo {
-      display: flex;
-      align-items: center;
-      gap: 4px;
-      flex-wrap: wrap;
-    }
-
-    kbd {
-      background: var(--card3);
-      border: 1px solid var(--sep);
-      box-shadow: 0 2px 0 var(--sep);
-      color: var(--cyan);
-      font-family: 'JetBrains Mono', monospace;
-      font-size: .75rem;
-      font-weight: 700;
-      padding: 3px 7px;
-      border-radius: 5px;
-    }
-
-    .key-desc {
-      font-size: .83rem;
-      color: var(--text2);
-      font-weight: 500;
-      text-align: right;
-    }
-
-    /* ── Remote Control & APK Section ────────────────────── */
-    .control-section {
-      max-width: 900px;
-      margin: 0 auto;
-      padding: 72px 24px;
-    }
-
-    .control-card {
-      background: var(--card);
-      border: 1px solid var(--sep);
-      border-radius: 20px;
-      padding: 32px;
-    }
-
-    .control-buttons-preview {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 10px;
-      margin: 20px 0;
-    }
-
-    .ctrl-pill {
-      background: var(--card2);
-      border: 1px solid var(--sep);
-      color: var(--text2);
-      font-size: .82rem;
-      font-weight: 600;
-      padding: 8px 14px;
-      border-radius: 8px;
-      display: inline-flex;
-      align-items: center;
-      gap: 6px;
-    }
-
-    .ctrl-pill.active {
-      border-color: var(--blue);
-      color: var(--blue);
-    }
-
-    /* ── Requisitos ──────────────────────────────────────── */
-    .requirements {
-      max-width: 720px;
-      margin: 0 auto;
-      padding: 72px 24px;
-    }
-
-    .code-block {
-      background: var(--card2);
-      border: 1px solid var(--sep);
-      border-radius: 10px;
-      padding: 14px 18px;
-      font-family: 'JetBrains Mono', monospace;
-      font-size: .88rem;
-      color: var(--cyan);
-      overflow-x: auto;
-      margin: 12px 0;
-    }
-
-    /* ── Footer ──────────────────────────────────────────── */
-    footer {
-      border-top: 1px solid var(--sep);
-      padding: 32px 24px;
-      text-align: center;
-      color: var(--muted);
-      font-size: .8rem;
-    }
-
-    footer a { color: var(--blue); text-decoration: none; }
-    footer a:hover { color: var(--purple); }
   </style>
 </head>
 <body>
-<!-- ── HERO ──────────────────────────────────────────────────────────── -->
-<section class="hero">
-<button id="lang-toggle" onclick="toggleLanguage()" style="position:absolute; top:20px; right:20px; background:var(--card); color:var(--text); border:1px solid var(--sep); padding:8px 12px; border-radius:8px; cursor:pointer; font-weight:bold; font-size: 14px; z-index: 10;">🇺🇸 English</button>
-<div class="hero-badge">v1.1 · Open Source · Python · Scrcpy</div>
-<h1>Memexicanisimos<br/><span>Android Screen Viewer</span></h1>
-<p class="hero-sub" id="hero_sub">
-    GUI avanzada para transmitir, controlar y gestionar múltiples dispositivos Android
-    simultáneamente desde tu PC. Creada por y para la comunidad latina.
-  </p>
-<div class="btn-group">
-<a class="btn btn-primary" href="https://github.com/myinnervoid/Memexicanisimos-Android-Screen-Viewer/releases/latest" id="btn_dl">
-      ⬇ Descargar última versión
-    </a>
-<a class="btn btn-outline" href="https://github.com/myinnervoid/Memexicanisimos-Android-Screen-Viewer">
-      ⭐ GitHub
-    </a>
-</div>
-<p class="download-note" id="dl_note">Disponible para Linux · Windows · macOS</p>
-</section>
-<!-- ── BARRA DE NAVEGACIÓN ───────────────────────────────────────────── -->
-<nav class="nav-bar">
-<a href="#descargas" id="nav_dl">⬇ Descargas</a>
-<a href="#caracteristicas" id="nav_feat">✨ Características</a>
-<a href="#guia-usb" id="nav_usb">🔌 Activación USB</a>
-<a href="#atajos" id="nav_keys">⌨️ Atajos de teclado</a>
-<a href="#controles" id="nav_ctrl">🎮 Controles y APK</a>
-<a href="#requisitos" id="nav_req">📦 Requisitos</a>
-</nav>
-<!-- ── DESCARGA ──────────────────────────────────────────────────────── -->
-<section class="downloads" id="descargas">
-<h2 class="section-title" id="dl_title">Descargas directas</h2>
-<p class="section-subtitle" id="dl_sub">Elige tu sistema operativo y descarga el paquete compilado listo para usar.</p>
-<div class="download-cards">
-<div class="dl-card">
-<div class="dl-icon">🐧</div>
-<h3>Linux</h3>
-<p id="dl_linux">Debian · Ubuntu · Arch · Fedora<br/>Paquete <code>.tar.gz</code></p>
-<a class="dl-btn" href="https://github.com/myinnervoid/Memexicanisimos-Android-Screen-Viewer/releases/latest/download/MASV-Linux.tar.gz">Descargar .tar.gz</a>
-</div>
-<div class="dl-card">
-<div class="dl-icon">🪟</div>
-<h3>Windows</h3>
-<p id="dl_win">Windows 10 / 11<br/>Ejecutable <code>.exe</code> portable</p>
-<a class="dl-btn" href="https://github.com/myinnervoid/Memexicanisimos-Android-Screen-Viewer/releases/latest/download/MASV-Windows.exe">Descargar .exe</a>
-</div>
-<div class="dl-card">
-<div class="dl-icon">🍎</div>
-<h3>macOS</h3>
-<p id="dl_mac">macOS 12 Monterey o superior<br/>Binario ejecutable</p>
-<a class="dl-btn" href="https://github.com/myinnervoid/Memexicanisimos-Android-Screen-Viewer/releases/latest/download/MASV-macOS">Descargar binario</a>
-</div>
-</div>
-</section>
-<!-- ── FEATURES ─────────────────────────────────────────────────────── -->
-<section class="features" id="caracteristicas">
-<div class="features-grid">
-<div class="feat">
-<div class="feat-icon">🎮</div>
-<div>
-<h3 id="feat_1_title">Soporte Multidispositivo</h3>
-<p id="feat_1_desc">Controla múltiples teléfonos en paralelo con diferentes perfiles simultáneamente.</p>
-</div>
-</div>
-<div class="feat">
-<div class="feat-icon">⚙️</div>
-<div>
-<h3 id="feat_2_title">Perfiles Personalizados</h3>
-<p id="feat_2_desc">Guarda configuraciones de resolución, FPS, bitrate, códec y audio para cada uso.</p>
-</div>
-</div>
-<div class="feat">
-<div class="feat-icon">📡</div>
-<div>
-<h3 id="feat_3_title">Conexión WiFi ADB</h3>
-<p id="feat_3_desc">Conecta y transmite sin cables. Detecta la IP automáticamente desde la interfaz.</p>
-</div>
-</div>
-<div class="feat">
-<div class="feat-icon">📷</div>
-<div>
-<h3 id="feat_4_title">Webcam Virtual (Linux)</h3>
-<p id="feat_4_desc">Enruta la cámara trasera como <code>/dev/video9</code> directamente a OBS Studio.</p>
-</div>
-</div>
-<div class="feat">
-<div class="feat-icon">🎛️</div>
-<div>
-<h3 id="feat_5_title">Mando de Controles Remotos</h3>
-<p id="feat_5_desc">Botones directos para volumen, inicio, atrás, recientes, encendido e instalación de APKs.</p>
-</div>
-</div>
-<div class="feat">
-<div class="feat-icon">❓</div>
-<div>
-<h3 id="feat_6_title">FAQ Interactiva</h3>
-<p id="feat_6_desc">Guía de inicio rápido, depuración USB, WiFi, v4l2loopback y solución de problemas comunes.</p>
-</div>
-</div>
-</div>
-</section>
-<!-- ── GUÍA VISUAL ACTIVACIÓN USB ───────────────────────────────────── -->
-<section class="guide-section" id="guia-usb">
-<h2 class="section-title" id="usb_title">🔌 Cómo habilitar la Depuración USB en Android</h2>
-<p class="section-subtitle" id="usb_sub">Sigue estos 3 sencillos pasos en tu teléfono antes de conectar por primera vez.</p>
-<div class="setup-steps">
-<!-- Paso 1 -->
-<div class="step-card">
-<div class="step-badge">1</div>
-<h3 id="usb_1_title">Activa las Opciones de Desarrollador</h3>
-<p id="usb_1_desc">Abre <strong>Ajustes → Acerca del teléfono</strong>. Toca <strong>7 veces continuas</strong> sobre el campo <em>Número de compilación</em>.</p>
-<div class="phone-mockup">
-<div class="mockup-header">
-<span>09:41</span>
-<span>Ajustes</span>
-</div>
-<div class="mockup-item">
-<div>
-<div class="mockup-title">Modelo del dispositivo</div>
-<div class="mockup-sub">Android 13 / 14</div>
-</div>
-</div>
-<div class="mockup-item active">
-<div>
-<div class="mockup-title">Número de compilación</div>
-<div class="mockup-sub">Toca 7 veces seguidas</div>
-</div>
-<span style="color:var(--purple);font-size:.7rem;font-weight:700;">👈 Tocar 7x</span>
-</div>
-<div class="toast-mockup">✔ ¡Ahora eres desarrollador!</div>
-</div>
-</div>
-<!-- Paso 2 -->
-<div class="step-card">
-<div class="step-badge">2</div>
-<h3 id="usb_2_title">Habilita la Depuración USB</h3>
-<p id="usb_2_desc">Regresa a <strong>Ajustes → Sistema → Opciones para desarrolladores</strong>. Busca e interrupta la casilla <strong>Depuración USB</strong>.</p>
-<div class="phone-mockup">
-<div class="mockup-header">
-<span>09:41</span>
-<span>Opciones de desarrollador</span>
-</div>
-<div class="mockup-item active">
-<div>
-<div class="mockup-title">Depuración USB</div>
-<div class="mockup-sub">Modo de depuración cuando USB se conecta</div>
-</div>
-<div class="toggle-on"></div>
-</div>
-<div class="mockup-item">
-<div>
-<div class="mockup-title">Permanecer activo</div>
-<div class="mockup-sub">Pantalla no se apaga cargando</div>
-</div>
-</div>
-</div>
-</div>
-<!-- Paso 3 -->
-<div class="step-card">
-<div class="step-badge">3</div>
-<h3 id="usb_3_title">Autoriza tu Computadora (RSA)</h3>
-<p id="usb_3_desc">Conecta el cable USB. Aparecerá una ventana emergente en el teléfono. Acepta y marca la opción para recordar este equipo.</p>
-<div class="phone-mockup">
-<div class="mockup-header">
-<span>09:41</span>
-<span>Pantalla de inicio</span>
-</div>
-<div class="dialog-mockup">
-<div class="dialog-title">¿Permitir depuración USB?</div>
-<div class="dialog-body">La huella digital de la clave RSA del equipo es:<br/><code style="color:var(--cyan)">FC:9A:88:12:44:B1</code></div>
-<div class="dialog-check">
-<span>[✔]</span> Permitir siempre desde este equipo
+
+  <!-- Header Navigation -->
+  <header>
+    <div class="container nav-wrapper">
+      <a href="#" class="brand-logo">
+        📱 MASV <span>Viewer</span> <span class="brand-badge">v1.2</span>
+      </a>
+      <ul class="nav-menu">
+        <li><a href="#caracteristicas" class="nav-link">Características</a></li>
+        <li><a href="#tutoriales" class="nav-link">Guías & Tutoriales</a></li>
+        <li><a href="#faq" class="nav-link">Preguntas Frecuentes</a></li>
+        <li><a href="https://memexicanisimos.com" target="_blank" rel="noopener" class="nav-link">Memexicanisimos.com</a></li>
+      </ul>
+      <a href="#descargas" class="btn-nav">⬇ Descargar v1.2</a>
+    </div>
+  </header>
+
+  <!-- Hero Section -->
+  <section class="hero">
+    <div class="container">
+      <div class="hero-tag">✨ GUI Avanzada para scrcpy & ADB · 100% Portable</div>
+      <h1>El Control Total de tu Android en PC<br/><span>Con la Máxima Calidad y Fluidez</span></h1>
+      <p class="hero-sub">
+        Transmite tu pantalla Android a tu computadora hasta a 120 FPS, conecta inalámbricamente por Wi-Fi, transforma tu teléfono en webcam HD para OBS y gestiona perfiles de forma nativa.
+      </p>
+      <div class="cta-group" id="descargas">
+        <a href="https://github.com/myinnervoid/Memexicanisimos-Android-Screen-Viewer/releases/latest" class="btn-hero-primary">
+          🚀 Descargar Instalador Linux (.run)
+        </a>
+        <a href="https://github.com/myinnervoid/Memexicanisimos-Android-Screen-Viewer/releases/latest" class="btn-hero-secondary">
+          🪟 Descargar Windows Standalone (.exe)
+        </a>
+      </div>
+      <div class="hero-badges">
+        <span>⚡ Cero Instalación de APKs en tu teléfono</span>
+        <span>🛡 100% Código Abierto y Privado</span>
+        <span>📡 Conexión por Cable USB y Wi-Fi TCP/IP</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- Features Section -->
+  <section id="caracteristicas">
+    <div class="container">
+      <div class="section-title">
+        <h2>Diseñado para Gamers, Streamers y Creadores</h2>
+        <p>Aprovecha todo el potencial del núcleo nativo de scrcpy con la interfaz táctil y cálida de MASV.</p>
+      </div>
+
+      <div class="grid-features">
+        <div class="feature-card">
+          <div class="feature-icon">🎬</div>
+          <h3>Códecs de Vídeo de Alta Eficiencia</h3>
+          <p>Soporte nativo para códecs H.264, H.265, AV1, VP8 y VP9. Ajusta bitrates hasta 32 Mbps y tasa de refresco a 120 FPS.</p>
+        </div>
+
+        <div class="feature-card">
+          <div class="feature-icon">📶</div>
+          <h3>Conexión Inalámbrica Wi-Fi</h3>
+          <p>Conecta tu celular sin cables usando la depuración TCP/IP de ADB. Escaneo automático y reconexión en 1-clic.</p>
+        </div>
+
+        <div class="feature-card">
+          <div class="feature-icon">📷</div>
+          <h3>Webcam Virtual HD (v4l2)</h3>
+          <p>Transmite la cámara trasera o frontal de tu teléfono directamente hacia OBS Studio, Zoom, Discord y Teams en Linux y Windows.</p>
+        </div>
+
+        <div class="feature-card">
+          <div class="feature-icon">🎮</div>
+          <h3>Mando Remoto & Teclado</h3>
+          <p>Simula eventos de hardware (Inicio, Atrás, Recientes, Control de Volumen, Encendido) usando atajos directos sin tocar el celular.</p>
+        </div>
+
+        <div class="feature-card">
+          <div class="feature-icon">📦</div>
+          <h3>Instalación de APKs Desatendida</h3>
+          <p>Arrastra cualquier archivo .apk hacia la ventana o selecciónalo desde el panel para instalar aplicaciones al instante.</p>
+        </div>
+
+        <div class="feature-card">
+          <div class="feature-icon">⚡</div>
+          <h3>I/O Atómico y Permisos Seguros</h3>
+          <p>Guardado atómico anti-corrupción de perfiles y permisos POSIX estrictos (0600/0700) para garantizar tu privacidad.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Community Help & Tutorials Section (Stand-Alone Value) -->
+  <section id="tutoriales">
+    <div class="container">
+      <div class="section-title">
+        <h2>📖 Guías y Tutoriales para la Comunidad</h2>
+        <p>Tutoriales universales para configurar tu celular Android con cualquier herramienta o computadora, incluso si no usas nuestra app.</p>
+      </div>
+
+      <div class="tutorial-section">
+        <div class="tab-buttons">
+          <button class="tab-btn active" onclick="openTab(event, 'tab-usb')">🔌 1. Activar Depuración USB</button>
+          <button class="tab-btn" onclick="openTab(event, 'tab-wifi')">📡 2. Conectar ADB por Wi-Fi</button>
+          <button class="tab-btn" onclick="openTab(event, 'tab-webcam')">📷 3. Usar como Webcam HD</button>
+          <button class="tab-btn" onclick="openTab(event, 'tab-trouble')">🛠 4. Solución de Problemas</button>
+        </div>
+
+        <!-- Tab 1: USB Debugging -->
+        <div id="tab-usb" class="tab-pane active">
+          <div class="guide-steps">
+            <div class="step-item">
+              <div class="step-num">1</div>
+              <div class="step-content">
+                <h4>Activar Opciones de Desarrollador</h4>
+                <p>En tu teléfono ve a <strong>Ajustes → Acerca del teléfono → Información de software</strong>. Busca la casilla <strong>Número de compilación</strong> y presiónala 7 veces seguidas hasta ver el mensaje <em>"¡Ya eres desarrollador!"</em>.</p>
+              </div>
+            </div>
+
+            <div class="step-item">
+              <div class="step-num">2</div>
+              <div class="step-content">
+                <h4>Habilitar Depuración por USB</h4>
+                <p>Regresa al menú principal de Ajustes y entra a la nueva opción <strong>Opciones de desarrollador</strong>. Busca la casilla <strong>Depuración por USB</strong> y actívala.</p>
+              </div>
+            </div>
+
+            <div class="step-item">
+              <div class="step-num">3</div>
+              <div class="step-content">
+                <h4>Aceptar la Clave RSA de la PC</h4>
+                <p>Conecta el teléfono a la computadora por cable USB. En la pantalla del celular aparecerá un diálogo preguntando: <em>"¿Permitir depuración por USB?"</em>. Marca la casilla <strong>☑️ Permitir siempre desde esta computadora</strong> y presiona Aceptar.</p>
+              </div>
+            </div>
           </div>
-<div class="dialog-btns">
-<span>CANCELAR</span>
-<span style="color:var(--green)">PERMITIR</span>
-</div>
-</div>
-</div>
-</div>
-</div>
-</section>
-<!-- ── ATAJOS NATIVOS SCRCPY ────────────────────────────────────────── -->
-<section class="shortcuts-section" id="atajos">
-<div class="shortcuts-container">
-<h2 class="section-title" id="keys_title">⌨️ Atajos nativos de scrcpy (Cheat Sheet)</h2>
-<p class="section-subtitle" id="keys_sub">Cuando la ventana de scrcpy esté enfocada, puedes usar estos atajos directo con tu teclado:</p>
-<div class="keys-grid">
-<div class="key-card">
-<div class="key-combo"><kbd>Alt</kbd> + <kbd>↑</kbd> / <kbd>MOD</kbd> + <kbd>u</kbd></div>
-<div class="key-desc">🔊 Subir volumen</div>
-</div>
-<div class="key-card">
-<div class="key-combo"><kbd>Alt</kbd> + <kbd>↓</kbd> / <kbd>MOD</kbd> + <kbd>d</kbd></div>
-<div class="key-desc">🔉 Bajar volumen</div>
-</div>
-<div class="key-card">
-<div class="key-combo"><kbd>MOD</kbd> + <kbd>p</kbd></div>
-<div class="key-desc">⚡ Encendido / Pantalla</div>
-</div>
-<div class="key-card">
-<div class="key-combo"><kbd>MOD</kbd> + <kbd>h</kbd></div>
-<div class="key-desc">🏠 Ir a Inicio (Home)</div>
-</div>
-<div class="key-card">
-<div class="key-combo"><kbd>MOD</kbd> + <kbd>b</kbd> / <kbd>Backspace</kbd></div>
-<div class="key-desc">◀ Volver Atrás (Back)</div>
-</div>
-<div class="key-card">
-<div class="key-combo"><kbd>MOD</kbd> + <kbd>s</kbd></div>
-<div class="key-desc">📑 Aplicaciones recientes</div>
-</div>
-<div class="key-card">
-<div class="key-combo"><kbd>MOD</kbd> + <kbd>f</kbd></div>
-<div class="key-desc">🖥️ Pantalla completa</div>
-</div>
-<div class="key-card">
-<div class="key-combo"><kbd>MOD</kbd> + <kbd>m</kbd></div>
-<div class="key-desc">🔇 Silenciar / Activar audio</div>
-</div>
-<div class="key-card">
-<div class="key-combo"><kbd>MOD</kbd> + <kbd>Shift</kbd> + <kbd>o</kbd></div>
-<div class="key-desc">☀️ Encender pantalla física</div>
-</div>
-<div class="key-card">
-<div class="key-combo"><kbd>MOD</kbd> + <kbd>n</kbd></div>
-<div class="key-desc">🔔 Panel de notificaciones</div>
-</div>
-<div class="key-card">
-<div class="key-combo"><kbd>MOD</kbd> + <kbd>v</kbd></div>
-<div class="key-desc">📋 Pegar texto del PC</div>
-</div>
-<div class="key-card">
-<div class="key-combo"><kbd>Arrastrar .apk</kbd></div>
-<div class="key-desc">📦 Instalar aplicación</div>
-</div>
-</div>
-</div>
-</section>
-<!-- ── CONTROLES Y APK EN MASV ──────────────────────────────────────── -->
-<section class="control-section" id="controles">
-<div class="control-card">
-<h2 class="section-title" id="ctrl_title" style="text-align:left;margin-bottom:8px;">🎮 Controles remotos e instalación de APKs en MASV</h2>
-<p id="ctrl_sub" style="color:var(--muted);font-size:.9rem;margin-bottom:20px;">
-      Sin necesidad de tocar la pantalla del teléfono, MASV incluye un mando de controles rápidos vía ADB directamente en la pestaña <strong>Acciones</strong>:
-    </p>
-<div class="control-buttons-preview">
-<span class="ctrl-pill">🔊 Vol +</span>
-<span class="ctrl-pill">🔉 Vol -</span>
-<span class="ctrl-pill">🔇 Mute</span>
-<span class="ctrl-pill active">⚡ Encender</span>
-<span class="ctrl-pill">🏠 Inicio</span>
-<span class="ctrl-pill">◀ Atrás</span>
-<span class="ctrl-pill">📑 Recientes</span>
-<span class="ctrl-pill">🔔 Notificaciones</span>
-<span class="ctrl-pill active" style="border-color:var(--green);color:var(--green);">📦 Instalar APK...</span>
-</div>
-<p id="ctrl_desc" style="color:var(--text2);font-size:.85rem;line-height:1.6;">
-<strong>¿Cómo instalar aplicaciones (APK)?</strong><br/>
-      • En MASV: Haz clic en el botón <code>📦 Instalar APK en dispositivo...</code>, selecciona el archivo <code>.apk</code> de tu PC y se instalará automáticamente.<br/>
-      • En scrcpy: Durante una sesión activa, simplemente <strong>arrastra y suelta</strong> el archivo <code>.apk</code> sobre la ventana de scrcpy.
-    </p>
-</div>
-</section>
-<!-- ── REQUISITOS ────────────────────────────────────────────────────── -->
-<section class="requirements" id="requisitos">
-<h2 class="section-title" id="req_title">Requisitos previos del sistema</h2>
-<p id="req_sub" style="color:var(--muted);text-align:center;margin-bottom:28px;font-size:.9rem;">
-    MASV utiliza <strong>adb</strong> y <strong>scrcpy</strong> como motor subyacente.
-  </p>
-<p style="color:var(--text2);font-weight:600;margin-bottom:8px;">🐧 Linux (Debian/Ubuntu):</p>
-<div class="code-block">sudo apt install adb scrcpy</div>
-<p style="color:var(--text2);font-weight:600;margin-bottom:8px;margin-top:16px;">🪟 Windows (Comando silencioso o ejecutable portable):</p>
-<div class="code-block">winget install Genymobile.scrcpy --silent</div>
-<p style="color:var(--muted);font-size:.8rem;margin-top:4px;">Nota: El ejecutable <code>MASV-Windows.exe</code> también puede empaquetar los binarios de <code>scrcpy</code> en la carpeta <code>bin/</code> para ejecutarse 100% sin instalación previa.</p>
-<p id="req_win_note" style="color:var(--text2);font-weight:600;margin-bottom:8px;margin-top:16px;">🍎 macOS (Homebrew):</p>
-<div class="code-block">brew install scrcpy android-platform-tools</div>
-</section>
-<!-- ── FOOTER ────────────────────────────────────────────────────────── -->
-<footer>
-<p id="footer_made">
-    Hecho con ❤️ por la comunidad Memexicanisimos ·
-    Powered by <a href="https://github.com/Genymobile/scrcpy" target="_blank">scrcpy</a> &amp;
-    <a href="https://developer.android.com/tools/adb" target="_blank">ADB</a>
-</p>
-<p id="footer_links" style="margin-top:8px;">
-<a href="https://github.com/myinnervoid/Memexicanisimos-Android-Screen-Viewer" target="_blank">GitHub</a> ·
-    <a href="https://github.com/myinnervoid/Memexicanisimos-Android-Screen-Viewer/issues" target="_blank">Reportar un bug</a> ·
-    Licencia MIT
-  </p>
-</footer>
-<script>
-const translations = {
-  "es": {
-    "lang_toggle": "🇺🇸 English",
-    "hero_sub": "GUI avanzada para transmitir, controlar y gestionar múltiples dispositivos Android simultáneamente desde tu PC. Creada por y para la comunidad latina.",
-    "btn_dl": "⬇ Descargar última versión",
-    "dl_note": "Disponible para Linux · Windows · macOS",
-    "nav_dl": "⬇ Descargas",
-    "nav_feat": "✨ Características",
-    "nav_usb": "🔌 Activación USB",
-    "nav_keys": "⌨️ Atajos de teclado",
-    "nav_ctrl": "🎮 Controles y APK",
-    "nav_req": "📦 Requisitos",
-    "dl_title": "Descargas directas",
-    "dl_sub": "Elige tu sistema operativo y descarga el paquete compilado listo para usar.",
-    "dl_linux": "Debian · Ubuntu · Arch · Fedora<br/>Paquete <code>.tar.gz</code>",
-    "dl_win": "Windows 10 / 11<br/>Ejecutable <code>.exe</code> portable",
-    "dl_mac": "macOS 12 Monterey o superior<br/>Binario ejecutable",
-    "feat_1_title": "Soporte Multidispositivo",
-    "feat_1_desc": "Controla múltiples teléfonos en paralelo con diferentes perfiles simultáneamente.",
-    "feat_2_title": "Perfiles Personalizados",
-    "feat_2_desc": "Guarda configuraciones de resolución, FPS, bitrate, códec y audio para cada uso.",
-    "feat_3_title": "Conexión WiFi ADB",
-    "feat_3_desc": "Conecta y transmite sin cables. Detecta la IP automáticamente desde la interfaz.",
-    "feat_4_title": "Webcam Virtual (Linux)",
-    "feat_4_desc": "Enruta la cámara trasera como <code>/dev/video9</code> directamente a OBS Studio.",
-    "feat_5_title": "Mando de Controles Remotos",
-    "feat_5_desc": "Botones directos para volumen, inicio, atrás, recientes, encendido e instalación de APKs.",
-    "feat_6_title": "FAQ Interactiva",
-    "feat_6_desc": "Guía de inicio rápido, depuración USB, WiFi, v4l2loopback y solución de problemas comunes.",
-    "usb_title": "🔌 Cómo habilitar la Depuración USB en Android",
-    "usb_sub": "Sigue estos 3 sencillos pasos en tu teléfono antes de conectar por primera vez.",
-    "usb_1_title": "Activa las Opciones de Desarrollador",
-    "usb_1_desc": "Abre <strong>Ajustes → Acerca del teléfono</strong>. Toca <strong>7 veces continuas</strong> sobre el campo <em>Número de compilación</em>.",
-    "usb_2_title": "Habilita la Depuración USB",
-    "usb_2_desc": "Regresa a <strong>Ajustes → Sistema → Opciones para desarrolladores</strong>. Busca e interrupta la casilla <strong>Depuración USB</strong>.",
-    "usb_3_title": "Autoriza tu Computadora (RSA)",
-    "usb_3_desc": "Conecta el cable USB. Aparecerá una ventana emergente en el teléfono. Acepta y marca la opción para recordar este equipo.",
-    "keys_title": "⌨️ Atajos nativos de scrcpy (Cheat Sheet)",
-    "keys_sub": "Cuando la ventana de scrcpy esté enfocada, puedes usar estos atajos directo con tu teclado:",
-    "ctrl_title": "🎮 Controles remotos e instalación de APKs en MASV",
-    "ctrl_sub": "Sin necesidad de tocar la pantalla del teléfono, MASV incluye un mando de controles rápidos vía ADB directamente en la pestaña <strong>Acciones</strong>:",
-    "ctrl_desc": "<strong>¿Cómo instalar aplicaciones (APK)?</strong><br/>• En MASV: Haz clic en el botón <code>📦 Instalar APK en dispositivo...</code>, selecciona el archivo <code>.apk</code> de tu PC y se instalará automáticamente.<br/>• En scrcpy: Durante una sesión activa, simplemente <strong>arrastra y suelta</strong> el archivo <code>.apk</code> sobre la ventana de scrcpy.",
-    "req_title": "Requisitos previos del sistema",
-    "req_sub": "MASV utiliza <strong>adb</strong> y <strong>scrcpy</strong> como motor subyacente.",
-    "req_win_note": "Nota: El ejecutable <code>MASV-Windows.exe</code> también puede empaquetar los binarios de <code>scrcpy</code> en la carpeta <code>bin/</code> para ejecutarse 100% sin instalación previa.",
-    "footer_made": 'Hecho con ❤️ por la comunidad Memexicanisimos · Powered by <a href="https://github.com/Genymobile/scrcpy" target="_blank">scrcpy</a> &amp; <a href="https://developer.android.com/tools/adb" target="_blank">ADB</a>',
-    "footer_links": '<a href="https://github.com/myinnervoid/Memexicanisimos-Android-Screen-Viewer" target="_blank">GitHub</a> · <a href="https://github.com/myinnervoid/Memexicanisimos-Android-Screen-Viewer/issues" target="_blank">Reportar un bug</a> · Licencia MIT'
-  },
-  "en": {
-    "lang_toggle": "🇲🇽 Español",
-    "hero_sub": "Advanced GUI to cast, control, and manage multiple Android devices simultaneously from your PC. Built by and for the community.",
-    "btn_dl": "⬇ Download latest version",
-    "dl_note": "Available for Linux · Windows · macOS",
-    "nav_dl": "⬇ Downloads",
-    "nav_feat": "✨ Features",
-    "nav_usb": "🔌 USB Activation",
-    "nav_keys": "⌨️ Keyboard Shortcuts",
-    "nav_ctrl": "🎮 Controls and APK",
-    "nav_req": "📦 Requirements",
-    "dl_title": "Direct Downloads",
-    "dl_sub": "Choose your operating system and download the ready-to-use compiled package.",
-    "dl_linux": "Debian · Ubuntu · Arch · Fedora<br/><code>.tar.gz</code> Package",
-    "dl_win": "Windows 10 / 11<br/>Portable <code>.exe</code> executable",
-    "dl_mac": "macOS 12 Monterey or higher<br/>Executable binary",
-    "feat_1_title": "Multi-Device Support",
-    "feat_1_desc": "Control multiple phones in parallel with different profiles simultaneously.",
-    "feat_2_title": "Custom Profiles",
-    "feat_2_desc": "Save resolution, FPS, bitrate, codec, and audio configurations for every use case.",
-    "feat_3_title": "WiFi ADB Connection",
-    "feat_3_desc": "Connect and cast wirelessly. Automatically detects IP from the interface.",
-    "feat_4_title": "Virtual Webcam (Linux)",
-    "feat_4_desc": "Routes the rear camera as <code>/dev/video9</code> directly into OBS Studio.",
-    "feat_5_title": "Remote Control Pad",
-    "feat_5_desc": "Direct buttons for volume, home, back, recents, power, and APK installation.",
-    "feat_6_title": "Interactive FAQ",
-    "feat_6_desc": "Quick start guide, USB debugging, WiFi, v4l2loopback, and troubleshooting common issues.",
-    "usb_title": "🔌 How to enable USB Debugging on Android",
-    "usb_sub": "Follow these 3 simple steps on your phone before connecting for the first time.",
-    "usb_1_title": "Enable Developer Options",
-    "usb_1_desc": "Open <strong>Settings → About phone</strong>. Tap <strong>7 times consecutively</strong> on the <em>Build number</em> field.",
-    "usb_2_title": "Enable USB Debugging",
-    "usb_2_desc": "Go back to <strong>Settings → System → Developer options</strong>. Find and toggle the <strong>USB Debugging</strong> switch.",
-    "usb_3_title": "Authorize Your Computer (RSA)",
-    "usb_3_desc": "Connect the USB cable. A pop-up will appear on your phone. Accept and check the option to remember this computer.",
-    "keys_title": "⌨️ Native scrcpy shortcuts (Cheat Sheet)",
-    "keys_sub": "When the scrcpy window is focused, you can use these shortcuts directly on your keyboard:",
-    "ctrl_title": "🎮 Remote Controls and APK Installation in MASV",
-    "ctrl_sub": "Without needing to touch the phone's screen, MASV includes a quick control pad via ADB directly in the <strong>Actions</strong> tab:",
-    "ctrl_desc": "<strong>How to install applications (APK)?</strong><br/>• In MASV: Click the <code>📦 Install APK on device...</code> button, select the <code>.apk</code> file from your PC and it will be installed automatically.<br/>• In scrcpy: During an active session, simply <strong>drag and drop</strong> the <code>.apk</code> file onto the scrcpy window.",
-    "req_title": "System Prerequisites",
-    "req_sub": "MASV uses <strong>adb</strong> and <strong>scrcpy</strong> as the underlying engine.",
-    "req_win_note": "Note: The <code>MASV-Windows.exe</code> executable can also package the <code>scrcpy</code> binaries in the <code>bin/</code> folder to run 100% without prior installation.",
-    "footer_made": 'Made with ❤️ by the Memexicanisimos community · Powered by <a href="https://github.com/Genymobile/scrcpy" target="_blank">scrcpy</a> &amp; <a href="https://developer.android.com/tools/adb" target="_blank">ADB</a>',
-    "footer_links": '<a href="https://github.com/myinnervoid/Memexicanisimos-Android-Screen-Viewer" target="_blank">GitHub</a> · <a href="https://github.com/myinnervoid/Memexicanisimos-Android-Screen-Viewer/issues" target="_blank">Report a bug</a> · MIT License'
-  }
-};
+        </div>
 
-let currentLang = localStorage.getItem('lang') || 'es';
+        <!-- Tab 2: Wi-Fi ADB -->
+        <div id="tab-wifi" class="tab-pane">
+          <div class="guide-steps">
+            <div class="step-item">
+              <div class="step-num">1</div>
+              <div class="step-content">
+                <h4>Misma Red Wi-Fi</h4>
+                <p>Asegúrate de que tu celular Android y tu computadora estén conectados a la misma red Wi-Fi local.</p>
+              </div>
+            </div>
 
-function toggleLanguage() {
-  currentLang = currentLang === 'es' ? 'en' : 'es';
-  localStorage.setItem('lang', currentLang);
-  applyLanguage();
-}
+            <div class="step-item">
+              <div class="step-num">2</div>
+              <div class="step-content">
+                <h4>Habilitar Puerto TCP/IP de ADB</h4>
+                <p>La primera vez conecta el celular por USB y ejecuta en la terminal de tu PC:</p>
+                <div class="code-box">adb tcpip 5555</div>
+              </div>
+            </div>
 
-function applyLanguage() {
-  const t = translations[currentLang];
-  document.documentElement.lang = currentLang;
+            <div class="step-item">
+              <div class="step-num">3</div>
+              <div class="step-content">
+                <h4>Conectar Inalámbricamente</h4>
+                <p>Consulta la IP de tu celular (en Ajustes → Estado) y conéctate usando:</p>
+                <div class="code-box">adb connect 192.168.1.XX:5555</div>
+              </div>
+            </div>
+          </div>
+        </div>
 
-  document.getElementById('lang-toggle').innerHTML = t.lang_toggle;
-  document.getElementById('hero_sub').innerHTML = t.hero_sub;
-  document.getElementById('btn_dl').innerHTML = t.btn_dl;
-  document.getElementById('dl_note').innerHTML = t.dl_note;
-  document.getElementById('nav_dl').innerHTML = t.nav_dl;
-  document.getElementById('nav_feat').innerHTML = t.nav_feat;
-  document.getElementById('nav_usb').innerHTML = t.nav_usb;
-  document.getElementById('nav_keys').innerHTML = t.nav_keys;
-  document.getElementById('nav_ctrl').innerHTML = t.nav_ctrl;
-  document.getElementById('nav_req').innerHTML = t.nav_req;
-  document.getElementById('dl_title').innerHTML = t.dl_title;
-  document.getElementById('dl_sub').innerHTML = t.dl_sub;
-  document.getElementById('dl_linux').innerHTML = t.dl_linux;
-  document.getElementById('dl_win').innerHTML = t.dl_win;
-  document.getElementById('dl_mac').innerHTML = t.dl_mac;
-  document.getElementById('feat_1_title').innerHTML = t.feat_1_title;
-  document.getElementById('feat_1_desc').innerHTML = t.feat_1_desc;
-  document.getElementById('feat_2_title').innerHTML = t.feat_2_title;
-  document.getElementById('feat_2_desc').innerHTML = t.feat_2_desc;
-  document.getElementById('feat_3_title').innerHTML = t.feat_3_title;
-  document.getElementById('feat_3_desc').innerHTML = t.feat_3_desc;
-  document.getElementById('feat_4_title').innerHTML = t.feat_4_title;
-  document.getElementById('feat_4_desc').innerHTML = t.feat_4_desc;
-  document.getElementById('feat_5_title').innerHTML = t.feat_5_title;
-  document.getElementById('feat_5_desc').innerHTML = t.feat_5_desc;
-  document.getElementById('feat_6_title').innerHTML = t.feat_6_title;
-  document.getElementById('feat_6_desc').innerHTML = t.feat_6_desc;
-  document.getElementById('usb_title').innerHTML = t.usb_title;
-  document.getElementById('usb_sub').innerHTML = t.usb_sub;
-  document.getElementById('usb_1_title').innerHTML = t.usb_1_title;
-  document.getElementById('usb_1_desc').innerHTML = t.usb_1_desc;
-  document.getElementById('usb_2_title').innerHTML = t.usb_2_title;
-  document.getElementById('usb_2_desc').innerHTML = t.usb_2_desc;
-  document.getElementById('usb_3_title').innerHTML = t.usb_3_title;
-  document.getElementById('usb_3_desc').innerHTML = t.usb_3_desc;
-  document.getElementById('keys_title').innerHTML = t.keys_title;
-  document.getElementById('keys_sub').innerHTML = t.keys_sub;
-  document.getElementById('ctrl_title').innerHTML = t.ctrl_title;
-  document.getElementById('ctrl_sub').innerHTML = t.ctrl_sub;
-  document.getElementById('ctrl_desc').innerHTML = t.ctrl_desc;
-  document.getElementById('req_title').innerHTML = t.req_title;
-  document.getElementById('req_sub').innerHTML = t.req_sub;
-  document.getElementById('req_win_note').innerHTML = t.req_win_note;
-  document.getElementById('footer_made').innerHTML = t.footer_made;
-  document.getElementById('footer_links').innerHTML = t.footer_links;
-}
+        <!-- Tab 3: Virtual Webcam -->
+        <div id="tab-webcam" class="tab-pane">
+          <div class="guide-steps">
+            <div class="step-item">
+              <div class="step-num">1</div>
+              <div class="step-content">
+                <h4>Cámara Nativa (Android 12+)</h4>
+                <p>scrcpy permite capturar directamente el sensor de la cámara de tu teléfono sin transmitir la pantalla.</p>
+                <div class="code-box">scrcpy --video-source=camera --camera-facing=back</div>
+              </div>
+            </div>
 
-document.addEventListener('DOMContentLoaded', applyLanguage);
-</script>
+            <div class="step-item">
+              <div class="step-num">2</div>
+              <div class="step-content">
+                <h4>Enlazar con OBS Studio en Linux (v4l2loopback)</h4>
+                <p>Instala el módulo v4l2loopback en tu sistema Linux y transmite el flujo directamente a la cámara virtual `/dev/video2`:</p>
+                <div class="code-box">sudo apt install v4l2loopback-dkms<br/>scrcpy --video-source=camera --v4l2-sink=/dev/video2</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Tab 4: Troubleshooting -->
+        <div id="tab-trouble" class="tab-pane">
+          <div class="guide-steps">
+            <div class="step-item">
+              <div class="step-num">!</div>
+              <div class="step-content">
+                <h4>El comando `adb devices` aparece vacío</h4>
+                <p>Causa 1: Estás usando un cable USB de solo carga (sin hilos de datos). Prueba con otro cable.<br/>
+                Causa 2: Desliza la barra de notificaciones de Android y cambia la opción USB de "Carga" a "Transferencia de archivos (MTP)".</p>
+              </div>
+            </div>
+
+            <div class="step-item">
+              <div class="step-num">!</div>
+              <div class="step-content">
+                <h4>Estado `unauthorized` en ADB</h4>
+                <p>Desconecta el cable USB, ve a Opciones de Desarrollador en Android y presiona <strong>"Revocar autorizaciones de depuración USB"</strong>. Vuelve a conectar el cable y acepta la ventana flotante.</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- FAQ Section -->
+  <section id="faq">
+    <div class="container">
+      <div class="section-title">
+        <h2>Preguntas Frecuentes (FAQ)</h2>
+        <p>Respuesta a las dudas más comunes de la comunidad sobre MASV y scrcpy.</p>
+      </div>
+
+      <div class="search-box">
+        <input type="text" id="faqSearch" placeholder="🔍 Buscar pregunta (ej: wifi, audio, obs, windows)..." onkeyup="filterFAQ()"/>
+      </div>
+
+      <div class="faq-list">
+        <div class="faq-item">
+          <div class="faq-question">¿Necesito instalar alguna APK en mi teléfono Android?</div>
+          <div class="faq-answer">No. MASV y scrcpy funcionan 100% de forma nativa a través del servidor ADB. Tu teléfono permanece completamente limpio sin instalar nada.</div>
+        </div>
+
+        <div class="faq-item">
+          <div class="faq-question">¿El audio del celular se escucha en la PC?</div>
+          <div class="faq-answer">Sí. En dispositivos con Android 11 o superior, scrcpy transmite el sonido interno del teléfono por defecto usando el códec Opus o AAC.</div>
+        </div>
+
+        <div class="faq-item">
+          <div class="faq-question">¿Cómo se ejecuta el instalador ejecutable `.run` en Linux?</div>
+          <div class="faq-answer">Abre una terminal en la carpeta donde descargaste el archivo y ejecuta: <code>chmod +x MASV-Linux-Installer.run && ./MASV-Linux-Installer.run</code>. Esto instalará MASV en tu sistema, creará el icono en el Escritorio y habilitará el comando <code>MASV</code> en terminal.</div>
+        </div>
+
+        <div class="faq-item">
+          <div class="faq-question">¿MASV es gratuito y de código abierto?</div>
+          <div class="faq-answer">Sí. MASV es desarrollado por el equipo de Memexicanisimos Studio bajo la licencia MIT. Puedes revisar, auditar y contribuir al código fuente en nuestro repositorio de GitHub.</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Footer -->
+  <footer>
+    <div class="container">
+      <div class="footer-links">
+        <a href="https://memexicanisimos.com" target="_blank" rel="noopener">Ecosistema Memexicanisimos.com</a>
+        <a href="https://github.com/myinnervoid/Memexicanisimos-Android-Screen-Viewer" target="_blank" rel="noopener">Repositorio GitHub</a>
+        <a href="#tutoriales">Guías de Depuración</a>
+        <a href="#descargas">Descargas Directas</a>
+      </div>
+      <p class="copyright">
+        © 2026 Memexicanisimos Studio. Basado en el motor de código abierto de Genymobile/scrcpy. Licencia MIT.
+      </p>
+    </div>
+  </footer>
+
+  <!-- Scripts -->
+  <script>
+    function openTab(evt, tabName) {
+      const tabPanes = document.querySelectorAll('.tab-pane');
+      const tabBtns = document.querySelectorAll('.tab-btn');
+      
+      tabPanes.forEach(pane => pane.classList.remove('active'));
+      tabBtns.forEach(btn => btn.classList.remove('active'));
+      
+      document.getElementById(tabName).classList.add('active');
+      evt.currentTarget.classList.add('active');
+    }
+
+    function filterFAQ() {
+      const input = document.getElementById('faqSearch').value.toLowerCase();
+      const items = document.querySelectorAll('.faq-item');
+      
+      items.forEach(item => {
+        const text = item.textContent.toLowerCase();
+        item.style.display = text.includes(input) ? 'block' : 'none';
+      });
+    }
+
+    // Toggle FAQ Accordion
+    document.querySelectorAll('.faq-question').forEach(item => {
+      item.addEventListener('click', () => {
+        const parent = item.parentElement;
+        parent.classList.toggle('open');
+      });
+    });
+  </script>
 </body>
 </html>
