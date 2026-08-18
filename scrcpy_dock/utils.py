@@ -143,6 +143,9 @@ def save_config(cfg: dict):
             f.flush()
             os.fsync(f.fileno())
         os.replace(tmp_file, CONFIG_FILE)
+        if sys.platform != "win32":
+            try: os.chmod(CONFIG_FILE, 0o600)
+            except Exception: pass
     except Exception as e:
         print(f"Error saving config: {e}")
         if os.path.exists(tmp_file):
@@ -173,14 +176,31 @@ def find_portable_binaries():
     scrcpy_path = shutil.which("scrcpy", path=search_path_str) or shutil.which("scrcpy")
     return adb_path, scrcpy_path
 
+import ipaddress
+
 def parse_ip_port(raw: str):
-    """Limpia la IP:PORT ingresada, usa puerto 5555 por defecto."""
+    """Limpia y valida estrictamente la IP:PORT ingresada usando el módulo ipaddress."""
     clean = raw.strip()
-    if not clean: return None, None
+    if not clean:
+        return None, None
+    
+    port = "5555"
+    ip_str = clean
+    
     if ":" in clean:
         parts = clean.split(":", 1)
-        return parts[0].strip(), parts[1].strip()
-    return clean, "5555"
+        ip_str = parts[0].strip()
+        port_str = parts[1].strip()
+        if port_str.isdigit() and 1 <= int(port_str) <= 65535:
+            port = port_str
+        else:
+            return None, None
+
+    try:
+        ip_obj = ipaddress.ip_address(ip_str)
+        return str(ip_obj), port
+    except ValueError:
+        return None, None
 
 class SingleInstance:
     """Previene que la aplicación se abra múltiples veces (Singleton por puerto local)."""

@@ -109,6 +109,9 @@ class ScrcpyDockApp:
         self.root.bind("<Control-i>", lambda _: self._toggle_scene())
         self.root.bind("<Control-h>", lambda _: self._nb.select(5))
 
+        for i in range(6):
+            self.root.bind(f"<Alt-Key-{i+1}>", lambda _, idx=i: self._nb.select(idx))
+
     def _setup_styles(self):
         s = ttk.Style()
         s.theme_use("clam")

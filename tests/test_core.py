@@ -22,6 +22,14 @@ class TestUtils(unittest.TestCase):
         self.assertIsNone(ip)
         self.assertIsNone(port)
 
+    def test_parse_ip_port_invalid(self):
+        ip, port = parse_ip_port("invalid_ip_string")
+        self.assertIsNone(ip)
+        self.assertIsNone(port)
+        ip2, port2 = parse_ip_port("999.999.999.999")
+        self.assertIsNone(ip2)
+        self.assertIsNone(port2)
+
     def test_extract_serial_formatted(self):
         serial = _extract_serial("Pixel 6 Pro (1A2B3C4D)")
         self.assertEqual(serial, "1A2B3C4D")
