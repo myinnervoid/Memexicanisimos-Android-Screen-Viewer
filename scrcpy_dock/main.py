@@ -28,11 +28,12 @@ class ScrcpyDockApp:
     def __init__(self, root: tk.Tk):
         self.root = root
         self.root.title(APP_NAME)
-        self.root.minsize(780, 580)
+        self.root.minsize(880, 600)
         self.root.configure(bg=C["bg"])
 
         self.ctx = AppContext(root)
         self._setup_styles()
+        self._build_menu_bar()
 
         # ── Restaurar geometría guardada ───────────────────────
         geo = self.ctx.cfg.get(_("window_geometry"), _("860x680"))
@@ -102,6 +103,43 @@ class ScrcpyDockApp:
         # Onboarding primera vez
         if not self.ctx.cfg.get("onboarding_done"):
             self.root.after(800, self._show_onboarding)
+
+    def _build_menu_bar(self):
+        menubar = tk.Menu(self.root, bg=C["card"], fg=C["text"], activebackground=C["blue"], activeforeground="#FFF")
+
+        file_menu = tk.Menu(menubar, tearoff=0, bg=C["card"], fg=C["text"], activebackground=C["blue"], activeforeground="#FFF")
+        file_menu.add_command(label=_("🚀 Nueva Transmisión"), command=self._toggle_scene, accelerator="Ctrl+I")
+        file_menu.add_command(label=_("🔄 Refrescar Dispositivos"), command=self._refresh_devices, accelerator="Ctrl+R")
+        file_menu.add_command(label=_("⏹ Detener Todas las Sesiones"), command=self._stop_current)
+        file_menu.add_separator()
+        file_menu.add_command(label=_("🚪 Salir"), command=self._on_app_close, accelerator="Ctrl+Q")
+        menubar.add_cascade(label=_("Archivo"), menu=file_menu)
+
+        edit_menu = tk.Menu(menubar, tearoff=0, bg=C["card"], fg=C["text"], activebackground=C["blue"], activeforeground="#FFF")
+        edit_menu.add_command(label=_("✨ Crear Nuevo Perfil..."), command=self._open_wizard)
+        edit_menu.add_command(label=_("📋 Copiar Registro de Consola"), command=self._copy_log)
+        edit_menu.add_command(label=_("🧹 Limpiar Consola"), command=self._clear_log)
+        menubar.add_cascade(label=_("Editar"), menu=edit_menu)
+
+        view_menu = tk.Menu(menubar, tearoff=0, bg=C["card"], fg=C["text"], activebackground=C["blue"], activeforeground="#FFF")
+        view_menu.add_command(label=_("🔀 Alternar Vista (Simple / Avanzada)"), command=self._toggle_view)
+        view_menu.add_command(label=_("🖥 Ir a Consola de Registros"), command=lambda: self._nb.select(4))
+        menubar.add_cascade(label=_("Ver"), menu=view_menu)
+
+        dev_menu = tk.Menu(menubar, tearoff=0, bg=C["card"], fg=C["text"], activebackground=C["blue"], activeforeground="#FFF")
+        dev_menu.add_command(label=_("⚡ Reiniciar Servidor ADB"), command=self._restart_adb)
+        dev_menu.add_command(label=_("📶 Conectar por Wi-Fi"), command=lambda: self._nb.select(2))
+        dev_menu.add_command(label=_("📦 Instalar APK en Teléfono"), command=self._install_apk)
+        dev_menu.add_command(label=_("📷 Configurar Webcam Virtual (v4l2)"), command=self._setup_v4l2)
+        menubar.add_cascade(label=_("Dispositivo"), menu=dev_menu)
+
+        help_menu = tk.Menu(menubar, tearoff=0, bg=C["card"], fg=C["text"], activebackground=C["blue"], activeforeground="#FFF")
+        help_menu.add_command(label=_("📖 Guía de Depuración USB"), command=self._go_to_help_usb, accelerator="Ctrl+H")
+        help_menu.add_command(label=_("💡 Ver Asistente de Inicio (Onboarding)"), command=self._show_onboarding)
+        help_menu.add_command(label=_("ℹ️ Acerca de MASV v1.2"), command=lambda: messagebox.showinfo(APP_NAME, "MASV v1.2 — Memexicanisimos Android Screen Viewer\n\nHerramienta nativa de transmisión y control de pantalla para Android.\nDesarrollada con Python, Tkinter y el núcleo de scrcpy."))
+        menubar.add_cascade(label=_("Ayuda"), menu=help_menu)
+
+        self.root.config(menu=menubar)
 
     def _bind_shortcuts(self):
         self.root.bind("<Control-q>", lambda _: self._on_close())

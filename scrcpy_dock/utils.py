@@ -1,56 +1,55 @@
 import os, sys, re, time, socket, shutil, json
 
-# ── Paleta Slate Dark — Sistema de Diseño Canónico ──────────────────────────
-# Teoría de Color para Apps Profesionales (Vercel / Linear / Raycast style)
-# Fondo Slate profundo, tarjetas con elevación por capas y contraste WCAG AAA.
+# ── Paleta Warm Cozy Dark — Sistema de Diseño Canónico Warm ─────────────────
+# Diseño cálido personal (Warm Stone, Ámbar Dorado, Terracota y Marfil)
 C = {
-    # Fondos principales (Elevación por capas)
-    "bg":          "#0F172A",   # Slate 900 - Ventana principal
-    "card":        "#1E293B",   # Slate 800 - Tarjetas y contenedores
-    "card2":       "#334155",   # Slate 700 - Headers, toolbars, entradas
-    "card3":       "#475569",   # Slate 600 - Hover sutil
+    # Fondos principales (Elevación por capas cálidas)
+    "bg":          "#1C1917",   # Warm Stone 900 - Ventana principal
+    "card":        "#262422",   # Warm Stone 850 - Tarjetas y contenedores
+    "card2":       "#322E2B",   # Warm Stone 800 - Headers, toolbars, entradas
+    "card3":       "#44403C",   # Warm Stone 700 - Hover sutil
 
     # Separadores y bordes
-    "sep":         "#334155",   # Borde de separación sutil
+    "sep":         "#44403C",   # Borde de separación sutil cálido
 
     # Acciones primarias y acentos
-    "blue":        "#0284C7",   # Sky 600
-    "blue_hover":  "#0369A1",
-    "indigo":      "#6366F1",   # Indigo 500 - Acento principal de marca
-    "indigo_hover":"#4F46E5",
+    "blue":        "#D97706",   # Ámbar Cálido Primario
+    "blue_hover":  "#B45309",
+    "indigo":      "#F59E0B",   # Ámbar Dorado - Acento de marca
+    "indigo_hover":"#D97706",
 
-    # Peligro / Cancelar (Rojo elegante, no deslumbrante)
-    "red":         "#EF4444",   # Red 500
-    "red_dim":     "#451A1A",   # Fondo de alerta destructiva
-    "red_hover":   "#DC2626",
+    # Peligro / Cancelar
+    "red":         "#F43F5E",   # Rosa/Rojo cálido
+    "red_dim":     "#4C0519",   # Fondo de alerta destructiva
+    "red_hover":   "#E11D48",
 
     # Éxito / Estado Activo
-    "green":       "#10B981",   # Emerald 500
+    "green":       "#10B981",   # Esmeralda cálido
     "green_dim":   "#064E3B",   # Fondo de estado OK
     "green_hover": "#059669",
 
-    # Advertencia
-    "orange":      "#F59E0B",   # Amber 500
-    "orange_hover":"#D97706",
+    # Advertencia / Terracota
+    "orange":      "#EA580C",   # Terracota cálido
+    "orange_hover":"#C2410C",
 
     # Acento / Perfiles
-    "purple":      "#A855F7",   # Purple 500
-    "purple_dim":  "#3B0764",
-    "purple_hover":"#9333EA",
+    "purple":      "#F59E0B",   # Ámbar Dorado
+    "purple_dim":  "#451A03",
+    "purple_hover":"#D97706",
 
     # Información / WiFi
-    "cyan":        "#38BDF8",   # Sky 400
+    "cyan":        "#FBBF24",   # Dorado brillante
 
-    # Tipografía — Legibilidad comprobada (WCAG AAA)
-    "text":        "#F8FAFC",   # Slate 50 - Texto primario
-    "text2":       "#E2E8F0",   # Slate 200 - Texto secundario
-    "muted":       "#94A3B8",   # Slate 400 - Etiquetas y pistas
+    # Tipografía — Legibilidad cálida (WCAG AAA)
+    "text":        "#FAFAF9",   # Off-white cálido
+    "text2":       "#E7E5E4",   # Stone 200 - Texto secundario
+    "muted":       "#A8A29E",   # Stone 400 - Etiquetas y pistas
 
     # Estados desactivados
-    "disabled":    "#334155",
+    "disabled":    "#44403C",
 
     # Foco de accesibilidad (Tab)
-    "focus":       "#38BDF8",
+    "focus":       "#F59E0B",
 
     # Badges de estado semánticos
     "state_ok":      "#10B981",
