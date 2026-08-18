@@ -59,7 +59,8 @@ def build():
                 tar_path = os.path.join(dist_dir, "MASV-Linux.tar.gz")
                 with tarfile.open(tar_path, "w:gz") as tar:
                     tar.add(bin_file, arcname="MASV")
-                    if os.path.exists(bin_path) and os.listdir(bin_path):
+                    # Only add bin_path if it exists and is a directory with contents
+                    if os.path.isdir(bin_path) and os.listdir(bin_path):
                         tar.add(bin_path, arcname="bin")
                 safe_print(f"[MASV] Paquete comprimido generado en: {tar_path}")
             else:
@@ -67,12 +68,18 @@ def build():
                 zip_path = os.path.join(dist_dir, "MASV-Windows.zip")
                 with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as zipf:
                     zipf.write(bin_file, arcname="MASV.exe")
-                    if os.path.exists(bin_path) and os.listdir(bin_path):
+                    # Only walk bin_path if it exists and is a directory with contents
+                    if os.path.isdir(bin_path) and os.listdir(bin_path):
                         for root, _, files in os.walk(bin_path):
                             for file in files:
                                 file_path = os.path.join(root, file)
-                                arcname = os.path.relpath(file_path, base_dir)
+                                # Make entry path relative to bin_path and prefix with "bin/"
+                                rel = os.path.relpath(file_path, bin_path)
+                                # Normalize to forward slashes for ZIP entries
+                                arcname = "bin/" + rel.replace(os.path.sep, '/')
                                 zipf.write(file_path, arcname)
+                    else:
+                        safe_print(f"[MASV] No se encontró 'bin/' en {bin_path}; se omite del ZIP.")
                 safe_print(f"[MASV] Paquete comprimido generado en: {zip_path}")
             
         safe_print("[MASV] Empaquetado finalizado con éxito en 'dist/'.")
