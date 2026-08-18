@@ -43,32 +43,6 @@
   }
   </script>
 
-  <script type="application/ld+json">
-  {
-    "@context": "https://schema.org",
-    "@type": "HowTo",
-    "name": "Cómo activar la Depuración USB en cualquier Android",
-    "description": "Guía paso a paso para habilitar las Opciones de Desarrollador y la Depuración USB en Samsung, Xiaomi, Motorola, Huawei y Google Pixel.",
-    "step": [
-      {
-        "@type": "HowToStep",
-        "name": "Paso 1: Abrir Ajustes de Android",
-        "text": "Ve a Ajustes -> Acerca del teléfono o Información del software."
-      },
-      {
-        "@type": "HowToStep",
-        "name": "Paso 2: Activar Opciones de Desarrollador",
-        "text": "Presiona 7 veces seguidas sobre 'Número de compilación' hasta que aparezca el mensaje de éxito."
-      },
-      {
-        "@type": "HowToStep",
-        "name": "Paso 3: Habilitar Depuración USB",
-        "text": "Entra a Opciones de desarrollador y activa la casilla 'Depuración por USB'."
-      }
-    ]
-  }
-  </script>
-
   <style>
     :root {
       --bg: #1C1917;         /* Warm Stone 900 */
@@ -124,6 +98,16 @@
     .nav-menu { display: flex; align-items: center; gap: 24px; list-style: none; }
     .nav-link { color: var(--text-sub); text-decoration: none; font-size: 0.92rem; font-weight: 600; transition: color 0.2s; }
     .nav-link:hover { color: var(--amber); }
+    
+    .lang-switcher {
+      display: flex; align-items: center; gap: 4px; background: var(--card2);
+      border: 1px solid var(--border); border-radius: 8px; padding: 4px 8px; font-size: 0.82rem; font-weight: 700;
+    }
+    .lang-btn {
+      background: transparent; border: none; color: var(--text-muted); cursor: pointer; padding: 2px 6px; border-radius: 4px; transition: all 0.2s;
+    }
+    .lang-btn.active { background: var(--amber); color: #000; }
+
     .btn-nav {
       background: var(--amber); color: #000; font-weight: 700; padding: 8px 18px;
       border-radius: 8px; text-decoration: none; transition: background 0.2s, transform 0.15s;
@@ -261,35 +245,41 @@
         📱 MASV <span>Viewer</span> <span class="brand-badge">v1.2</span>
       </a>
       <ul class="nav-menu">
-        <li><a href="#caracteristicas" class="nav-link">Características</a></li>
-        <li><a href="#tutoriales" class="nav-link">Guías & Tutoriales</a></li>
-        <li><a href="#faq" class="nav-link">Preguntas Frecuentes</a></li>
+        <li><a href="#caracteristicas" class="nav-link" data-es="Características" data-en="Features">Características</a></li>
+        <li><a href="#tutoriales" class="nav-link" data-es="Guías & Tutoriales" data-en="Guides & Tutorials">Guías & Tutoriales</a></li>
+        <li><a href="#faq" class="nav-link" data-es="Preguntas Frecuentes" data-en="FAQ">Preguntas Frecuentes</a></li>
         <li><a href="https://memexicanisimos.com" target="_blank" rel="noopener" class="nav-link">Memexicanisimos.com</a></li>
       </ul>
-      <a href="#descargas" class="btn-nav">⬇ Descargar v1.2</a>
+      <div style="display: flex; align-items: center; gap: 12px;">
+        <div class="lang-switcher">
+          <button class="lang-btn active" id="btn-es" onclick="switchLang('es')">🇲🇽 ES</button>
+          <button class="lang-btn" id="btn-en" onclick="switchLang('en')">🇺🇸 EN</button>
+        </div>
+        <a href="#descargas" class="btn-nav" data-es="⬇ Descargar v1.2" data-en="⬇ Download v1.2">⬇ Descargar v1.2</a>
+      </div>
     </div>
   </header>
 
   <!-- Hero Section -->
   <section class="hero">
     <div class="container">
-      <div class="hero-tag">✨ GUI Avanzada para scrcpy & ADB · 100% Portable</div>
-      <h1>El Control Total de tu Android en PC<br/><span>Con la Máxima Calidad y Fluidez</span></h1>
-      <p class="hero-sub">
+      <div class="hero-tag" data-es="✨ GUI Avanzada para scrcpy & ADB · 100% Portable" data-en="✨ Advanced GUI for scrcpy & ADB · 100% Standalone">✨ GUI Avanzada para scrcpy & ADB · 100% Portable</div>
+      <h1 data-es="El Control Total de tu Android en PC<br/><span>Con la Máxima Calidad y Fluidez</span>" data-en="Total Control of Your Android on PC<br/><span>Maximum Quality and Performance</span>">El Control Total de tu Android en PC<br/><span>Con la Máxima Calidad y Fluidez</span></h1>
+      <p class="hero-sub" data-es="Transmite tu pantalla Android a tu computadora hasta a 120 FPS, conecta inalámbricamente por Wi-Fi, transforma tu teléfono en webcam HD para OBS y gestiona perfiles de forma nativa." data-en="Stream your Android screen to PC up to 120 FPS, connect wirelessly via Wi-Fi, turn your phone into an HD Webcam for OBS, and manage profiles natively.">
         Transmite tu pantalla Android a tu computadora hasta a 120 FPS, conecta inalámbricamente por Wi-Fi, transforma tu teléfono en webcam HD para OBS y gestiona perfiles de forma nativa.
       </p>
       <div class="cta-group" id="descargas">
-        <a href="https://github.com/myinnervoid/Memexicanisimos-Android-Screen-Viewer/releases/latest" class="btn-hero-primary">
+        <a href="https://github.com/myinnervoid/Memexicanisimos-Android-Screen-Viewer/releases/latest" class="btn-hero-primary" data-es="🚀 Descargar Instalador Linux (.run)" data-en="🚀 Download Linux Installer (.run)">
           🚀 Descargar Instalador Linux (.run)
         </a>
-        <a href="https://github.com/myinnervoid/Memexicanisimos-Android-Screen-Viewer/releases/latest" class="btn-hero-secondary">
+        <a href="https://github.com/myinnervoid/Memexicanisimos-Android-Screen-Viewer/releases/latest" class="btn-hero-secondary" data-es="🪟 Descargar Windows Standalone (.exe)" data-en="🪟 Download Windows Standalone (.exe)">
           🪟 Descargar Windows Standalone (.exe)
         </a>
       </div>
       <div class="hero-badges">
-        <span>⚡ Cero Instalación de APKs en tu teléfono</span>
-        <span>🛡 100% Código Abierto y Privado</span>
-        <span>📡 Conexión por Cable USB y Wi-Fi TCP/IP</span>
+        <span data-es="⚡ Cero Instalación de APKs en tu teléfono" data-en="⚡ Zero APK installation on your phone">⚡ Cero Instalación de APKs en tu teléfono</span>
+        <span data-es="🛡 100% Código Abierto y Privado" data-en="🛡 100% Open Source & Private">🛡 100% Código Abierto y Privado</span>
+        <span data-es="📡 Conexión por Cable USB y Wi-Fi TCP/IP" data-en="📡 USB & Wi-Fi TCP/IP Connection">📡 Conexión por Cable USB y Wi-Fi TCP/IP</span>
       </div>
     </div>
   </section>
@@ -298,45 +288,45 @@
   <section id="caracteristicas">
     <div class="container">
       <div class="section-title">
-        <h2>Diseñado para Gamers, Streamers y Creadores</h2>
-        <p>Aprovecha todo el potencial del núcleo nativo de scrcpy con la interfaz táctil y cálida de MASV.</p>
+        <h2 data-es="Diseñado para Gamers, Streamers y Creadores" data-en="Built for Gamers, Streamers & Creators">Diseñado para Gamers, Streamers y Creadores</h2>
+        <p data-es="Aprovecha todo el potencial del núcleo nativo de scrcpy con la interfaz táctil y cálida de MASV." data-en="Unlock the full power of scrcpy's core with MASV's warm and intuitive interface.">Aprovecha todo el potencial del núcleo nativo de scrcpy con la interfaz táctil y cálida de MASV.</p>
       </div>
 
       <div class="grid-features">
         <div class="feature-card">
           <div class="feature-icon">🎬</div>
-          <h3>Códecs de Vídeo de Alta Eficiencia</h3>
-          <p>Soporte nativo para códecs H.264, H.265, AV1, VP8 y VP9. Ajusta bitrates hasta 32 Mbps y tasa de refresco a 120 FPS.</p>
+          <h3 data-es="Códecs de Vídeo de Alta Eficiencia" data-en="High Efficiency Video Codecs">Códecs de Vídeo de Alta Eficiencia</h3>
+          <p data-es="Soporte nativo para códecs H.264, H.265, AV1, VP8 y VP9. Ajusta bitrates hasta 32 Mbps y tasa de refresco a 120 FPS." data-en="Native support for H.264, H.265, AV1, VP8, and VP9 codecs. Adjust bitrates up to 32 Mbps and refresh rates up to 120 FPS.">Soporte nativo para códecs H.264, H.265, AV1, VP8 y VP9. Ajusta bitrates hasta 32 Mbps y tasa de refresco a 120 FPS.</p>
         </div>
 
         <div class="feature-card">
           <div class="feature-icon">📶</div>
-          <h3>Conexión Inalámbrica Wi-Fi</h3>
-          <p>Conecta tu celular sin cables usando la depuración TCP/IP de ADB. Escaneo automático y reconexión en 1-clic.</p>
+          <h3 data-es="Conexión Inalámbrica Wi-Fi" data-en="Wireless Wi-Fi Connection">Conexión Inalámbrica Wi-Fi</h3>
+          <p data-es="Conecta tu celular sin cables usando la depuración TCP/IP de ADB. Escaneo automático y reconexión en 1-clic." data-en="Connect wirelessly using ADB TCP/IP debugging. Automatic scanning and 1-click reconnection.">Conecta tu celular sin cables usando la depuración TCP/IP de ADB. Escaneo automático y reconexión en 1-clic.</p>
         </div>
 
         <div class="feature-card">
           <div class="feature-icon">📷</div>
-          <h3>Webcam Virtual HD (v4l2)</h3>
-          <p>Transmite la cámara trasera o frontal de tu teléfono directamente hacia OBS Studio, Zoom, Discord y Teams en Linux y Windows.</p>
+          <h3 data-es="Webcam Virtual HD (v4l2)" data-en="Virtual HD Webcam (v4l2)">Webcam Virtual HD (v4l2)</h3>
+          <p data-es="Transmite la cámara trasera o frontal de tu teléfono directamente hacia OBS Studio, Zoom, Discord y Teams en Linux y Windows." data-en="Stream your front or back camera directly to OBS Studio, Zoom, Discord, and Teams on Linux and Windows.">Transmite la cámara trasera o frontal de tu teléfono directamente hacia OBS Studio, Zoom, Discord y Teams en Linux y Windows.</p>
         </div>
 
         <div class="feature-card">
           <div class="feature-icon">🎮</div>
-          <h3>Mando Remoto & Teclado</h3>
-          <p>Simula eventos de hardware (Inicio, Atrás, Recientes, Control de Volumen, Encendido) usando atajos directos sin tocar el celular.</p>
+          <h3 data-es="Mando Remoto & Teclado" data-en="Remote Control & Keybinds">Mando Remoto & Teclado</h3>
+          <p data-es="Simula eventos de hardware (Inicio, Atrás, Recientes, Control de Volumen, Encendido) usando atajos directos sin tocar el celular." data-en="Simulate hardware events (Home, Back, Recents, Volume, Power) using keyboard shortcuts without touching the phone.">Simula eventos de hardware (Inicio, Atrás, Recientes, Control de Volumen, Encendido) usando atajos directos sin tocar el celular.</p>
         </div>
 
         <div class="feature-card">
           <div class="feature-icon">📦</div>
-          <h3>Instalación de APKs Desatendida</h3>
-          <p>Arrastra cualquier archivo .apk hacia la ventana o selecciónalo desde el panel para instalar aplicaciones al instante.</p>
+          <h3 data-es="Instalación de APKs Desatendida" data-en="Unattended APK Installation">Instalación de APKs Desatendida</h3>
+          <p data-es="Arrastra cualquier archivo .apk hacia la ventana o selecciónalo desde el panel para instalar aplicaciones al instante." data-en="Drag & drop any .apk file into the window or select it from the panel to install apps instantly.">Arrastra cualquier archivo .apk hacia la ventana o selecciónalo desde el panel para instalar aplicaciones al instante.</p>
         </div>
 
         <div class="feature-card">
           <div class="feature-icon">⚡</div>
-          <h3>I/O Atómico y Permisos Seguros</h3>
-          <p>Guardado atómico anti-corrupción de perfiles y permisos POSIX estrictos (0600/0700) para garantizar tu privacidad.</p>
+          <h3 data-es="I/O Atómico y Permisos Seguros" data-en="Atomic I/O & Safe Permissions">I/O Atómico y Permisos Seguros</h3>
+          <p data-es="Guardado atómico anti-corrupción de perfiles y permisos POSIX estrictos (0600/0700) para garantizar tu privacidad." data-en="Corruption-proof atomic profile saves and strict POSIX permissions (0600/0700) to protect your privacy.">Guardado atómico anti-corrupción de perfiles y permisos POSIX estrictos (0600/0700) para garantizar tu privacidad.</p>
         </div>
       </div>
     </div>
@@ -346,16 +336,16 @@
   <section id="tutoriales">
     <div class="container">
       <div class="section-title">
-        <h2>📖 Guías y Tutoriales para la Comunidad</h2>
-        <p>Tutoriales universales para configurar tu celular Android con cualquier herramienta o computadora, incluso si no usas nuestra app.</p>
+        <h2 data-es="📖 Guías y Tutoriales para la Comunidad" data-en="📖 Community Guides & Tutorials">📖 Guías y Tutoriales para la Comunidad</h2>
+        <p data-es="Tutoriales universales para configurar tu celular Android con cualquier herramienta o computadora, incluso si no usas nuestra app." data-en="Universal step-by-step guides to configure any Android device on PC, even if you don't use our app.">Tutoriales universales para configurar tu celular Android con cualquier herramienta o computadora, incluso si no usas nuestra app.</p>
       </div>
 
       <div class="tutorial-section">
         <div class="tab-buttons">
-          <button class="tab-btn active" onclick="openTab(event, 'tab-usb')">🔌 1. Activar Depuración USB</button>
-          <button class="tab-btn" onclick="openTab(event, 'tab-wifi')">📡 2. Conectar ADB por Wi-Fi</button>
-          <button class="tab-btn" onclick="openTab(event, 'tab-webcam')">📷 3. Usar como Webcam HD</button>
-          <button class="tab-btn" onclick="openTab(event, 'tab-trouble')">🛠 4. Solución de Problemas</button>
+          <button class="tab-btn active" onclick="openTab(event, 'tab-usb')">🔌 1. USB Debugging</button>
+          <button class="tab-btn" onclick="openTab(event, 'tab-wifi')">📡 2. Wi-Fi ADB</button>
+          <button class="tab-btn" onclick="openTab(event, 'tab-webcam')">📷 3. Virtual Webcam</button>
+          <button class="tab-btn" onclick="openTab(event, 'tab-trouble')">🛠 4. Troubleshooting</button>
         </div>
 
         <!-- Tab 1: USB Debugging -->
@@ -364,24 +354,24 @@
             <div class="step-item">
               <div class="step-num">1</div>
               <div class="step-content">
-                <h4>Activar Opciones de Desarrollador</h4>
-                <p>En tu teléfono ve a <strong>Ajustes → Acerca del teléfono → Información de software</strong>. Busca la casilla <strong>Número de compilación</strong> y presiónala 7 veces seguidas hasta ver el mensaje <em>"¡Ya eres desarrollador!"</em>.</p>
+                <h4 data-es="Activar Opciones de Desarrollador" data-en="Enable Developer Options">Activar Opciones de Desarrollador</h4>
+                <p data-es="En tu teléfono ve a Ajustes → Acerca del teléfono → Información de software. Busca la casilla Número de compilación y presiónala 7 veces seguidas hasta ver el mensaje '¡Ya eres desarrollador!'." data-en="Go to Settings → About Phone → Software Info. Tap 'Build Number' 7 times until you see 'You are now a developer!'.">En tu teléfono ve a <strong>Ajustes → Acerca del teléfono → Información de software</strong>. Busca la casilla <strong>Número de compilación</strong> y presiónala 7 veces seguidas hasta ver el mensaje <em>"¡Ya eres desarrollador!"</em>.</p>
               </div>
             </div>
 
             <div class="step-item">
               <div class="step-num">2</div>
               <div class="step-content">
-                <h4>Habilitar Depuración por USB</h4>
-                <p>Regresa al menú principal de Ajustes y entra a la nueva opción <strong>Opciones de desarrollador</strong>. Busca la casilla <strong>Depuración por USB</strong> y actívala.</p>
+                <h4 data-es="Habilitar Depuración por USB" data-en="Turn on USB Debugging">Habilitar Depuración por USB</h4>
+                <p data-es="Regresa al menú principal de Ajustes y entra a Opciones de desarrollador. Busca la casilla Depuración por USB y actívala." data-en="Go back to Settings → Developer Options. Find and enable 'USB Debugging'.">Regresa al menú principal de Ajustes y entra a la nueva opción <strong>Opciones de desarrollador</strong>. Busca la casilla <strong>Depuración por USB</strong> y actívala.</p>
               </div>
             </div>
 
             <div class="step-item">
               <div class="step-num">3</div>
               <div class="step-content">
-                <h4>Aceptar la Clave RSA de la PC</h4>
-                <p>Conecta el teléfono a la computadora por cable USB. En la pantalla del celular aparecerá un diálogo preguntando: <em>"¿Permitir depuración por USB?"</em>. Marca la casilla <strong>☑️ Permitir siempre desde esta computadora</strong> y presiona Aceptar.</p>
+                <h4 data-es="Aceptar la Clave RSA de la PC" data-en="Allow RSA Key Prompt">Aceptar la Clave RSA de la PC</h4>
+                <p data-es="Conecta el teléfono a la computadora por cable USB. En la pantalla del celular aparecerá un diálogo preguntando: '¿Permitir depuración por USB?'. Marca la casilla ☑️ Permitir siempre desde esta computadora y presiona Aceptar." data-en="Connect your phone via USB. On the popup prompt 'Allow USB debugging?', check 'Always allow from this computer' and tap Allow.">Conecta el teléfono a la computadora por cable USB. En la pantalla del celular aparecerá un diálogo preguntando: <em>"¿Permitir depuración por USB?"</em>. Marca la casilla <strong>☑️ Permitir siempre desde esta computadora</strong> y presiona Aceptar.</p>
               </div>
             </div>
           </div>
@@ -393,16 +383,16 @@
             <div class="step-item">
               <div class="step-num">1</div>
               <div class="step-content">
-                <h4>Misma Red Wi-Fi</h4>
-                <p>Asegúrate de que tu celular Android y tu computadora estén conectados a la misma red Wi-Fi local.</p>
+                <h4 data-es="Misma Red Wi-Fi" data-en="Same Wi-Fi Network">Misma Red Wi-Fi</h4>
+                <p data-es="Asegúrate de que tu celular Android y tu computadora estén conectados a la misma red Wi-Fi local." data-en="Ensure your Android phone and PC are on the exact same Wi-Fi network.">Asegúrate de que tu celular Android y tu computadora estén conectados a la misma red Wi-Fi local.</p>
               </div>
             </div>
 
             <div class="step-item">
               <div class="step-num">2</div>
               <div class="step-content">
-                <h4>Habilitar Puerto TCP/IP de ADB</h4>
-                <p>La primera vez conecta el celular por USB y ejecuta en la terminal de tu PC:</p>
+                <h4 data-es="Habilitar Puerto TCP/IP de ADB" data-en="Enable ADB TCP/IP Port">Habilitar Puerto TCP/IP de ADB</h4>
+                <p data-es="La primera vez conecta el celular por USB y ejecuta en la terminal de tu PC:" data-en="Connect via USB first and run in terminal:">La primera vez conecta el celular por USB y ejecuta en la terminal de tu PC:</p>
                 <div class="code-box">adb tcpip 5555</div>
               </div>
             </div>
@@ -410,8 +400,8 @@
             <div class="step-item">
               <div class="step-num">3</div>
               <div class="step-content">
-                <h4>Conectar Inalámbricamente</h4>
-                <p>Consulta la IP de tu celular (en Ajustes → Estado) y conéctate usando:</p>
+                <h4 data-es="Conectar Inalámbricamente" data-en="Connect Wirelessly">Conectar Inalámbricamente</h4>
+                <p data-es="Consulta la IP de tu celular (en Ajustes → Estado) y conéctate usando:" data-en="Check your phone IP (Settings → About → Status) and connect:">Consulta la IP de tu celular (en Ajustes → Estado) y conéctate usando:</p>
                 <div class="code-box">adb connect 192.168.1.XX:5555</div>
               </div>
             </div>
@@ -424,8 +414,8 @@
             <div class="step-item">
               <div class="step-num">1</div>
               <div class="step-content">
-                <h4>Cámara Nativa (Android 12+)</h4>
-                <p>scrcpy permite capturar directamente el sensor de la cámara de tu teléfono sin transmitir la pantalla.</p>
+                <h4 data-es="Cámara Nativa (Android 12+)" data-en="Native Camera Capture (Android 12+)">Cámara Nativa (Android 12+)</h4>
+                <p data-es="scrcpy permite capturar directamente el sensor de la cámara de tu teléfono sin transmitir la pantalla." data-en="scrcpy captures the camera sensor directly without mirroring the screen.">scrcpy permite capturar directamente el sensor de la cámara de tu teléfono sin transmitir la pantalla.</p>
                 <div class="code-box">scrcpy --video-source=camera --camera-facing=back</div>
               </div>
             </div>
@@ -433,8 +423,8 @@
             <div class="step-item">
               <div class="step-num">2</div>
               <div class="step-content">
-                <h4>Enlazar con OBS Studio en Linux (v4l2loopback)</h4>
-                <p>Instala el módulo v4l2loopback en tu sistema Linux y transmite el flujo directamente a la cámara virtual `/dev/video2`:</p>
+                <h4 data-es="Enlazar con OBS Studio en Linux (v4l2loopback)" data-en="Feed into OBS Studio via v4l2loopback">Enlazar con OBS Studio en Linux (v4l2loopback)</h4>
+                <p data-es="Instala el módulo v4l2loopback en tu sistema Linux y transmite el flujo directamente a la cámara virtual /dev/video2:" data-en="Install v4l2loopback module on Linux and feed video to virtual device /dev/video2:">Instala el módulo v4l2loopback en tu sistema Linux y transmite el flujo directamente a la cámara virtual `/dev/video2`:</p>
                 <div class="code-box">sudo apt install v4l2loopback-dkms<br/>scrcpy --video-source=camera --v4l2-sink=/dev/video2</div>
               </div>
             </div>
@@ -447,8 +437,8 @@
             <div class="step-item">
               <div class="step-num">!</div>
               <div class="step-content">
-                <h4>El comando `adb devices` aparece vacío</h4>
-                <p>Causa 1: Estás usando un cable USB de solo carga (sin hilos de datos). Prueba con otro cable.<br/>
+                <h4 data-es="El comando adb devices aparece vacío" data-en="adb devices returns empty">El comando `adb devices` aparece vacío</h4>
+                <p data-es="Causa 1: Estás usando un cable USB de solo carga. Prueba con otro cable.<br/>Causa 2: Cambia la notificación USB en Android de 'Carga' a 'Transferencia de archivos (MTP)'." data-en="Cause 1: Charge-only USB cable. Try another cable.<br/>Cause 2: Switch USB notification mode on Android from 'Charge' to 'File Transfer (MTP)'.">Causa 1: Estás usando un cable USB de solo carga (sin hilos de datos). Prueba con otro cable.<br/>
                 Causa 2: Desliza la barra de notificaciones de Android y cambia la opción USB de "Carga" a "Transferencia de archivos (MTP)".</p>
               </div>
             </div>
@@ -456,8 +446,8 @@
             <div class="step-item">
               <div class="step-num">!</div>
               <div class="step-content">
-                <h4>Estado `unauthorized` en ADB</h4>
-                <p>Desconecta el cable USB, ve a Opciones de Desarrollador en Android y presiona <strong>"Revocar autorizaciones de depuración USB"</strong>. Vuelve a conectar el cable y acepta la ventana flotante.</p>
+                <h4 data-es="Estado unauthorized en ADB" data-en="unauthorized status in ADB">Estado `unauthorized` en ADB</h4>
+                <p data-es="Desconecta el cable USB, ve a Opciones de Desarrollador en Android y presiona 'Revocar autorizaciones de depuración USB'. Vuelve a conectar el cable y acepta la ventana flotante." data-en="Disconnect USB, go to Developer Options and tap 'Revoke USB debugging authorizations'. Reconnect and accept prompt.">Desconecta el cable USB, ve a Opciones de Desarrollador en Android y presiona <strong>"Revocar autorizaciones de depuración USB"</strong>. Vuelve a conectar el cable y acepta la ventana flotante.</p>
               </div>
             </div>
           </div>
@@ -470,8 +460,8 @@
   <section id="faq">
     <div class="container">
       <div class="section-title">
-        <h2>Preguntas Frecuentes (FAQ)</h2>
-        <p>Respuesta a las dudas más comunes de la comunidad sobre MASV y scrcpy.</p>
+        <h2 data-es="Preguntas Frecuentes (FAQ)" data-en="Frequently Asked Questions (FAQ)">Preguntas Frecuentes (FAQ)</h2>
+        <p data-es="Respuesta a las dudas más comunes de la comunidad sobre MASV y scrcpy." data-en="Answers to common questions about MASV and scrcpy.">Respuesta a las dudas más comunes de la comunidad sobre MASV y scrcpy.</p>
       </div>
 
       <div class="search-box">
@@ -480,23 +470,23 @@
 
       <div class="faq-list">
         <div class="faq-item">
-          <div class="faq-question">¿Necesito instalar alguna APK en mi teléfono Android?</div>
-          <div class="faq-answer">No. MASV y scrcpy funcionan 100% de forma nativa a través del servidor ADB. Tu teléfono permanece completamente limpio sin instalar nada.</div>
+          <div class="faq-question" data-es="¿Necesito instalar alguna APK en mi teléfono Android?" data-en="Do I need to install an APK on my Android phone?">¿Necesito instalar alguna APK en mi teléfono Android?</div>
+          <div class="faq-answer" data-es="No. MASV y scrcpy funcionan 100% de forma nativa a través del servidor ADB. Tu teléfono permanece completamente limpio sin instalar nada." data-en="No. MASV and scrcpy work 100% natively via ADB server. Your phone remains clean without installing any apps.">No. MASV y scrcpy funcionan 100% de forma nativa a través del servidor ADB. Tu teléfono permanece completamente limpio sin instalar nada.</div>
         </div>
 
         <div class="faq-item">
-          <div class="faq-question">¿El audio del celular se escucha en la PC?</div>
-          <div class="faq-answer">Sí. En dispositivos con Android 11 o superior, scrcpy transmite el sonido interno del teléfono por defecto usando el códec Opus o AAC.</div>
+          <div class="faq-question" data-es="¿El audio del celular se escucha en la PC?" data-en="Is audio streamed to the PC?">¿El audio del celular se escucha en la PC?</div>
+          <div class="faq-answer" data-es="Sí. En dispositivos con Android 11 o superior, scrcpy transmite el sonido interno del teléfono por defecto usando el códec Opus o AAC." data-en="Yes. On Android 11+ devices, scrcpy streams internal audio by default using Opus or AAC codecs.">Sí. En dispositivos con Android 11 o superior, scrcpy transmite el sonido interno del teléfono por defecto usando el códec Opus o AAC.</div>
         </div>
 
         <div class="faq-item">
-          <div class="faq-question">¿Cómo se ejecuta el instalador ejecutable `.run` en Linux?</div>
-          <div class="faq-answer">Abre una terminal en la carpeta donde descargaste el archivo y ejecuta: <code>chmod +x MASV-Linux-Installer.run && ./MASV-Linux-Installer.run</code>. Esto instalará MASV en tu sistema, creará el icono en el Escritorio y habilitará el comando <code>MASV</code> en terminal.</div>
+          <div class="faq-question" data-es="¿Cómo se ejecuta el instalador ejecutable .run en Linux?" data-en="How do I run the .run installer on Linux?">¿Cómo se ejecuta el instalador ejecutable `.run` en Linux?</div>
+          <div class="faq-answer" data-es="Abre una terminal en la carpeta donde descargaste el archivo y ejecuta: chmod +x MASV-Linux-Installer.run && ./MASV-Linux-Installer.run. Esto instalará MASV en tu sistema, creará el icono en el Escritorio y habilitará el comando MASV en terminal." data-en="Open terminal in download folder and run: chmod +x MASV-Linux-Installer.run && ./MASV-Linux-Installer.run. This installs MASV, creates desktop shortcut and enables terminal 'MASV' command.">Abre una terminal en la carpeta donde descargaste el archivo y ejecuta: <code>chmod +x MASV-Linux-Installer.run && ./MASV-Linux-Installer.run</code>. Esto instalará MASV en tu sistema, creará el icono en el Escritorio y habilitará el comando <code>MASV</code> en terminal.</div>
         </div>
 
         <div class="faq-item">
-          <div class="faq-question">¿MASV es gratuito y de código abierto?</div>
-          <div class="faq-answer">Sí. MASV es desarrollado por el equipo de Memexicanisimos Studio bajo la licencia MIT. Puedes revisar, auditar y contribuir al código fuente en nuestro repositorio de GitHub.</div>
+          <div class="faq-question" data-es="¿MASV es gratuito y de código abierto?" data-en="Is MASV free and open source?">¿MASV es gratuito y de código abierto?</div>
+          <div class="faq-answer" data-es="Sí. MASV es desarrollado por el equipo de Memexicanisimos Studio bajo la licencia MIT. Puedes revisar, auditar y contribuir al código fuente en nuestro repositorio de GitHub." data-en="Yes. MASV is developed by Memexicanisimos Studio under the MIT license. Feel free to inspect, audit, and contribute on GitHub.">Sí. MASV es desarrollado por el equipo de Memexicanisimos Studio bajo la licencia MIT. Puedes revisar, auditar y contribuir al código fuente en nuestro repositorio de GitHub.</div>
         </div>
       </div>
     </div>
@@ -508,8 +498,8 @@
       <div class="footer-links">
         <a href="https://memexicanisimos.com" target="_blank" rel="noopener">Ecosistema Memexicanisimos.com</a>
         <a href="https://github.com/myinnervoid/Memexicanisimos-Android-Screen-Viewer" target="_blank" rel="noopener">Repositorio GitHub</a>
-        <a href="#tutoriales">Guías de Depuración</a>
-        <a href="#descargas">Descargas Directas</a>
+        <a href="#tutoriales" data-es="Guías de Depuración" data-en="Debugging Guides">Guías de Depuración</a>
+        <a href="#descargas" data-es="Descargas Directas" data-en="Direct Downloads">Descargas Directas</a>
       </div>
       <p class="copyright">
         © 2026 Memexicanisimos Studio. Basado en el motor de código abierto de Genymobile/scrcpy. Licencia MIT.
@@ -537,6 +527,19 @@
       items.forEach(item => {
         const text = item.textContent.toLowerCase();
         item.style.display = text.includes(input) ? 'block' : 'none';
+      });
+    }
+
+    function switchLang(lang) {
+      document.documentElement.lang = lang;
+      document.getElementById('btn-es').classList.toggle('active', lang === 'es');
+      document.getElementById('btn-en').classList.toggle('active', lang === 'en');
+
+      document.querySelectorAll('[data-es]').forEach(el => {
+        const text = el.getAttribute('data-' + lang);
+        if (text) {
+          el.innerHTML = text;
+        }
       });
     }
 
