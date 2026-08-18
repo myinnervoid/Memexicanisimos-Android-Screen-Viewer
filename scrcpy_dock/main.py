@@ -1130,7 +1130,7 @@ class ScrcpyDockApp:
         self._ob_steps = steps
         self._ob_win   = win
 
-        ico_l  = tk.Label(win, text="", bg=C["bg"], font=(FONT_FAMILY, 42))
+        ico_l  = tk.Label(win, text="", bg=C["bg"], fg=C["text"], font=(FONT_FAMILY, 42))
         ico_l.pack(pady=(28, 6))
         title_l = tk.Label(win, text="", bg=C["bg"], fg=C["purple"], font=(FONT_FAMILY, 15, "bold"))
         title_l.pack()
@@ -1148,7 +1148,7 @@ class ScrcpyDockApp:
 
         nav = tk.Frame(win, bg=C["card2"])
         nav.pack(fill="x", side="bottom", pady=(20, 0))
-        skip_btn = tk.Button(nav, text=_("Omitir"), bg=C["card2"], fg=C["muted"],
+        skip_btn = tk.Button(nav, text=_("Omitir"), bg=C["card2"], fg=C["text2"],
                              font=FONT_SM, relief="flat", bd=0, padx=12, pady=8)
         skip_btn.pack(side="left", padx=8, pady=6)
         next_btn = tk.Button(nav, text=_("Siguiente  ▶"), bg=C["blue"], fg="#FFF",
