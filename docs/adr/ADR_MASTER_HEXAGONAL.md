@@ -255,4 +255,114 @@ Consecuencia práctica: ciclos rápidos de start/stop (sesiones de <60 s) consum
 - [x] Smoke test ejecutado y verificado en 1 dispositivo real (Huawei Y9 Prime 2019, Kirin 710, EMUI 10).
 - [ ] TODO: Re-validar smoke test con 2 dispositivos simultáneos cuando el segundo dispositivo físico esté conectado.
 
+---
+
+## Apéndice · API Contract v2 · Servicios del Paso 3
+
+**Fecha de congelación:** 2026-09-14
+**Estado:** Cerrado · 3 servicios · 94 tests de contrato verdes
+
+### Estructura de capas (recordatorio)
+```text
+UI
+↓
+managers/ (DeviceManager, SessionManager)
+↓
+├── services/ (dominio transversal · este apéndice)
+├── core/ (engines · Paso 2)
+└── domain/ (modelos puros · Paso 1)
+```
+
+**Regla dura:** `services/` no importa `core/`, `managers/`, `ui/` ni `subprocess`.
+Verificado por `tests/contracts/test_services_structural.py`.
+
+### S1 · SecurityService (`services/security_service.py`)
+
+| Método | Firma | ErrorCodes posibles |
+|---|---|---|
+| `is_private_ip` | `(host: str) -> bool` | — (nunca lanza) |
+| `validate_wifi_endpoint` | `(host: str, port: int) -> OperationResult[str]` | `INVALID_IP_RANGE`, `INVALID_INPUT` |
+| `encrypt_vault` | `(data: dict) -> OperationResult[bytes]` | `INVALID_INPUT` |
+| `decrypt_vault` | `(blob: bytes) -> OperationResult[dict]` | `CONFIG_CORRUPT` |
+| `is_whitelisted_device` | `(serial: str, vault: dict) -> bool` | — (nunca lanza) |
+
+Constructor:
+```python
+SecurityService(
+    machine_id_path: Path = Path("/etc/machine-id"),
+    salt_path: Path | None = None,   # None → ~/.MASV/.salt
+    pbkdf2_iterations: int = 200_000,
+)
+```
+Cifrado: `cryptography.Fernet` + `PBKDF2HMAC(SHA-256)` sobre `machine-id` + salt de 32 bytes con permisos `0o600`. Vault v1: `{"version": 1, "trusted_devices": [{"serial", "label", "added_at"}]}`.
+
+### S2 · ProfileService (`services/profile_service.py`)
+
+| Método | Firma | ErrorCodes posibles |
+|---|---|---|
+| `sanitize_profile_dict` | `(raw: dict) -> dict` (static) | — |
+| `migrate_v1_to_v2` | `(raw: dict) -> dict` (static) | — |
+| `load_profile` | `(name: str) -> OperationResult[Profile]` | `PROFILE_NOT_FOUND`, `CONFIG_CORRUPT` |
+| `save_profile` | `(profile: Profile) -> OperationResult[None]` | `CONFIG_CORRUPT` |
+| `list_profiles` | `() -> OperationResult[list[str]]` | `CONFIG_CORRUPT` |
+| `delete_profile` | `(name: str) -> OperationResult[None]` | `CONFIG_CORRUPT` |
+
+Constructor:
+```python
+ProfileService(config_dir: Path, filename: str = "config.json")
+```
+Schema actual: `_CURRENT_SCHEMA_VERSION = 2`. Perfiles v1 se migran on-load con defaults seguros (`max_fps=None`, `audio_source="playback"`, `turn_screen_off=True`, `stay_awake=True`). Escritura atómica con `.tmp` + `os.replace`. Archivos corruptos nunca se sobreescriben silenciosamente.
+
+### S3 · InstallerService (`services/installer_service.py`)
+
+| Método | Firma | ErrorCodes posibles |
+|---|---|---|
+| `resolve_binary` | `(name: str) -> OperationResult[Path]` | `INVALID_INPUT`, `BINARY_NOT_FOUND` |
+| `ensure_layout` | `() -> OperationResult[None]` | `DEPENDENCY_INSTALL_FAILED` |
+| `write_desktop_entry` | `(exec_path: Path, icon_path: Path) -> OperationResult[None]` | `DEPENDENCY_INSTALL_FAILED` |
+| `uninstall` | `(purge: bool = False) -> OperationResult[None]` | `DEPENDENCY_INSTALL_FAILED` |
+
+Constructor:
+```python
+InstallerService(
+    home: Path | None = None,
+    xdg_data_home: Path | None = None,
+    which_fn: Callable[[str], Optional[str]] = shutil.which,
+)
+```
+Layout creado por `ensure_layout()`:
+```text
+~/.MASV/
+├── bin/          ← resolve_binary prioriza aquí
+├── assets/
+├── config/
+└── logs/
+```
+Enlaces XDG creados por `write_desktop_entry()`:
+- `~/.local/bin/MASV` → symlink al ejecutable
+- `~/.local/share/applications/MASV.desktop`
+
+`uninstall(purge=False)` conserva `~/.MASV/` (datos de usuario). `purge=True` borra todo.
+
+### ErrorCodes añadidos en Paso 3
+
+| Code | Uso |
+|---|---|
+| `BINARY_NOT_FOUND` | `InstallerService.resolve_binary` |
+| `INVALID_IP_RANGE` | `SecurityService.validate_wifi_endpoint` |
+| `CONFIG_CORRUPT` | `ProfileService`, `SecurityService` |
+| `PROFILE_NOT_FOUND` | `ProfileService.load_profile` |
+
+### Cobertura de tests de contrato · Paso 3
+
+| Suite | Tests |
+|---|---|
+| `test_security_service_contract.py` | 39 |
+| `test_profile_service_contract.py` | 37 |
+| `test_installer_service_contract.py` | 18 |
+| `test_services_structural.py` | 8 |
+| `test_services_smoke.py` | 1 |
+| **Total Paso 3** | **103** |
+
+
 
