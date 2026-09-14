@@ -51,8 +51,10 @@ _CODEC_FAILURE_TIMEOUT_SDK_HIGH = 2.5   # android_sdk >= 30
 # Patrones de fallo de códec (case-insensitive)
 _CODEC_FAILURE_PATTERNS = (
     "could not open encoder",
+    "could not create default video encoder",
     "codec not supported",
     "mediacodec error",
+    "codecexception",
 )
 
 # Patrones de desconexión (NO cuentan como fallo de códec)
@@ -229,14 +231,30 @@ class ScrcpyEngine:
         bitrate_str = self._format_bitrate(effective_bitrate)
 
         # 4. Construcción base de argv
-        argv = [
-            str(self._scrcpy_binary),
-            "--no-downsize-on-error",
+        argv = [str(self._scrcpy_binary)]
+        if device.serial:
+            argv.extend(["-s", device.serial])
+
+        argv.append("--no-downsize-on-error")
+
+        if config.resolution:
+            res_str = str(config.resolution).strip()
+            if res_str.lower() != "native":
+                if "x" in res_str:
+                    try:
+                        res_val = str(max(int(x) for x in res_str.split("x")))
+                        argv.extend(["--max-size", res_val])
+                    except ValueError:
+                        argv.extend(["--max-size", res_str])
+                else:
+                    argv.extend(["--max-size", res_str])
+
+        argv.extend([
             "--port", str(config.port),
             "--video-codec", effective_codec.value,
             "--video-bit-rate", bitrate_str,
             "--video-source", config.video_source,
-        ]
+        ])
 
         # 5. Gobernanza de audio: SDK <= 29 fuerza --no-audio y omite --audio-source
         if device.android_sdk <= 29:

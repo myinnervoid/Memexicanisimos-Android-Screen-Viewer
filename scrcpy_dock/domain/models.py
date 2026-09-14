@@ -75,9 +75,9 @@ class SessionConfig:
     resolution: str
     bit_rate: int
     video_source: str = "display"
-    max_fps: Optional[float] = 60.0
+    max_fps: Optional[float] = None
     camera_facing: Optional[str] = None
-    camera_id: Optional[str] = "0"
+    camera_id: Optional[str] = None
     audio_source: str = "playback"
     turn_screen_off: bool = True
     stay_awake: bool = True

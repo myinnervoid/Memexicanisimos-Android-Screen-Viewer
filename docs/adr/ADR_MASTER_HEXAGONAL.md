@@ -226,3 +226,33 @@ class ScrcpyEngine:
     def is_codec_failure(self, stderr_lines: list[str], elapsed_s: float, android_sdk: int) -> bool: ...
 ```
 
+---
+
+## Adendas y Hallazgos Empíricos del Smoke Test (Paso 2)
+
+### Adenda ADR-010 (2026-09-14) · --max-size obligatorio y direccionamiento -s
+Con `--no-downsize-on-error` activo, si la pantalla nativa excede la capacidad del encoder HW (ej. 2340x1080 en Kirin 710), MediaCodec rechaza la configuración con error `0xfffffc0e`. `build_command` DEBE inyectar `--max-size <resolution>` para forzar el downsize explícito antes de que scrcpy lo intente solo.
+
+Adicionalmente, `-s <serial>` es obligatorio en argv para direccionamiento determinista cuando hay más de un dispositivo conectado.
+
+Fixtures afectados: `BuildCommandContract` verifica la presencia de `-s <serial>` y `--max-size <resolution>` en el argv resultante.
+
+### Adenda ADR-011 (2026-09-14) · Patrones reales de fallo de códec en scrcpy 4.1
+La detección empírica en hardware físico reveló que scrcpy 4.1 emite patrones de diagnóstico específicos ante rechazos de códec/encoder:
+- `could not create default video encoder` (cuando el códec no está disponible en el dispositivo).
+- `codecexception` (case-insensitive para `android.media.MediaCodec$CodecException`).
+
+Estos patrones se incorporan a `_CODEC_FAILURE_PATTERNS` garantizando que la heurística adaptativa de `is_codec_failure()` dispare el fallback a H.264 dentro de la ventana de handshake.
+
+### Adenda ADR-029 (2026-09-14) · TIME-WAIT del kernel en PortAllocator
+Tras `stop_scene`, el socket de scrcpy entra en `TIME-WAIT` por ~60 s. El `PortAllocator` detecta el puerto como ocupado vía `bind()` sin `SO_REUSEADDR` y salta al siguiente puerto del rango.
+
+Esto NO es un bug: es el allocator protegiendo la integridad del puerto. Si asignara el mismo puerto en TIME-WAIT, scrcpy fallaría al bindear.
+
+Consecuencia práctica: ciclos rápidos de start/stop (sesiones de <60 s) consumen el pool a razón de 1 puerto por ciclo. Con 11 puertos (27183-27193) y un ritmo de 1 ciclo cada 5 s, el pool se agota en ~55 s antes de la primera expiración. Mitigación si se vuelve problema real: aumentar `max_offset` a 30-40 o añadir `SO_REUSEADDR` al bind de prueba (Opción A aprobada para Paso 2; evaluar Opción B en siguiente iteración).
+
+### Estado de Validación del Paso 2
+- [x] Smoke test ejecutado y verificado en 1 dispositivo real (Huawei Y9 Prime 2019, Kirin 710, EMUI 10).
+- [ ] TODO: Re-validar smoke test con 2 dispositivos simultáneos cuando el segundo dispositivo físico esté conectado.
+
+
