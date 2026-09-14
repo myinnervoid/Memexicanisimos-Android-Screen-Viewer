@@ -13,6 +13,7 @@ class ErrorCode(str, Enum):
     # Errores de Dependencias & Binarios
     ADB_NOT_FOUND = "ERR_ADB_NOT_FOUND"
     SCRCPY_NOT_FOUND = "ERR_SCRCPY_NOT_FOUND"
+    BINARY_NOT_FOUND = "ERR_BINARY_NOT_FOUND"
     DEPENDENCY_INSTALL_FAILED = "ERR_DEPENDENCY_INSTALL_FAILED"
 
     # Errores de Dispositivos & ADB
@@ -92,6 +93,15 @@ ERROR_CATALOG: Dict[ErrorCode, ErrorDetail] = {
         description_en="The 'scrcpy' executable was not found on the system.",
         remediation_es="Haz clic en 'Instalar Dependencias' en la pestaña de Ayuda.",
         remediation_en="Click 'Install Dependencies' in the Help tab."
+    ),
+    ErrorCode.BINARY_NOT_FOUND: ErrorDetail(
+        code=ErrorCode.BINARY_NOT_FOUND,
+        title_es="Binario no encontrado",
+        title_en="Binary Not Found",
+        description_es="No se encontró el binario requerido en el layout local ni en el PATH del sistema.",
+        description_en="The required binary was not found in local layout or system PATH.",
+        remediation_es="Verifica la instalación del binario o colócalo en ~/.MASV/bin/.",
+        remediation_en="Verify binary installation or place it in ~/.MASV/bin/."
     ),
     ErrorCode.DEVICE_NOT_FOUND: ErrorDetail(
         code=ErrorCode.DEVICE_NOT_FOUND,
