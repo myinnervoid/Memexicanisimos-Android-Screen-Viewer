@@ -245,6 +245,22 @@ class BuildCommandContract(unittest.TestCase):
         self.assertIn("--camera-id", argv)
         self.assertNotIn("--camera-facing", argv)
 
+    # ── direccionamiento y resolución (Adenda ADR-010) ──
+
+    def test_serial_is_injected_for_multidevice(self):
+        result = self.engine.build_command(_cfg(), self.device, self.caps)
+        self.assertTrue(result.success)
+        argv = result.data
+        self.assertIn("-s", argv)
+        self.assertEqual(argv[argv.index("-s") + 1], self.device.serial)
+
+    def test_max_size_matches_resolution_config(self):
+        result = self.engine.build_command(_cfg(resolution="1080"), self.device, self.caps)
+        self.assertTrue(result.success)
+        argv = result.data
+        self.assertIn("--max-size", argv)
+        self.assertEqual(argv[argv.index("--max-size") + 1], "1080")
+
 
 # ─── Guard cámara SDK < 31 · Hallazgo 1 ────────────────────────────
 
@@ -334,6 +350,14 @@ class CodecFailureHeuristicContract(unittest.TestCase):
     def test_mediacodec_error_triggers_failure(self):
         stderr = ["MediaCodec error: 0x80000000"]
         self.assertTrue(self.engine.is_codec_failure(stderr, 1.5, android_sdk=29))
+
+    def test_scrcpy_4_1_default_encoder_error_triggers_failure(self):
+        stderr = ["[server] ERROR: Could not create default video encoder for h265"]
+        self.assertTrue(self.engine.is_codec_failure(stderr, 1.0, android_sdk=29))
+
+    def test_scrcpy_4_1_codec_exception_triggers_failure(self):
+        stderr = ["android.media.MediaCodec$CodecException: Error 0xfffffc0e"]
+        self.assertTrue(self.engine.is_codec_failure(stderr, 1.0, android_sdk=29))
 
 
 # ─── verify_server_version · ADR-014 ──────────────────────────────────────
