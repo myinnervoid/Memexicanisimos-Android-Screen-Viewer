@@ -139,6 +139,21 @@ class TcpipContract(unittest.TestCase):
         engine.revert_tcpip("HWY9PRIME001")
         self.assertGreaterEqual(run_mock.call_count, 1)
 
+    @patch("subprocess.run")
+    def test_revert_treats_error_closed_as_success(self, run_mock):
+        """Regresión · EMUI 10 cierra el socket durante `adb usb`."""
+        run_mock.return_value = fake_completed_process(
+            stderr="error: closed", returncode=1,
+        )
+        engine = AdbEngine(ADB)
+        engine.start_tcpip("HWY9PRIME001")
+        run_mock.reset_mock()
+        run_mock.return_value = fake_completed_process(
+            stderr="error: closed", returncode=1,
+        )
+        result = engine.revert_tcpip("HWY9PRIME001")
+        self.assertTrue(result.success)
+
 
 # ─── tracker · ADR-008 ─────────────────────────────────────────────────────
 
