@@ -1,97 +1,310 @@
-"""ScrcpyEngine · Adaptador de bajo nivel para scrcpy.
+"""ScrcpyEngine · Adaptador de bajo nivel para scrcpy 4.1.
 
 Contrato v1 congelado — ver ADR-010, ADR-011, ADR-012, ADR-014.
+Calibrado contra scrcpy 4.1 (SDL 3.2.10, libavcodec 61).
 """
 from __future__ import annotations
-from pathlib import Path
-from typing import Callable
 
-from scrcpy_dock.contracts import OperationResult, ErrorCode
+import logging
+import re
+import subprocess
+import threading
+from pathlib import Path
+from typing import Callable, Optional
+
+from scrcpy_dock.contracts import OperationResult
+from scrcpy_dock.errors import ErrorCode
 from scrcpy_dock.domain.models import (
-    Device, DeviceCapabilities, SessionConfig, Codec,
+    Codec,
+    Device,
+    DeviceCapabilities,
+    SessionConfig,
 )
 from scrcpy_dock.domain.protocols import SessionProcess
 
+log = logging.getLogger(__name__)
+
+# Gobernanza de hardware · ADR-010
+_KIRIN_PLATFORM_PREFIXES = ("kirin710", "kirin710f", "kirin710a", "hi6250")
+_KIRIN_MAX_BITRATE = 8_000_000
+
+# Codecs disponibles por versión de Android (mejor primero)
+_CODECS_BY_SDK = (
+    (34, (Codec.AV1, Codec.H265, Codec.H264)),
+    (29, (Codec.H265, Codec.H264)),
+    (21, (Codec.H264,)),
+)
+
+# Whitelist de flags extra (ADR-013 · Opción A estricta)
+ALLOWED_EXTRA_FLAGS = frozenset({
+    "--no-control",
+    "--power-off-on-close",
+    "--show-touches",
+    "--stay-awake",
+    "--window-title",
+})
+
+# Timeouts adaptativos de detección de fallo (ADR-011)
+_CODEC_FAILURE_TIMEOUT_SDK_LOW = 5.0    # android_sdk <= 29
+_CODEC_FAILURE_TIMEOUT_SDK_HIGH = 2.5   # android_sdk >= 30
+
+# Patrones de fallo de códec (case-insensitive)
+_CODEC_FAILURE_PATTERNS = (
+    "could not open encoder",
+    "codec not supported",
+    "mediacodec error",
+)
+
+# Patrones de desconexión (NO cuentan como fallo de códec)
+_DISCONNECT_PATTERNS = (
+    "device not found",
+    "no such device",
+    "adb: device",
+)
+
+
+class _PopenSessionProcess:
+    """Envoltura mínima sobre subprocess.Popen cumpliendo el protocolo SessionProcess."""
+
+    def __init__(self, proc: subprocess.Popen) -> None:
+        self._proc = proc
+
+    @property
+    def pid(self) -> int:
+        return self._proc.pid
+
+    def poll(self) -> int | None:
+        return self._proc.poll()
+
+    def terminate(self) -> None:
+        self._proc.terminate()
+
+    def kill(self) -> None:
+        self._proc.kill()
+
+    def wait(self, timeout: float | None = None) -> int:
+        return self._proc.wait(timeout=timeout)
+
 
 class ScrcpyEngine:
-    """Constructor de comandos y ciclo de vida de procesos scrcpy.
-
-    Responsabilidades:
-      - Verificar coherencia versión binario ↔ scrcpy-server.jar (ADR-014).
-      - Resolver códecs compatibles por device+caps (ADR-010).
-      - Construir la línea de comandos con gobernanza de hardware.
-      - Lanzar el proceso con timeout adaptativo (ADR-011).
-      - Detectar fallo de códec en stderr para fallback (ADR-011/012).
-
-    NO responsabilidades:
-      - Asignar puertos TCP (eso es PortAllocator).
-      - Decidir política de fallback (eso es StreamService).
-      - Tocar la UI.
-    """
+    """Constructor de comandos y ciclo de vida de procesos scrcpy."""
 
     def __init__(
         self,
         scrcpy_binary: Path,
         server_jar: Path,
     ) -> None:
-        raise NotImplementedError
+        self._scrcpy_binary = Path(scrcpy_binary)
+        self._server_jar = Path(server_jar)
 
+    # ─── TODO-5 · verify_server_version (ADR-014) ──────────────────
     def verify_server_version(self) -> OperationResult[str]:
-        """Compara `scrcpy --version` con la versión del jar.
+        """Verifica que el binario de scrcpy responde y reporta su versión.
 
-        Contrato:
-          - Coinciden → OperationResult(success=True, data=version_str).
-          - Discrepan → success=False, error=SCRCPY_SERVER_VERSION_MISMATCH.
-          - Sin SHA-256 (ADR-014, uso no corporativo).
+        En scrcpy 4.x el servidor va embebido en el paquete / binario.
+        Se ejecuta `scrcpy --version` y se extrae el string de versión.
         """
-        raise NotImplementedError
+        try:
+            proc = subprocess.run(
+                [str(self._scrcpy_binary), "--version"],
+                capture_output=True,
+                text=True,
+                timeout=5,
+            )
+        except FileNotFoundError as e:
+            return OperationResult.fail(ErrorCode.SCRCPY_NOT_FOUND, str(e))
+        except subprocess.TimeoutExpired as e:
+            return OperationResult.fail(
+                ErrorCode.PROCESS_TIMEOUT, f"timeout al verificar versión: {e}",
+            )
 
-    def _compare_versions(self, client_ver: str, server_ver: str) -> OperationResult[str]:
-        """Compara versiones textuales de cliente y servidor scrcpy.
+        if proc.returncode != 0:
+            return OperationResult.fail(
+                ErrorCode.SCRCPY_NOT_FOUND,
+                proc.stderr or "scrcpy --version falló",
+            )
 
-        Contrato:
-          - Coinciden → OperationResult.ok(data=version_extraída).
-          - Discrepan → OperationResult.fail(ErrorCode.SCRCPY_SERVER_VERSION_MISMATCH).
-        """
-        raise NotImplementedError
+        first_line = proc.stdout.splitlines()[0] if proc.stdout.splitlines() else ""
+        ver_pattern = re.compile(r"(\d+\.\d+(?:\.\d+)?)")
+        m = ver_pattern.search(first_line)
+        if not m:
+            return OperationResult.fail(
+                ErrorCode.SCRCPY_SERVER_VERSION_MISMATCH,
+                f"No se pudo extraer versión del binario: '{first_line}'",
+            )
+        version = m.group(1)
+        return OperationResult.ok(version, f"Versión verificada: {version}")
 
+    @staticmethod
+    def _compare_versions(
+        scrcpy_version_output: str,
+        server_version_output: str,
+    ) -> OperationResult[str]:
+        """Compara las dos cadenas de versión extrayendo sus números de versión."""
+        ver_pattern = re.compile(r"(\d+\.\d+(?:\.\d+)?)")
+        m_client = ver_pattern.search(scrcpy_version_output)
+        m_server = ver_pattern.search(server_version_output)
+
+        if not m_client or not m_server:
+            return OperationResult.fail(
+                ErrorCode.SCRCPY_SERVER_VERSION_MISMATCH,
+                f"No se pudo extraer versión: client='{scrcpy_version_output}', server='{server_version_output}'",
+            )
+
+        client_ver = m_client.group(1)
+        server_ver = m_server.group(1)
+
+        if client_ver != server_ver:
+            return OperationResult.fail(
+                ErrorCode.SCRCPY_SERVER_VERSION_MISMATCH,
+                f"Discrepancia de versión: client={client_ver} != server={server_ver}",
+            )
+
+        return OperationResult.ok(client_ver, f"Versión verificada: {client_ver}")
+
+    # ─── TODO-6 · get_compatible_codecs (ADR-010) ──────────────────
     def get_compatible_codecs(
         self,
         device: Device,
         caps: DeviceCapabilities,
     ) -> OperationResult[list[Codec]]:
-        """Lista ordenada de códecs soportados, mejor primero.
+        """Lista ordenada de códecs soportados, mejor primero."""
+        for sdk_threshold, codecs in _CODECS_BY_SDK:
+            if device.android_sdk >= sdk_threshold:
+                base = list(codecs)
+                break
+        else:
+            base = [Codec.H264]
 
-        Matriz base (por android_sdk):
-          - SDK 21-28  → [H264]
-          - SDK 29-33  → [H265, H264]
-          - SDK 34+    → [AV1, H265, H264]
+        # Override Kirin 710 · ADR-010
+        platform_lower = (caps.platform or "").lower()
+        manufacturer_lower = (caps.manufacturer or "").lower()
+        is_kirin = any(p in platform_lower for p in _KIRIN_PLATFORM_PREFIXES) or (
+            manufacturer_lower == "huawei" and platform_lower.startswith("kirin")
+        )
 
-        Override por chipset (ADR-010 + calibración Kirin 710):
-          - Huawei Kirin 710/710F/710A → filtrar H265 (encoder HW inestable).
-            Resultado en Huawei Y9 (SDK 29): [H264] solamente.
-        """
-        raise NotImplementedError
+        if is_kirin:
+            base = [c for c in base if c == Codec.H264]
 
+        return OperationResult.ok(base)
+
+    # ─── TODO-7 · build_command (ADR-010 + Hallazgos 1-3) ──────────
     def build_command(
         self,
         config: SessionConfig,
         device: Device,
         caps: DeviceCapabilities,
     ) -> OperationResult[list[str]]:
-        """Construye argv completo de scrcpy.
+        """Construye argv completo de scrcpy con gobernanza de hardware."""
+        # 1. Guard cámara: requiere Android 12+ (SDK 31)
+        if config.video_source == "camera" and device.android_sdk < 31:
+            return OperationResult.fail(
+                ErrorCode.INVALID_INPUT,
+                f"Camera source requiere Android 12+ (SDK 31). Dispositivo: SDK {device.android_sdk}",
+            )
 
-        Gobernanza obligatoria:
-          1. Si device.android_sdk <= 29 → inyectar --no-audio y omitir --audio-source.
-          2. Si manufacturer es HUAWEI y platform empieza con 'kirin7' →
-             forzar códec=H264 y bitrate = min(config.bitrate, 8_000_000).
-          3. Nunca inflar bitrate elegido por usuario:
-             effective = min(user_bitrate, cap_por_chipset).
-          4. Puerto de scrcpy-server → usar config.port asignado por PortAllocator.
-          5. Whitelist A para extra_args. Si aparece flag fuera de whitelist -> INVALID_EXTRA_ARGS.
-        """
-        raise NotImplementedError
+        # 2. Validación estricta de extra_args contra ALLOWED_EXTRA_FLAGS
+        for token in config.extra_args:
+            flag_name = token.split("=", 1)[0]
+            if flag_name not in ALLOWED_EXTRA_FLAGS:
+                return OperationResult.fail(
+                    ErrorCode.INVALID_EXTRA_ARGS,
+                    f"Flag no permitido en extra_args: {token}",
+                )
 
+        # 3. Gobernanza Kirin (códec H264 forzado y bitrate clamp a 8M)
+        platform_lower = (caps.platform or "").lower()
+        manufacturer_lower = (caps.manufacturer or "").lower()
+        is_kirin = any(p in platform_lower for p in _KIRIN_PLATFORM_PREFIXES) or (
+            manufacturer_lower == "huawei" and platform_lower.startswith("kirin")
+        )
+
+        effective_codec = config.codec
+        effective_bitrate = config.bit_rate
+        if is_kirin:
+            effective_codec = Codec.H264
+            effective_bitrate = min(config.bit_rate, _KIRIN_MAX_BITRATE)
+
+        # Formateo de bitrate
+        bitrate_str = self._format_bitrate(effective_bitrate)
+
+        # 4. Construcción base de argv
+        argv = [
+            str(self._scrcpy_binary),
+            "--no-downsize-on-error",
+            "--port", str(config.port),
+            "--video-codec", effective_codec.value,
+            "--video-bit-rate", bitrate_str,
+            "--video-source", config.video_source,
+        ]
+
+        # 5. Gobernanza de audio: SDK <= 29 fuerza --no-audio y omite --audio-source
+        if device.android_sdk <= 29:
+            argv.append("--no-audio")
+        else:
+            argv.extend(["--audio-source", config.audio_source])
+
+        # 6. Framerate adaptativo
+        if config.max_fps is not None:
+            fps_flag = "--camera-fps" if config.video_source == "camera" else "--max-fps"
+            argv.extend([fps_flag, f"{config.max_fps:g}"])
+
+        # 7. Opciones de cámara (camera_id tiene precedencia sobre camera_facing)
+        if config.video_source == "camera":
+            if config.camera_id is not None:
+                argv.extend(["--camera-id", str(config.camera_id)])
+            elif config.camera_facing is not None:
+                argv.extend(["--camera-facing", config.camera_facing])
+
+        # 8. Título de ventana: inyectar f"MASV: {device.model}" si no se especificó en extra_args
+        has_custom_title = any(
+            token == "--window-title" or token.startswith("--window-title=")
+            for token in config.extra_args
+        )
+        if not has_custom_title and device.model:
+            argv.extend(["--window-title", f"MASV: {device.model}"])
+
+        # 9. Inyectar extra_args validados
+        argv.extend(config.extra_args)
+
+        return OperationResult.ok(argv, "comando construido exitosamente")
+
+    @staticmethod
+    def _format_bitrate(n: int) -> str:
+        """Formatea bitrate en Mbps (ej. 8M) o kbps (ej. 4500k)."""
+        if n % 1_000_000 == 0:
+            return f"{n // 1_000_000}M"
+        return f"{n // 1_000}k"
+
+    # ─── TODO-8 · is_codec_failure (ADR-011) ───────────────────────
+    def is_codec_failure(
+        self,
+        stderr_lines: list[str],
+        elapsed_s: float,
+        android_sdk: int,
+    ) -> bool:
+        """Heurística pura para detección temprana de fallo de códec."""
+        # 1. Ventana de timeout adaptativa
+        timeout = (
+            _CODEC_FAILURE_TIMEOUT_SDK_LOW
+            if android_sdk <= 29
+            else _CODEC_FAILURE_TIMEOUT_SDK_HIGH
+        )
+        if elapsed_s > timeout:
+            return False
+
+        # 2. Solo evaluar las primeras 10 líneas
+        window = stderr_lines[:10]
+        blob = "\n".join(window).lower()
+
+        # 3. Desconexión tiene precedencia y NO es fallo de códec
+        if any(p in blob for p in _DISCONNECT_PATTERNS):
+            return False
+
+        # 4. Buscar patrones de fallo de códec
+        return any(p in blob for p in _CODEC_FAILURE_PATTERNS)
+
+    # ─── TODO-9 · launch (ADR-011 · smoke manual) ──────────────────
     def launch(
         self,
         config: SessionConfig,
@@ -100,34 +313,43 @@ class ScrcpyEngine:
         on_stderr_line: Callable[[str], None] | None = None,
         on_exit: Callable[[int], None] | None = None,
     ) -> OperationResult[SessionProcess]:
-        """Lanza scrcpy y devuelve handle al proceso.
+        """Lanza scrcpy y devuelve handle al proceso SessionProcess."""
+        cmd_result = self.build_command(config, device, caps)
+        if not cmd_result.success:
+            return OperationResult.fail(
+                cmd_result.error_code or ErrorCode.PROCESS_SPAWN_ERROR,
+                cmd_result.message,
+            )
 
-        Timeout adaptativo para detección temprana de fallo (ADR-011):
-          - android_sdk <= 29 → 5.0 s
-          - android_sdk >= 30 → 2.5 s
+        argv = cmd_result.data
+        try:
+            proc = subprocess.Popen(
+                argv,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.PIPE,
+                text=True,
+                bufsize=1,
+            )
+        except (FileNotFoundError, OSError) as e:
+            return OperationResult.fail(ErrorCode.PROCESS_SPAWN_ERROR, str(e))
 
-        El timeout NO mata el proceso; solo define la ventana en que
-        `is_codec_failure()` puede declarar fallo temprano.
-        """
-        raise NotImplementedError
+        # Hilo centinela para capturar stderr si se solicita callback
+        if on_stderr_line is not None and proc.stderr is not None:
+            def _stderr_reader():
+                for line in proc.stderr:
+                    on_stderr_line(line.rstrip("\r\n"))
+                if on_exit is not None:
+                    proc.wait()
+                    on_exit(proc.returncode)
 
-    def is_codec_failure(
-        self,
-        stderr_lines: list[str],
-        elapsed_s: float,
-        android_sdk: int,
-    ) -> bool:
-        """Heurística pura — sin side effects.
+            t = threading.Thread(target=_stderr_reader, daemon=True, name="scrcpy-stderr")
+            t.start()
+        elif on_exit is not None:
+            def _exit_watcher():
+                proc.wait()
+                on_exit(proc.returncode)
 
-        Contrato:
-          - Ventana: solo se evalúan las primeras 10 líneas de stderr.
-          - Timeout de fallo: 5.0 s si sdk<=29, 2.5 s si sdk>=30.
-          - Patrones de fallo de códec (case-insensitive):
-              'could not open encoder'
-              'codec not supported'
-              'mediacodec error'
-          - Patrones de desconexión (NO cuentan como fallo de códec):
-              'device not found', 'no such device', 'adb: device'
-          - Devolver True SOLO si hay patrón de códec Y elapsed_s <= timeout.
-        """
-        raise NotImplementedError
+            t = threading.Thread(target=_exit_watcher, daemon=True, name="scrcpy-exit")
+            t.start()
+
+        return OperationResult.ok(_PopenSessionProcess(proc), "proceso iniciado")

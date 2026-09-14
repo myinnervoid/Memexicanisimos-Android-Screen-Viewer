@@ -1,4 +1,6 @@
-"""Contratos congelados de ScrcpyEngine. NO modificar sin reabrir ADR-010/011/012/014."""
+"""Contratos congelados de ScrcpyEngine. NO modificar sin reabrir ADR-010/011/012/014.
+Calibrado para scrcpy 4.1.
+"""
 from __future__ import annotations
 import unittest
 from pathlib import Path
@@ -8,14 +10,14 @@ from scrcpy_dock.contracts import ErrorCode
 from scrcpy_dock.domain.models import Codec, SessionConfig
 
 from tests.contracts.helpers import (
-    make_huawei_y9, make_modern_samsung,
+    make_device, make_huawei_y9, make_modern_samsung,
     make_caps, make_caps_huawei_y9, make_caps_modern_samsung,
     fake_completed_process,
 )
 
 
-BIN = Path("/usr/bin/scrcpy")
-JAR = Path("/usr/share/scrcpy/scrcpy-server.jar")
+BIN = Path("/usr/local/bin/scrcpy")
+JAR = Path("/usr/local/share/scrcpy/scrcpy-server")
 
 
 def _cfg(**kw) -> SessionConfig:
@@ -25,7 +27,7 @@ def _cfg(**kw) -> SessionConfig:
         resolution="1080",
         bit_rate=12_000_000,
         video_source="display",
-        max_fps=60.0,
+        # max_fps=None por defecto — cada test lo sobrescribe si lo necesita
     )
     base.update(kw)
     return SessionConfig(**base)
@@ -132,15 +134,25 @@ class BuildCommandContract(unittest.TestCase):
         port = argv[argv.index("--port") + 1]
         self.assertEqual(port, "27185")
 
-    # ── max_fps (ajuste #3) ──
+    # ── max_fps ──
 
-    def test_max_fps_formats_int_float_as_integer(self):
+    def test_max_fps_display_uses_max_fps_flag(self):
         result = self.engine.build_command(
-            _cfg(max_fps=60.0), self.device, self.caps,
+            _cfg(video_source="display", max_fps=60.0),
+            self.device, self.caps,
         )
         argv = result.data
-        fps = argv[argv.index("--max-fps") + 1]
-        self.assertEqual(fps, "60")
+        self.assertEqual(argv[argv.index("--max-fps") + 1], "60")
+        self.assertNotIn("--camera-fps", argv)
+
+    def test_max_fps_camera_uses_camera_fps_flag(self):
+        result = self.engine.build_command(
+            _cfg(video_source="camera", max_fps=30.0),
+            make_modern_samsung(), make_caps_modern_samsung(),
+        )
+        argv = result.data
+        self.assertEqual(argv[argv.index("--camera-fps") + 1], "30")
+        self.assertNotIn("--max-fps", argv)
 
     def test_max_fps_preserves_fractional(self):
         result = self.engine.build_command(
@@ -166,6 +178,27 @@ class BuildCommandContract(unittest.TestCase):
         )
         self.assertTrue(result.success)
         self.assertIn("--window-title=MASV Demo", result.data)
+
+    def test_user_window_title_suppresses_auto(self):
+        result = self.engine.build_command(
+            _cfg(extra_args=("--window-title=Custom Studio",)),
+            self.device, self.caps,
+        )
+        self.assertTrue(result.success)
+        argv = result.data
+        titles = [t for t in argv
+                  if t == "--window-title" or t.startswith("--window-title=")]
+        self.assertEqual(len(titles), 1)
+        self.assertIn("Custom Studio", titles[0])
+
+    def test_auto_window_title_injected_by_default(self):
+        result = self.engine.build_command(
+            _cfg(), self.device, self.caps,
+        )
+        self.assertTrue(result.success)
+        argv = result.data
+        self.assertIn("--window-title", argv)
+        self.assertEqual(argv[argv.index("--window-title") + 1], f"MASV: {self.device.model}")
 
     def test_forbidden_flag_returns_invalid_extra_args(self):
         result = self.engine.build_command(
@@ -193,7 +226,8 @@ class BuildCommandContract(unittest.TestCase):
     def test_camera_source_propagates_facing_flag(self):
         result = self.engine.build_command(
             _cfg(video_source="camera", camera_facing="back"),
-            self.device, self.caps,
+            make_modern_samsung(),
+            make_caps_modern_samsung(),
         )
         self.assertTrue(result.success)
         argv = result.data
@@ -203,12 +237,69 @@ class BuildCommandContract(unittest.TestCase):
     def test_camera_id_takes_precedence_over_facing(self):
         result = self.engine.build_command(
             _cfg(video_source="camera", camera_id="2", camera_facing="back"),
-            self.device, self.caps,
+            make_modern_samsung(),
+            make_caps_modern_samsung(),
         )
         self.assertTrue(result.success)
         argv = result.data
         self.assertIn("--camera-id", argv)
         self.assertNotIn("--camera-facing", argv)
+
+
+# ─── Guard cámara SDK < 31 · Hallazgo 1 ────────────────────────────
+
+class CameraGuardContract(unittest.TestCase):
+
+    def setUp(self):
+        self.engine = ScrcpyEngine(BIN, JAR)
+
+    def test_camera_source_rejected_on_android_10(self):
+        result = self.engine.build_command(
+            _cfg(video_source="camera", camera_facing="back"),
+            make_huawei_y9(),                       # SDK 29
+            make_caps_huawei_y9(),
+        )
+        self.assertFalse(result.success)
+        self.assertEqual(result.error, ErrorCode.INVALID_INPUT)
+        self.assertIn("Android 12", result.message)
+
+    def test_camera_source_accepted_on_android_12(self):
+        device = make_device(android_sdk=31)
+        caps = make_caps(manufacturer="Google", platform="tensor", sdk_int=31)
+        result = self.engine.build_command(
+            _cfg(video_source="camera"), device, caps,
+        )
+        self.assertTrue(result.success)
+
+    def test_display_source_still_works_on_android_10(self):
+        result = self.engine.build_command(
+            _cfg(video_source="display"),
+            make_huawei_y9(), make_caps_huawei_y9(),
+        )
+        self.assertTrue(result.success)
+
+
+# ─── Flags de scrcpy 4.1 específicos ───────────────────────────────
+
+class ScrcpyV4FlagsContract(unittest.TestCase):
+
+    def setUp(self):
+        self.engine = ScrcpyEngine(BIN, JAR)
+
+    def test_no_downsize_on_error_is_injected(self):
+        result = self.engine.build_command(
+            _cfg(), make_huawei_y9(), make_caps_huawei_y9(),
+        )
+        self.assertTrue(result.success)
+        self.assertIn("--no-downsize-on-error", result.data)
+
+    def test_max_fps_none_omits_both_fps_flags(self):
+        result = self.engine.build_command(
+            _cfg(max_fps=None), make_huawei_y9(), make_caps_huawei_y9(),
+        )
+        argv = result.data
+        self.assertNotIn("--max-fps", argv)
+        self.assertNotIn("--camera-fps", argv)
 
 
 # ─── is_codec_failure · ADR-011 ────────────────────────────────────────────

@@ -21,14 +21,17 @@
 * **ADR-006:** Socket ADB: reutilizar puerto 5037 por defecto. Aislar a 5038 solo si hay 2 fallos consecutivos de bind o por preferencia del usuario.
 * **ADR-007:** Detección de chipset por heurística rápida de 2 `getprop` (`ro.product.manufacturer` y `ro.board.platform`). Para Huawei Y9: lista de códecs = `[H.264]` únicamente.
 * **ADR-008:** Health Check híbrido reactivo con `adb track-devices` en hilo centinela + reconexión con backoff exponencial.
+  - **Adenda ADR-008 (2026-09-14) · Protocolo track-devices:** El socket ADB emite longitud hexadecimal de 4 caracteres sin salto de línea (`<4 hex chars><payload N bytes>\n`). Implementación obligatoria: `read(4)` + `read(N)`. `readline()` queda prohibido en la cabecera para evitar lecturas truncadas o bloqueos.
 * **ADR-009:** Cierre de `tcpip 5555` al salir únicamente si MASV activó el flag `wifi_activated_by_masv`.
+  - **Adenda ADR-009 (2026-09-14) · Transición de transporte EMUI 10:** En Android 10, revertir a USB vía `adb usb` cierra el socket TCP provocando `error: closed` o `device not found`. Estos patrones de cierre son tratados como reversión exitosa.
 
 ### C. ScrcpyEngine
 * **ADR-010:** Matriz de códecs en engine (`ScrcpyEngine.get_compatible_codecs(device)`), política de decisión en `StreamService`.
 * **ADR-011:** Detección de fallo de códec en handshake por parseo de las primeras 10 líneas de `stderr`. Timeout calibrado: **5.0 s para Android ≤ 10 (Huawei Y9)**, **2.5 s para Android 11+**.
 * **ADR-012:** Auto-fallback efímero + Toast informativo con opción de fijar en perfil.
 * **ADR-013:** `--video-source=camera` con pestaña propia `ui/tabs/tab_camera.py` y selector rápido para el **Curso de Fotografía**.
-* **ADR-014:** Verificación de versión por comparación de string (`scrcpy --version`).
+* **ADR-014:** Verificación de versión: en scrcpy 4.x el servidor va empaquetado/embebido en el binario (`scrcpy --version`). `_compare_versions` se mantiene como contrato durmiente de compatibilidad si scrcpy desacopla versiones de binario/jar en versiones futuras.
+* **ADR-014b:** Prioridad de título de ventana: `build_command` inyecta automáticamente `--window-title "MASV: {device.model}"` a menos que el usuario especifique un `--window-title` personalizado en `extra_args` (en cuyo caso el título del usuario tiene precedencia y suprime el auto).
 
 ### D. V4l2Driver
 * **ADR-015:** Soporte nativo para Debian / Ubuntu (`v4l2loopback-dkms` y `v4l2-ctl`).
