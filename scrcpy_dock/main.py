@@ -207,8 +207,6 @@ class ScrcpyDockApp:
 
         self._simple_view = tk.Frame(self.root, bg=C["bg"])
 
-        self._simple_view = tk.Frame(self.root, bg=C["bg"])
-
         self.ui.build_tab_actions(self._tab_actions)
         self.ui.build_tab_controls(self._tab_controls)
         self.ui.build_tab_device(self._tab_device)
@@ -217,17 +215,17 @@ class ScrcpyDockApp:
         self.ui.build_tab_help(self._tab_help)
         self.ui.build_simple_view(self._simple_view)
 
-        bar = tk.Frame(self.root, bg=C["card2"], height=34)
+        bar = tk.Frame(self.root, bg=C["card2"], height=40)
         bar.pack(fill="x", side="bottom")
         bar.pack_propagate(False)
-        self._status_lbl = tk.Label(bar, text=_("Iniciando…"), bg=C["card2"],
 
         self.is_advanced_view = True
-        self.btn_toggle_view = tk.Button(bar, text="Cambiar a Vista Simple", bg=C["sep"], fg=C["text"],
+        self.btn_toggle_view = tk.Button(bar, text=_("Cambiar a Vista Simple"), bg=C["sep"], fg=C["text"],
                                      font=FONT_SM, relief="flat", bd=0, padx=12, pady=4,
                                      command=self._toggle_view)
-        self.btn_toggle_view.pack(side="right", padx=14)
-        self._status_lbl = tk.Label(bar, text="Iniciando…", bg=C["card2"],
+        self.btn_toggle_view.pack(side="right", padx=14, pady=4)
+
+        self._status_lbl = tk.Label(bar, text=_("Iniciando…"), bg=C["card2"],
                                     fg=C["muted"], font=FONT_SM, anchor="w")
         self._status_lbl.pack(side="left", padx=14, pady=4)
 
@@ -254,21 +252,16 @@ class ScrcpyDockApp:
 
         self._nb.bind("<<NotebookTabChanged>>", self._on_tab_changed)
 
-        self.ui.refs['profile_listbox'].bind("<<ListboxSelect>>", self._on_profile_listbox_sel)
-        self._refresh_profile_listbox()
-
-        self._nb.bind("<<NotebookTabChanged>>", self._on_tab_changed)
-
     def _toggle_view(self):
         if self.is_advanced_view:
             self._nb.pack_forget()
             self._simple_view.pack(fill="both", expand=True, padx=8, pady=(4, 0))
-            self.btn_toggle_view.config(text="Cambiar a Vista Avanzada")
+            self.btn_toggle_view.config(text=_("Cambiar a Vista Avanzada"))
             self.is_advanced_view = False
         else:
             self._simple_view.pack_forget()
             self._nb.pack(fill="both", expand=True, padx=8, pady=(4, 0))
-            self.btn_toggle_view.config(text="Cambiar a Vista Simple")
+            self.btn_toggle_view.config(text=_("Cambiar a Vista Simple"))
             self.is_advanced_view = True
 
     def _set_status(self, msg: str, color: str = None):
@@ -385,6 +378,8 @@ class ScrcpyDockApp:
                 listbox.insert(tk.END, f"  🟢  {model}  ({serial})")
             elif state == "unauth":
                 listbox.insert(tk.END, f"  🟠  {model}  ({serial})")
+            elif state == "offline":
+                listbox.insert(tk.END, f"  🔴  {model}  ({serial})")
             else:
                 listbox.insert(tk.END, f"  ⚫  {model}  ({serial})")
 
@@ -422,7 +417,7 @@ class ScrcpyDockApp:
                 return
             raw = listbox.get(sel[0])
             serial = _extract_serial(raw)
-            model = raw.strip().lstrip("🟢🟠⚫ ").split("  (")[0].strip()
+            model = raw.strip().lstrip("🟢🟠🔴⚫ ").split("  (")[0].strip()
 
         self.ctx.select_device(serial, f"{model} ({serial})")
 
@@ -430,6 +425,9 @@ class ScrcpyDockApp:
         if state == "unauth":
             self.ui.refs['dev_info_lbl'].config(text=f"🟠  {serial}  —  ¡Acepta el permiso de depuración en la pantalla del teléfono!", fg=C["orange"])
             self._set_status(_("⚠  Dispositivo no autorizado. Acepta el diálogo en el teléfono."), C["orange"])
+        elif state == "offline":
+            self.ui.refs['dev_info_lbl'].config(text=f"🔴  {serial}  —  El dispositivo está desconectado (offline). Reinicia ADB.", fg=C["red"])
+            self._set_status(_("⚠  Dispositivo offline. Desconecta y vuelve a conectar."), C["red"])
         elif state == "ok":
             self.ui.refs['dev_info_lbl'].config(text=f"🟢  {model}  ({serial})  —  Conectado y autorizado.", fg=C["green"])
             self._set_status(f"✔  {model}  —  {serial}", C["green"])
