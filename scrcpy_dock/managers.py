@@ -69,13 +69,18 @@ class DeviceManager:
                     parts  = ln.split()
                     serial, state = parts[0], parts[1]
                     if state == "device":
-                        m = subprocess.run(
-                            [self.adb, "-s", serial, "shell", "getprop", "ro.product.model"],
-                            capture_output=True, text=True, timeout=4)
-                        model = m.stdout.strip() or "Android"
-                        found.append((serial, model, "ok"))
+                        try:
+                            m = subprocess.run(
+                                [self.adb, "-s", serial, "shell", "getprop", "ro.product.model"],
+                                capture_output=True, text=True, timeout=4)
+                            model = m.stdout.strip() or "Android"
+                            found.append((serial, model, "ok"))
+                        except Exception:
+                            found.append((serial, "Android", "ok"))
                     elif state == "unauthorized":
                         found.append((serial, "⚠  Acepta el permiso en el teléfono", "unauth"))
+                    elif state == "offline":
+                        found.append((serial, "🔌  Dispositivo desconectado (offline)", "offline"))
                     else:
                         found.append((serial, f"[{state}]", "other"))
                 self.devices = found
@@ -110,6 +115,8 @@ class SessionManager:
             cmd.extend(["--max-size", profile_data["max_size"]])
         if profile_data.get("max_fps"):
             cmd.extend(["--max-fps", profile_data["max_fps"]])
+        if profile_data.get("video_codec"):
+            cmd.extend(["--video-codec", profile_data["video_codec"]])
         
         a_src = profile_data.get("audio_source", "playback")
         if a_src != "none":

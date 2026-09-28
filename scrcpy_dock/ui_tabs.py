@@ -28,38 +28,38 @@ class UIBuilder:
         center_frame.place(relx=0.5, rely=0.5, anchor="center")
 
         # Título
-        tk.Label(center_frame, text="Modo Simple", bg=C["bg"], fg=C["purple"], font=FONT_LG).pack(pady=(0, 20))
+        tk.Label(center_frame, text=_("Modo Simple"), bg=C["bg"], fg=C["purple"], font=FONT_LG).pack(pady=(0, 20))
 
         # Dispositivo
         dev_frame = _row(center_frame, bg=C["bg"])
-        tk.Label(dev_frame, text="📱 Dispositivo:", bg=C["bg"], fg=C["text"], font=FONT_UI_B, width=15, anchor="w").pack(side="left")
+        tk.Label(dev_frame, text=_("📱 Dispositivo:"), bg=C["bg"], fg=C["text"], font=FONT_UI_B, width=15, anchor="w").pack(side="left")
         self.refs['simple_dev_combo'] = ttk.Combobox(dev_frame, textvariable=self.ctx.active_device, state="readonly", width=30)
         self.refs['simple_dev_combo'].pack(side="left", padx=10)
         btn_refresh = ttk.Button(dev_frame, text="🔄", width=3, command=self.cb.get('refresh_devices'), style="Secondary.TButton")
         btn_refresh.pack(side="left")
-        Tooltip(btn_refresh, "Refrescar dispositivos conectados")
+        Tooltip(btn_refresh, _("Refrescar dispositivos conectados"))
 
         self.refs['simple_dev_combo'].bind("<<ComboboxSelected>>", self.cb.get('on_dev_select'))
 
         # Perfil
         prof_frame = _row(center_frame, bg=C["bg"])
-        tk.Label(prof_frame, text="⚙️ Perfil:", bg=C["bg"], fg=C["text"], font=FONT_UI_B, width=15, anchor="w").pack(side="left")
+        tk.Label(prof_frame, text=_("⚙️ Perfil:"), bg=C["bg"], fg=C["text"], font=FONT_UI_B, width=15, anchor="w").pack(side="left")
         self.refs['simple_prof_combo'] = ttk.Combobox(prof_frame, textvariable=self.ctx.active_profile, state="readonly", width=30)
         self.refs['simple_prof_combo'].pack(side="left", padx=10)
         btn_new_prof = ttk.Button(prof_frame, text="✨", width=3, command=self.cb.get('open_wizard'), style="Purple.TButton")
         btn_new_prof.pack(side="left")
-        Tooltip(btn_new_prof, "Crear un nuevo perfil")
+        Tooltip(btn_new_prof, _("Crear un nuevo perfil"))
 
         self.refs['simple_prof_combo'].bind("<<ComboboxSelected>>", self.cb.get('on_active_profile_change'))
 
         # Comandos extra (Opcional)
         cmd_frame = _row(center_frame, bg=C["bg"])
-        tk.Label(cmd_frame, text="🧩 Comandos extra:", bg=C["bg"], fg=C["text"], font=FONT_UI_B, width=15, anchor="w").pack(side="left")
+        tk.Label(cmd_frame, text=_("🧩 Comandos extra:"), bg=C["bg"], fg=C["text"], font=FONT_UI_B, width=15, anchor="w").pack(side="left")
 
         self.refs['simple_extra_cmd_var'] = tk.StringVar(value="")
         e_extra = ttk.Entry(cmd_frame, textvariable=self.refs['simple_extra_cmd_var'], width=35)
         e_extra.pack(side="left", padx=10)
-        Tooltip(e_extra, "Argumentos adicionales para scrcpy (opcional)")
+        Tooltip(e_extra, _("Argumentos adicionales para scrcpy (opcional)"))
 
         _sep(center_frame, C["sep"])
 
@@ -67,17 +67,17 @@ class UIBuilder:
         actions_frame = tk.Frame(center_frame, bg=C["bg"])
         actions_frame.pack(pady=20)
 
-        btn_start = ttk.Button(actions_frame, text="▶  Iniciar", command=self.cb.get('toggle_scene'), style="Primary.TButton")
+        btn_start = ttk.Button(actions_frame, text=_("▶  Iniciar"), command=self.cb.get('toggle_scene'), style="Primary.TButton")
         btn_start.pack(side="left", padx=10)
-        Tooltip(btn_start, "Iniciar transmisión")
+        Tooltip(btn_start, _("Iniciar transmisión"))
 
-        btn_stop = ttk.Button(actions_frame, text="■  Detener", command=self.cb.get('stop_current'), style="Danger.TButton")
+        btn_stop = ttk.Button(actions_frame, text=_("■  Detener"), command=self.cb.get('stop_current'), style="Danger.TButton")
         btn_stop.pack(side="left", padx=10)
-        Tooltip(btn_stop, "Detener transmisión activa")
+        Tooltip(btn_stop, _("Detener transmisión activa"))
 
-        btn_adb = ttk.Button(actions_frame, text="↺  Reiniciar ADB", command=self.cb.get('restart_adb'), style="Warn.TButton")
+        btn_adb = ttk.Button(actions_frame, text=_("↺  Reiniciar ADB"), command=self.cb.get('restart_adb'), style="Warn.TButton")
         btn_adb.pack(side="left", padx=10)
-        Tooltip(btn_adb, "Reiniciar el servidor ADB")
+        Tooltip(btn_adb, _("Reiniciar el servidor ADB"))
 
     # ─────────────────────────────────────────────────────────────────
     # Pestaña 1: Acciones (Hub de Transmisión)
