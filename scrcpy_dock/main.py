@@ -153,7 +153,7 @@ class ScrcpyDockApp:
         help_menu = tk.Menu(menubar, tearoff=0, bg=C["card"], fg=C["text"], activebackground=C["blue"], activeforeground="#FFF")
         help_menu.add_command(label=_("📖 Guía de Depuración USB"), command=self._go_to_help_usb, accelerator="Ctrl+H")
         help_menu.add_command(label=_("💡 Ver Asistente de Inicio (Onboarding)"), command=self._show_onboarding)
-        help_menu.add_command(label=_("ℹ️ Acerca de MASV v1.2"), command=lambda: messagebox.showinfo(APP_NAME, "MASV v1.2 — Memexicanisimos Android Screen Viewer\n\nHerramienta nativa de transmisión y control de pantalla para Android.\nDesarrollada con Python, Tkinter y el núcleo de scrcpy."))
+        help_menu.add_command(label=_("ℹ️ Acerca de MASV v1.3"), command=lambda: messagebox.showinfo(APP_NAME, "MASV v1.3 — Memexicanisimos Android Screen Viewer\n\nHerramienta nativa de transmisión y control de pantalla para Android.\nDesarrollada con Python, Tkinter y el núcleo de scrcpy."))
         menubar.add_cascade(label=_("Ayuda"), menu=help_menu)
 
         self.root.config(menu=menubar)
@@ -339,7 +339,7 @@ class ScrcpyDockApp:
 
         lang_btn.config(command=_toggle_language)
 
-        tk.Label(bar, text="v1.2", bg=C["card2"], fg=C["muted"], font=FONT_SM).pack(side="right", padx=4)
+        tk.Label(bar, text="v1.3", bg=C["card2"], fg=C["muted"], font=FONT_SM).pack(side="right", padx=4)
 
         if 'profile_listbox' in self.ui.refs:
             self.ui.refs['profile_listbox'].bind("<<ListboxSelect>>", self._on_profile_listbox_sel)
