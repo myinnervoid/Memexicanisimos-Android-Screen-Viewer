@@ -237,42 +237,51 @@ class ScrcpyEngine:
 
         argv.append("--no-downsize-on-error")
 
-        if config.resolution:
-            res_str = str(config.resolution).strip()
-            if res_str.lower() != "native":
-                if "x" in res_str:
-                    try:
-                        res_val = str(max(int(x) for x in res_str.split("x")))
-                        argv.extend(["--max-size", res_val])
-                    except ValueError:
-                        argv.extend(["--max-size", res_str])
-                else:
-                    argv.extend(["--max-size", res_str])
-
-        argv.extend([
-            "--port", str(config.port),
-            "--video-codec", effective_codec.value,
-            "--video-bit-rate", bitrate_str,
-            "--video-source", config.video_source,
-        ])
-
-        # 5. Gobernanza de audio: SDK <= 29 fuerza --no-audio y omite --audio-source
-        if device.android_sdk <= 29:
-            argv.append("--no-audio")
+        if config.otg_mode:
+            argv.append("--otg")
         else:
-            argv.extend(["--audio-source", config.audio_source])
+            if config.resolution:
+                res_str = str(config.resolution).strip()
+                if res_str.lower() != "native":
+                    if "x" in res_str:
+                        try:
+                            res_val = str(max(int(x) for x in res_str.split("x")))
+                            argv.extend(["--max-size", res_val])
+                        except ValueError:
+                            argv.extend(["--max-size", res_str])
+                    else:
+                        argv.extend(["--max-size", res_str])
 
-        # 6. Framerate adaptativo
-        if config.max_fps is not None:
-            fps_flag = "--camera-fps" if config.video_source == "camera" else "--max-fps"
-            argv.extend([fps_flag, f"{config.max_fps:g}"])
+            argv.extend([
+                "--port", str(config.port),
+                "--video-codec", effective_codec.value,
+                "--video-bit-rate", bitrate_str,
+                "--video-source", config.video_source,
+            ])
 
-        # 7. Opciones de cámara (camera_id tiene precedencia sobre camera_facing)
-        if config.video_source == "camera":
-            if config.camera_id is not None:
-                argv.extend(["--camera-id", str(config.camera_id)])
-            elif config.camera_facing is not None:
-                argv.extend(["--camera-facing", config.camera_facing])
+            # 5. Gobernanza de audio: SDK <= 29 fuerza --no-audio y omite --audio-source
+            if device.android_sdk <= 29:
+                argv.append("--no-audio")
+            else:
+                argv.extend(["--audio-source", config.audio_source])
+
+            # 6. Framerate adaptativo
+            if config.max_fps is not None:
+                fps_flag = "--camera-fps" if config.video_source == "camera" else "--max-fps"
+                argv.extend([fps_flag, f"{config.max_fps:g}"])
+
+            # 7. Opciones de cámara (camera_id tiene precedencia sobre camera_facing)
+            if config.video_source == "camera":
+                if config.camera_id is not None:
+                    argv.extend(["--camera-id", str(config.camera_id)])
+                elif config.camera_facing is not None:
+                    argv.extend(["--camera-facing", config.camera_facing])
+
+        # HID mode extensions
+        if config.keyboard_mode:
+            argv.extend(["--keyboard", config.keyboard_mode])
+        if config.mouse_mode:
+            argv.extend(["--mouse", config.mouse_mode])
 
         # 8. Título de ventana: inyectar f"MASV: {device.model}" si no se especificó en extra_args
         has_custom_title = any(

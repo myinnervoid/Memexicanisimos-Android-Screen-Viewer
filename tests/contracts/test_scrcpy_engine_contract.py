@@ -295,6 +295,58 @@ class CameraGuardContract(unittest.TestCase):
         self.assertTrue(result.success)
 
 
+# ─── OTG and HID modes ──────────────────────────────────────────────────
+
+class OtgAndHidContract(unittest.TestCase):
+
+    def setUp(self):
+        self.engine = ScrcpyEngine(BIN, JAR)
+        self.device = make_huawei_y9()
+        self.caps = make_caps_huawei_y9()
+
+    def test_otg_mode_injects_otg_and_omits_video_audio(self):
+        result = self.engine.build_command(
+            _cfg(otg_mode=True), self.device, self.caps,
+        )
+        self.assertTrue(result.success)
+        argv = result.data
+        self.assertIn("--otg", argv)
+        self.assertNotIn("--video-codec", argv)
+        self.assertNotIn("--video-bit-rate", argv)
+        self.assertNotIn("--audio-source", argv)
+
+    def test_keyboard_mode_injects_flag(self):
+        result = self.engine.build_command(
+            _cfg(keyboard_mode="uhid"), self.device, self.caps,
+        )
+        self.assertTrue(result.success)
+        argv = result.data
+        self.assertIn("--keyboard", argv)
+        self.assertEqual(argv[argv.index("--keyboard") + 1], "uhid")
+
+    def test_mouse_mode_injects_flag(self):
+        result = self.engine.build_command(
+            _cfg(mouse_mode="aoa"), self.device, self.caps,
+        )
+        self.assertTrue(result.success)
+        argv = result.data
+        self.assertIn("--mouse", argv)
+        self.assertEqual(argv[argv.index("--mouse") + 1], "aoa")
+
+    def test_otg_with_keyboard_and_mouse(self):
+        result = self.engine.build_command(
+            _cfg(otg_mode=True, keyboard_mode="uhid", mouse_mode="uhid"),
+            self.device, self.caps,
+        )
+        self.assertTrue(result.success)
+        argv = result.data
+        self.assertIn("--otg", argv)
+        self.assertIn("--keyboard", argv)
+        self.assertEqual(argv[argv.index("--keyboard") + 1], "uhid")
+        self.assertIn("--mouse", argv)
+        self.assertEqual(argv[argv.index("--mouse") + 1], "uhid")
+
+
 # ─── Flags de scrcpy 4.1 específicos ───────────────────────────────
 
 class ScrcpyV4FlagsContract(unittest.TestCase):

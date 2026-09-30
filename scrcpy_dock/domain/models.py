@@ -82,3 +82,6 @@ class SessionConfig:
     turn_screen_off: bool = True
     stay_awake: bool = True
     extra_args: tuple[str, ...] = ()
+    otg_mode: bool = False
+    keyboard_mode: Optional[str] = None
+    mouse_mode: Optional[str] = None
