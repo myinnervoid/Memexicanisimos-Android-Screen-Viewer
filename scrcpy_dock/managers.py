@@ -185,6 +185,9 @@ class DeviceManager:
             elif d.state == DeviceState.UNAUTHORIZED:
                 found.append((d.serial, "⚠  Acepta el permiso en el teléfono", "unauth"))
                 entries.append(DeviceEntry(serial=d.serial, model="Android", state="unauthorized"))
+            elif d.state == DeviceState.OFFLINE:
+                found.append((d.serial, "🔌  Dispositivo desconectado (offline)", "offline"))
+                entries.append(DeviceEntry(serial=d.serial, model="Android", state="offline"))
             else:
                 st_str = d.state.value if hasattr(d.state, "value") else str(d.state)
                 found.append((d.serial, f"[{st_str}]", "other"))

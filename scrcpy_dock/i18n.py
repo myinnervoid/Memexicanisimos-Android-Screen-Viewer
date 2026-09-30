@@ -365,7 +365,9 @@ _translations = {
         "✔  Pulsa 'Guardar perfil' para finalizar.": "✔  Press 'Save profile' to finish.",
         "Iniciar transmisión": "Start cast",
         "Apagar pantalla del teléfono": "Turn off phone screen",
-        "Detener": "Stop"
+        "Detener": "Stop",
+        "Cambiar a Vista Simple": "Switch to Simple View",
+        "Cambiar a Vista Avanzada": "Switch to Advanced View"
 }
 }
 
