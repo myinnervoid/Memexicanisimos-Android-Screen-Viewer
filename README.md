@@ -101,6 +101,27 @@ Diseñada especialmente para **gamers, streamers, creadores de contenido y desar
 
 ---
 
+## ❓ Preguntas Frecuentes (FAQ)
+
+### 🔴 ¿Qué hacer si el dispositivo aparece en estado "Offline"?
+Indica que el teléfono perdió comunicación con el socket ADB (común por micro-cortes o suspensión de energía del puerto USB).
+* **Solución:** Reconecta el cable USB, comprueba que el puerto no suspenda energía y pulsa **"⚡ Reiniciar ADB"** en MASV (o atajo en menú Dispositivo).
+
+### 📱 Restricciones y Optimización en Huawei Y9 / Android 10 (EMUI 10)
+* **Audio:** Android 10 no admite captura nativa interna de audio por `scrcpy` (requiere Android 11+). MASV activa automáticamente `--no-audio`.
+* **Rendimiento:** Para el chipset Kirin 710, se recomienda el códec **H.264** a un bitrate máximo de **8 Mbps** y resolución **1080p o 720p**.
+
+### 🛡️ Bóveda de Dispositivos Confiables y Modo Seguro
+Registrar equipos en la Bóveda evita conexiones accidentales o no autorizadas en redes Wi-Fi públicas. El **Modo Seguro** revoca el puerto 5555 ejecutando `adb usb` para blindar el dispositivo.
+
+### 📷 Modo Estudio Fotográfico & Clean Camera Feed
+Permite usar la cámara trasera limpia del teléfono en **OBS Studio** sin elementos de interfaz gráfica. En Linux, MASV monta la cámara como webcam virtual de cero latencia mediante el módulo del kernel `v4l2loopback`.
+
+### 🚪 Cierre Limpio vs. Minimizar a la Bandeja
+El botón Salir (o `Ctrl + Q`) cierra deterministamente la interfaz, detiene los subprocesos de scrcpy y apaga el rastreador de dispositivos (`Device Tracker`), liberando limpiamente los puertos de red y locks de archivo.
+
+---
+
 ## 📜 Licencia
 
 Desarrollado por **Memexicanisimos Studio** bajo la licencia **MIT**. Basado en el motor de código abierto de Genymobile/scrcpy.
