@@ -883,3 +883,57 @@ class UIBuilder:
 
         _add("🛠  10. Solución de problemas comunes y optimización", _faq_troubleshooting)
 
+        # ── 11. Dispositivo en estado Offline ─────────────────────────
+        def _faq_offline(f):
+            tips = [
+                _("El teléfono perdió comunicación con el socket ADB debido a desconexión o suspensión de energía USB."),
+                _("Solución: reconecta el cable, asegúrate de que el puerto USB no suspenda la energía y haz clic en 'Reiniciar ADB' en MASV.")
+            ]
+            for desc in tips:
+                tk.Label(f, text=f"• {desc}", bg=C["bg"], fg=C["text2"], font=FONT_UI, anchor="w", wraplength=680, justify="left").pack(fill="x", padx=16, pady=2)
+
+        _add(_("🔴 Dispositivo en estado Offline"), _faq_offline)
+
+        # ── 12. Huawei Y9 y Android 10 ───────────────────────────────
+        def _faq_huawei(f):
+            tips = [
+                _("Android 10 no soporta captura nativa de audio interno en scrcpy (requiere Android 11+), por lo que MASV fuerza automáticamente --no-audio."),
+                _("Recomendación: para el chipset Kirin 710, usa el códec H.264 a 8Mbps para obtener mejor rendimiento.")
+            ]
+            for desc in tips:
+                tk.Label(f, text=f"• {desc}", bg=C["bg"], fg=C["text2"], font=FONT_UI, anchor="w", wraplength=680, justify="left").pack(fill="x", padx=16, pady=2)
+
+        _add(_("📱 Huawei Y9 y Android 10 (Restricciones y Optimización)"), _faq_huawei)
+
+        # ── 13. Bóveda y Modo Seguro ─────────────────────────────────
+        def _faq_vault(f):
+            tips = [
+                _("Registrar dispositivos confiables previene conexiones no autorizadas o accidentales en redes públicas Wi-Fi."),
+                _("Usa el blindaje de red (Modo Seguro) para revocar el puerto 5555 (adb usb), cerrando así el acceso remoto al teléfono.")
+            ]
+            for desc in tips:
+                tk.Label(f, text=f"• {desc}", bg=C["bg"], fg=C["text2"], font=FONT_UI, anchor="w", wraplength=680, justify="left").pack(fill="x", padx=16, pady=2)
+
+        _add(_("🛡️ Bóveda de Dispositivos Confiables y Modo Seguro"), _faq_vault)
+
+        # ── 14. Modo Estudio Fotográfico ─────────────────────────────
+        def _faq_studio(f):
+            tips = [
+                _("Puedes usar el feed limpio de la cámara trasera de tu Android en OBS Studio."),
+                _("Con la opción Webcam Virtual en Linux, MASV monta la cámara nativamente usando el módulo v4l2loopback para cero latencia.")
+            ]
+            for desc in tips:
+                tk.Label(f, text=f"• {desc}", bg=C["bg"], fg=C["text2"], font=FONT_UI, anchor="w", wraplength=680, justify="left").pack(fill="x", padx=16, pady=2)
+
+        _add(_("📷 Modo Estudio Fotográfico & Clean Camera Feed"), _faq_studio)
+
+        # ── 15. Cierre Limpio vs Bandeja ─────────────────────────────
+        def _faq_exit(f):
+            tips = [
+                _("El botón Salir (o Ctrl+Q) termina por completo la aplicación y el rastreador de dispositivos (Device Tracker)."),
+                _("Esto libera de forma limpia los puertos de red y bloqueos, algo útil si otras herramientas necesitan acceder a ADB.")
+            ]
+            for desc in tips:
+                tk.Label(f, text=f"• {desc}", bg=C["bg"], fg=C["text2"], font=FONT_UI, anchor="w", wraplength=680, justify="left").pack(fill="x", padx=16, pady=2)
+
+        _add(_("🚪 Cierre Limpio vs. Minimizar a la Bandeja"), _faq_exit)

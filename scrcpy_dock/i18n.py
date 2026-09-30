@@ -417,7 +417,22 @@ _translations = {
         "El Modo Seguro bloquea conexiones a IPs públicas o externas fuera de la red local.": "Safe Mode blocks connections to public or external IPs outside the local network.",
         "Emparejamiento exitoso": "Pairing successful",
         "Error al emparejar": "Pairing error",
-        "Código o IP inválidos para emparejar.": "Invalid code or IP for pairing."
+        "Código o IP inválidos para emparejar.": "Invalid code or IP for pairing.",
+        "🔴 Dispositivo en estado Offline": "🔴 Device in Offline state",
+        "El teléfono perdió comunicación con el socket ADB debido a desconexión o suspensión de energía USB.": "The phone lost communication with the ADB socket due to disconnection or USB power suspension.",
+        "Solución: reconecta el cable, asegúrate de que el puerto USB no suspenda la energía y haz clic en 'Reiniciar ADB' en MASV.": "Solution: reconnect the cable, ensure the USB port does not suspend power, and click 'Restart ADB' in MASV.",
+        "📱 Huawei Y9 y Android 10 (Restricciones y Optimización)": "📱 Huawei Y9 and Android 10 (Restrictions and Optimization)",
+        "Android 10 no soporta captura nativa de audio interno en scrcpy (requiere Android 11+), por lo que MASV fuerza automáticamente --no-audio.": "Android 10 does not support native internal scrcpy audio capture (requires Android 11+), so MASV automatically forces --no-audio.",
+        "Recomendación: para el chipset Kirin 710, usa el códec H.264 a 8Mbps para obtener mejor rendimiento.": "Recommendation: for the Kirin 710 chipset, use the H.264 codec at 8Mbps for better performance.",
+        "🛡️ Bóveda de Dispositivos Confiables y Modo Seguro": "🛡️ Trusted Devices Vault and Safe Mode",
+        "Registrar dispositivos confiables previene conexiones no autorizadas o accidentales en redes públicas Wi-Fi.": "Registering trusted devices prevents unauthorized or accidental connections on public Wi-Fi networks.",
+        "Usa el blindaje de red (Modo Seguro) para revocar el puerto 5555 (adb usb), cerrando así el acceso remoto al teléfono.": "Use the network shield (Safe Mode) to revoke port 5555 (adb usb), thereby closing remote access to the phone.",
+        "📷 Modo Estudio Fotográfico & Clean Camera Feed": "📷 Photo Studio Mode & Clean Camera Feed",
+        "Puedes usar el feed limpio de la cámara trasera de tu Android en OBS Studio.": "You can use the clean rear camera feed from your Android in OBS Studio.",
+        "Con la opción Webcam Virtual en Linux, MASV monta la cámara nativamente usando el módulo v4l2loopback para cero latencia.": "With the Virtual Webcam option in Linux, MASV natively mounts the camera using the v4l2loopback module for zero latency.",
+        "🚪 Cierre Limpio vs. Minimizar a la Bandeja": "🚪 Clean Exit vs. Minimize to Tray",
+        "El botón Salir (o Ctrl+Q) termina por completo la aplicación y el rastreador de dispositivos (Device Tracker).": "The Exit button (or Ctrl+Q) completely terminates the application and the Device Tracker.",
+        "Esto libera de forma limpia los puertos de red y bloqueos, algo útil si otras herramientas necesitan acceder a ADB.": "This cleanly frees up network ports and locks, which is useful if other tools need to access ADB."
     }
 }
 
