@@ -65,6 +65,8 @@ config.json
 *.log
 masv.log
 scrcpy-dock.log
+*.enc
+backups/
 
 # Binaries inside bin/ (except .gitkeep)
 bin/*

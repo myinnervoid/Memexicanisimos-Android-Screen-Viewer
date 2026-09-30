@@ -1,10 +1,11 @@
+import sys
 import tkinter as tk
 from .i18n import _
 from tkinter import ttk, messagebox
 from .utils import C, FONT_FAMILY, FONT_UI, FONT_UI_B, FONT_SM, FONT_LG, FONT_MONO, FONT_CARD
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Helpers de layout (usan tokens del sistema Slate Dark)
+# Helpers de layout (usan tokens del sistema Warm Modern)
 # ─────────────────────────────────────────────────────────────────────────────
 
 def _row(parent, bg=None, pady=3, padx=4) -> tk.Frame:
@@ -15,10 +16,19 @@ def _row(parent, bg=None, pady=3, padx=4) -> tk.Frame:
 def _sep(parent, color=None):
     tk.Frame(parent, bg=color or C["sep"], height=1).pack(fill="x", padx=12, pady=4)
 
-def _section(parent, title: str, pady=(6, 4)) -> ttk.LabelFrame:
-    f = ttk.LabelFrame(parent, text=f"  {title}  ")
-    f.pack(fill="x", padx=14, pady=pady)
-    return f
+def _section(parent, title: str, pady=(5, 5), padx=12) -> tk.Frame:
+    """Crea un contenedor moderno con borde sutil de 1px y encabezado integrado sin bordes biselados retro."""
+    outer = tk.Frame(parent, bg=C["card_border"], padx=1, pady=1)
+    outer.pack(fill="x", padx=padx, pady=pady)
+    
+    card = tk.Frame(outer, bg=C["card"], padx=12, pady=8)
+    card.pack(fill="both", expand=True)
+
+    if title:
+        hdr = tk.Frame(card, bg=C["card"])
+        hdr.pack(fill="x", pady=(0, 6))
+        tk.Label(hdr, text=title, font=FONT_UI_B, bg=C["card"], fg=C["indigo"]).pack(side="left")
+    return card
 
 def _recolor(frame: tk.Frame, color: str):
     for child in frame.winfo_children():
@@ -26,6 +36,165 @@ def _recolor(frame: tk.Frame, color: str):
         except Exception: pass
         if isinstance(child, tk.Frame):
             _recolor(child, color)
+
+def bind_mousewheel(widget, canvas):
+    """Enlaza el desplazamiento suave con la rueda del ratón de forma recursiva a un canvas."""
+    def _on_mousewheel(event):
+        try:
+            if sys.platform == "darwin":
+                canvas.yview_scroll(int(-1 * event.delta), "units")
+            elif sys.platform == "win32":
+                canvas.yview_scroll(int(-1 * (event.delta / 120)), "units")
+            else:
+                if event.num == 4:
+                    canvas.yview_scroll(-2, "units")
+                elif event.num == 5:
+                    canvas.yview_scroll(2, "units")
+                elif hasattr(event, 'delta') and event.delta:
+                    canvas.yview_scroll(int(-1 * (event.delta / 120)), "units")
+        except Exception:
+            pass
+
+    if sys.platform == "linux":
+        widget.bind("<Button-4>", _on_mousewheel, add="+")
+        widget.bind("<Button-5>", _on_mousewheel, add="+")
+    else:
+        widget.bind("<MouseWheel>", _on_mousewheel, add="+")
+
+    for child in widget.winfo_children():
+        bind_mousewheel(child, canvas)
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Barra de Navegación por Pastillas (Pill Navigation Bar)
+# ─────────────────────────────────────────────────────────────────────────────
+
+class PillNavBar(tk.Frame):
+    """Barra de navegación horizontal con pastillas estilizadas y transiciones de color modernas."""
+    def __init__(self, parent, tabs_data: list, on_select_cb, bg=None):
+        super().__init__(parent, bg=bg or C["bg"], pady=4, padx=8)
+        self.tabs_data = tabs_data
+        self.on_select_cb = on_select_cb
+        self.buttons = {}
+        self.active_id = None
+        self._build_pills()
+
+    def _build_pills(self):
+        # Contenedor con borde fino de 1px
+        outer = tk.Frame(self, bg=C["card_border"], padx=1, pady=1)
+        outer.pack(fill="x")
+
+        container = tk.Frame(outer, bg=C["pill_bg"], padx=3, pady=3)
+        container.pack(fill="x")
+
+        for idx, (tab_id, label, shortcut) in enumerate(self.tabs_data):
+            btn = tk.Button(
+                container, text=label, font=FONT_UI_B,
+                bg=C["pill_btn"], fg=C["pill_text"],
+                activebackground=C["pill_hover"], activeforeground=C["text"],
+                relief="flat", bd=0, padx=12, pady=6, cursor="hand2",
+                command=lambda tid=tab_id, i=idx: self.select(tid, i)
+            )
+            btn.pack(side="left", padx=2, fill="x", expand=True)
+            self.buttons[tab_id] = btn
+
+            def _on_enter(e, b=btn, tid=tab_id):
+                if self.active_id != tid:
+                    b.config(bg=C["pill_hover"], fg=C["text"])
+            def _on_leave(e, b=btn, tid=tab_id):
+                if self.active_id != tid:
+                    b.config(bg=C["pill_btn"], fg=C["pill_text"])
+            btn.bind("<Enter>", _on_enter)
+            btn.bind("<Leave>", _on_leave)
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Barra Lateral de Navegación Estilo Dashboard con Menú Hamburguesa
+# ─────────────────────────────────────────────────────────────────────────────
+
+class DashboardSidebar(tk.Frame):
+    """Barra lateral de navegación estilo Dashboard con menú hamburguesa colapsable."""
+    def __init__(self, parent, nav_items: list, on_select_cb, bg=None):
+        super().__init__(parent, bg=bg or C["card"], width=210)
+        self.nav_items = nav_items  # list of (id, icon, label, shortcut)
+        self.on_select_cb = on_select_cb
+        self.is_collapsed = False
+        self.buttons = {}
+        self.active_id = None
+        self.pack_propagate(False)
+        self._build_sidebar()
+
+    def _build_sidebar(self):
+        # ── Header de Barra Lateral (Logo + Hamburguesa) ───────────
+        top_bar = tk.Frame(self, bg=C["card"], height=48)
+        top_bar.pack(fill="x", padx=6, pady=(6, 2))
+        top_bar.pack_propagate(False)
+
+        self.btn_toggle = tk.Button(
+            top_bar, text="☰", font=(FONT_FAMILY, 12, "bold"),
+            bg=C["card2"], fg=C["text"], activebackground=C["card3"], activeforeground="#FFF",
+            relief="flat", bd=0, width=3, pady=2, cursor="hand2",
+            command=self.toggle_collapse
+        )
+        self.btn_toggle.pack(side="left")
+        Tooltip(self.btn_toggle, "Colapsar / Expandir menú lateral (Ctrl+B)")
+
+        self.lbl_title = tk.Label(
+            top_bar, text=" MASV Dashboard", font=(FONT_FAMILY, 12, "bold"),
+            bg=C["card"], fg=C["indigo"], anchor="w"
+        )
+        self.lbl_title.pack(side="left", padx=4, fill="x", expand=True)
+
+        tk.Frame(self, bg=C["card_border"], height=1).pack(fill="x", padx=6, pady=4)
+
+        # ── Lista de Ítems de Navegación ───────────────────────────
+        self.nav_container = tk.Frame(self, bg=C["card"])
+        self.nav_container.pack(fill="both", expand=True, padx=6, pady=4)
+
+        for idx, (item_id, icon, label, shortcut) in enumerate(self.nav_items):
+            btn = tk.Button(
+                self.nav_container, text=f" {icon}  {label}", font=FONT_UI_B,
+                bg=C["pill_btn"], fg=C["pill_text"],
+                activebackground=C["pill_hover"], activeforeground=C["text"],
+                relief="flat", bd=0, anchor="w", padx=10, pady=7, cursor="hand2",
+                command=lambda tid=item_id, i=idx: self.select(tid, i)
+            )
+            btn.pack(fill="x", pady=2)
+            self.buttons[item_id] = (btn, icon, label)
+
+            def _on_enter(e, b=btn, tid=item_id):
+                if self.active_id != tid:
+                    b.config(bg=C["pill_hover"], fg=C["text"])
+            def _on_leave(e, b=btn, tid=item_id):
+                if self.active_id != tid:
+                    b.config(bg=C["pill_btn"], fg=C["pill_text"])
+            btn.bind("<Enter>", _on_enter)
+            btn.bind("<Leave>", _on_leave)
+
+            if shortcut:
+                Tooltip(btn, f"{label} ({shortcut})")
+
+    def toggle_collapse(self):
+        self.is_collapsed = not self.is_collapsed
+        if self.is_collapsed:
+            self.config(width=54)
+            self.lbl_title.pack_forget()
+            for tid, (btn, icon, label) in self.buttons.items():
+                btn.config(text=f" {icon} ", anchor="center", padx=2)
+        else:
+            self.config(width=210)
+            self.lbl_title.pack(side="left", padx=4, fill="x", expand=True)
+            for tid, (btn, icon, label) in self.buttons.items():
+                btn.config(text=f" {icon}  {label}", anchor="w", padx=10)
+
+    def select(self, item_id, idx=None):
+        self.active_id = item_id
+        for tid, (btn, icon, label) in self.buttons.items():
+            if tid == item_id:
+                btn.config(bg=C["pill_active"], fg=C["pill_text_act"])
+            else:
+                btn.config(bg=C["pill_btn"], fg=C["pill_text"])
+        if self.on_select_cb:
+            self.on_select_cb(item_id, idx)
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -189,7 +358,11 @@ class AccordionItem(tk.Frame):
         self._content_inner.pack(fill="both", padx=10, pady=(8, 12))
 
         # Construir widgets del contenido
-        build_fn(self._content_inner)
+        if callable(build_fn):
+            build_fn(self._content_inner)
+        elif isinstance(build_fn, str):
+            tk.Label(self._content_inner, text=build_fn, bg=C["bg"], fg=C["text2"],
+                     font=FONT_SM, justify="left", wraplength=700).pack(anchor="w", padx=4, pady=4)
 
         # Bindings de toggle
         for w in [self._hdr, self._arrow] + self._hdr.winfo_children():
@@ -651,3 +824,270 @@ class ProfileWizard(tk.Toplevel):
         box.pack(fill="both", expand=True, pady=4)
         tk.Label(self._content, text=_("✔  Pulsa 'Guardar perfil' para finalizar."),
                  bg=C["bg"], fg=C["green"], font=FONT_UI_B).pack(pady=(4, 0))
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Diálogos Modales de Seguridad y Bóveda de Confianza (Trusted Vault)
+# ─────────────────────────────────────────────────────────────────────────────
+
+class DeviceTrustModal:
+    """Ventana modal para inspeccionar, asignar alias y confiar/desconfiar de un dispositivo."""
+    def __init__(self, parent, serial: str, model: str, security_mgr, save_cb=None, on_close_cb=None):
+        self.parent = parent
+        self.serial = serial
+        self.model = model or "Android"
+        self.sec = security_mgr
+        self.save_cb = save_cb
+        self.on_close_cb = on_close_cb
+
+        self.win = tk.Toplevel(parent)
+        self.win.title(_("Bóveda de Seguridad — Dispositivo"))
+        self.win.geometry("520x420")
+        self.win.resizable(False, False)
+        self.win.configure(bg=C["bg"])
+        self.win.transient(parent)
+        self.win.grab_set()
+
+        # Centrar
+        self.win.update_idletasks()
+        w = 520; h = 420
+        x = parent.winfo_rootx() + (parent.winfo_width() - w) // 2
+        y = parent.winfo_rooty() + (parent.winfo_height() - h) // 2
+        self.win.geometry(f"{w}x{h}+{max(0, x)}+{max(0, y)}")
+
+        self._build_ui()
+
+    def _build_ui(self):
+        is_trusted = self.sec.is_trusted_device(self.serial)
+        current_alias = self.sec.get_device_alias(self.serial, self.model)
+
+        # Header
+        hdr = tk.Frame(self.win, bg=C["card2"], pady=14, padx=16)
+        hdr.pack(fill="x")
+        icon_str = "🛡️" if is_trusted else "⚠️"
+        title_str = _("Dispositivo Confiable") if is_trusted else _("Dispositivo No Verificado")
+        color = C["green"] if is_trusted else C["orange"]
+
+        tk.Label(hdr, text=icon_str, font=(FONT_FAMILY, 24), bg=C["card2"], fg=color).pack(side="left", padx=(0, 10))
+        tk.Label(hdr, text=title_str, font=FONT_LG, bg=C["card2"], fg=C["text"]).pack(side="left")
+
+        # Contenido
+        body = tk.Frame(self.win, bg=C["bg"], padx=20, pady=14)
+        body.pack(fill="both", expand=True)
+
+        # Tarjeta de Datos
+        info_f = tk.Frame(body, bg=C["card"], padx=14, pady=10)
+        info_f.pack(fill="x", pady=(0, 12))
+
+        def _row_info(lbl, val):
+            r = tk.Frame(info_f, bg=C["card"])
+            r.pack(fill="x", pady=2)
+            tk.Label(r, text=lbl, bg=C["card"], fg=C["muted"], font=FONT_SM, width=18, anchor="w").pack(side="left")
+            tk.Label(r, text=val, bg=C["card"], fg=C["text"], font=FONT_UI_B, anchor="w").pack(side="left")
+
+        _row_info(_("Modelo:"), self.model)
+        _row_info(_("Identificador / Serial:"), self.serial)
+        conn_type = _("Inalámbrico (Wi-Fi TCP/IP)") if (":" in self.serial) else _("Físico Seguro (Cable USB)")
+        _row_info(_("Tipo de Conexión:"), conn_type)
+
+        # Entrada de Alias
+        alias_sec = _section(body, _("Alias personalizado"))
+        tk.Label(alias_sec, text=_("Asigna un nombre fácil de reconocer (ej. 'Mi Teléfono Personal'):"),
+                 bg=C["card"], fg=C["muted"], font=FONT_SM).pack(anchor="w", padx=8, pady=(4, 2))
+        self.alias_var = tk.StringVar(value=current_alias)
+        e_alias = ttk.Entry(alias_sec, textvariable=self.alias_var, width=38)
+        e_alias.pack(fill="x", padx=8, pady=(2, 8))
+
+        # Botones de Acción
+        btn_bar = tk.Frame(body, bg=C["bg"])
+        btn_bar.pack(fill="x", pady=(14, 0))
+
+        if is_trusted:
+            btn_trust = ttk.Button(btn_bar, text=_("❌ Quitar de Confiables"),
+                                   command=self._untrust, style="Danger.TButton")
+            btn_trust.pack(side="left")
+            Tooltip(btn_trust, "Marca este dispositivo como desconocido para evitar conexiones involuntarias.")
+        else:
+            btn_trust = ttk.Button(btn_bar, text=_("🛡️ Confiar en este Dispositivo"),
+                                   command=self._trust, style="Green.TButton")
+            btn_trust.pack(side="left")
+            Tooltip(btn_trust, "Añade este dispositivo a tu bóveda de confianza para operar de forma segura.")
+
+        btn_save = ttk.Button(btn_bar, text=_("Guardar Cambios"),
+                              command=self._save_alias, style="Primary.TButton")
+        btn_save.pack(side="right", padx=(8, 0))
+
+        btn_cancel = ttk.Button(btn_bar, text=_("Cerrar"),
+                                command=self._close, style="Secondary.TButton")
+        btn_cancel.pack(side="right")
+
+    def _trust(self):
+        self.sec.trust_device(self.serial, self.model, self.alias_var.get(), self.save_cb)
+        self._close()
+
+    def _untrust(self):
+        self.sec.untrust_device(self.serial, self.save_cb)
+        self._close()
+
+    def _save_alias(self):
+        if self.sec.is_trusted_device(self.serial):
+            self.sec.trust_device(self.serial, self.model, self.alias_var.get(), self.save_cb)
+        self._close()
+
+    def _close(self):
+        self.win.destroy()
+        if self.on_close_cb:
+            self.on_close_cb()
+
+
+class SafeActionConfirmModal:
+    """Diálogo modal de confirmación previa a operaciones críticas (Instalar APK, Enviar Texto, etc.)."""
+    def __init__(self, parent, title: str, message: str, device_name: str, on_confirm_cb):
+        self.result = False
+        self.win = tk.Toplevel(parent)
+        self.win.title(title)
+        self.win.geometry("480x280")
+        self.win.resizable(False, False)
+        self.win.configure(bg=C["bg"])
+        self.win.transient(parent)
+        self.win.grab_set()
+
+        # Centrar
+        self.win.update_idletasks()
+        w = 480; h = 280
+        x = parent.winfo_rootx() + (parent.winfo_width() - w) // 2
+        y = parent.winfo_rooty() + (parent.winfo_height() - h) // 2
+        self.win.geometry(f"{w}x{h}+{max(0, x)}+{max(0, y)}")
+
+        # Header
+        hdr = tk.Frame(self.win, bg=C["card2"], pady=10, padx=14)
+        hdr.pack(fill="x")
+        tk.Label(hdr, text="🛡️", font=(FONT_FAMILY, 20), bg=C["card2"], fg=C["orange"]).pack(side="left", padx=(0, 8))
+        tk.Label(hdr, text=title, font=FONT_LG, bg=C["card2"], fg=C["text"]).pack(side="left")
+
+        # Contenido
+        body = tk.Frame(self.win, bg=C["bg"], padx=18, pady=12)
+        body.pack(fill="both", expand=True)
+
+        tk.Label(body, text=message, bg=C["bg"], fg=C["text"], font=FONT_UI,
+                 wraplength=440, justify="left").pack(anchor="w", pady=(0, 10))
+
+        # Tarjeta de destino
+        dev_card = tk.Frame(body, bg=C["card"], padx=12, pady=8)
+        dev_card.pack(fill="x", pady=4)
+        tk.Label(dev_card, text=_("Dispositivo Destino:"), bg=C["card"], fg=C["muted"], font=FONT_SM).pack(anchor="w")
+        tk.Label(dev_card, text=f"📱  {device_name}", bg=C["card"], fg=C["indigo"], font=FONT_UI_B).pack(anchor="w", pady=(2, 0))
+
+        # Botones
+        btns = tk.Frame(body, bg=C["bg"])
+        btns.pack(fill="x", side="bottom", pady=(10, 0))
+
+        def _confirm():
+            self.result = True
+            self.win.destroy()
+            if on_confirm_cb:
+                on_confirm_cb()
+
+        def _cancel():
+            self.result = False
+            self.win.destroy()
+
+        btn_ok = ttk.Button(btns, text=_("Confirmar y Proceder"), command=_confirm, style="Primary.TButton")
+        btn_ok.pack(side="right", padx=(8, 0))
+
+        btn_no = ttk.Button(btns, text=_("Cancelar"), command=_cancel, style="Secondary.TButton")
+        btn_no.pack(side="right")
+
+
+class TrustVaultDialog:
+    """Ventana para gestionar todos los dispositivos guardados en la Bóveda de Confianza."""
+    def __init__(self, parent, security_mgr, save_cb=None, on_change_cb=None):
+        self.parent = parent
+        self.sec = security_mgr
+        self.save_cb = save_cb
+        self.on_change_cb = on_change_cb
+
+        self.win = tk.Toplevel(parent)
+        self.win.title(_("Bóveda de Dispositivos Confiables — MASV"))
+        self.win.geometry("620x460")
+        self.win.minsize(500, 380)
+        self.win.configure(bg=C["bg"])
+        self.win.transient(parent)
+        self.win.grab_set()
+
+        # Centrar
+        self.win.update_idletasks()
+        w = 620; h = 460
+        x = parent.winfo_rootx() + (parent.winfo_width() - w) // 2
+        y = parent.winfo_rooty() + (parent.winfo_height() - h) // 2
+        self.win.geometry(f"{w}x{h}+{max(0, x)}+{max(0, y)}")
+
+        self._build_ui()
+
+    def _build_ui(self):
+        hdr = tk.Frame(self.win, bg=C["card2"], pady=12, padx=16)
+        hdr.pack(fill="x")
+        tk.Label(hdr, text="🛡️", font=(FONT_FAMILY, 20), bg=C["card2"], fg=C["purple"]).pack(side="left", padx=(0, 8))
+        tk.Label(hdr, text=_("Bóveda de Dispositivos Confiables"), font=FONT_LG, bg=C["card2"], fg=C["text"]).pack(side="left")
+
+        body = tk.Frame(self.win, bg=C["bg"], padx=16, pady=12)
+        body.pack(fill="both", expand=True)
+
+        tk.Label(body, text=_("Los dispositivos en esta lista están autorizados para streaming, control y transferencia."),
+                 bg=C["bg"], fg=C["muted"], font=FONT_SM).pack(anchor="w", pady=(0, 8))
+
+        # Lista / Treeview
+        tree_f = tk.Frame(body, bg=C["card2"])
+        tree_f.pack(fill="both", expand=True)
+
+        cols = ("alias", "model", "serial", "status")
+        self.tree = ttk.Treeview(tree_f, columns=cols, show="headings", height=8, selectmode="browse")
+        self.tree.heading("alias", text=_("Alias"))
+        self.tree.heading("model", text=_("Modelo"))
+        self.tree.heading("serial", text=_("Serial / IP"))
+        self.tree.heading("status", text=_("Estado"))
+
+        self.tree.column("alias", width=180, stretch=True)
+        self.tree.column("model", width=120, stretch=True)
+        self.tree.column("serial", width=160, stretch=True)
+        self.tree.column("status", width=90, anchor="center")
+
+        sb = ttk.Scrollbar(tree_f, orient="vertical", command=self.tree.yview)
+        self.tree.configure(yscrollcommand=sb.set)
+        self.tree.pack(side="left", fill="both", expand=True)
+        sb.pack(side="right", fill="y")
+
+        self._populate()
+
+        # Botones
+        btns = tk.Frame(body, bg=C["bg"])
+        btns.pack(fill="x", pady=(12, 0))
+
+        btn_del = ttk.Button(btns, text=_("🗑️ Eliminar de la Bóveda"),
+                             command=self._delete_selected, style="Danger.TButton")
+        btn_del.pack(side="left")
+
+        btn_close = ttk.Button(btns, text=_("Cerrar"),
+                               command=self.win.destroy, style="Secondary.TButton")
+        btn_close.pack(side="right")
+
+    def _populate(self):
+        for item in self.tree.get_children():
+            self.tree.delete(item)
+        vault = self.sec.get_trusted_devices()
+        for serial, d in vault.items():
+            alias = d.get("alias", d.get("model", "Android"))
+            model = d.get("model", "Android")
+            status = _("Confiable") if d.get("is_trusted", True) else _("Revocado")
+            self.tree.insert("", "end", iid=serial, values=(alias, model, serial, status))
+
+    def _delete_selected(self):
+        sel = self.tree.selection()
+        if not sel:
+            return
+        serial = sel[0]
+        self.sec.remove_device_from_vault(serial, self.save_cb)
+        self._populate()
+        if self.on_change_cb:
+            self.on_change_cb()
+

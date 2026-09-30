@@ -15,18 +15,23 @@ except ImportError:
     TRAY_AVAILABLE = False
 
 import re
+from typing import Optional, List, Dict, Any, Tuple
 from .utils import C, FONT_UI, FONT_UI_B, FONT_SM, FONT_LG, FONT_MONO, FONT_FAMILY, SingleInstance, _extract_serial, parse_ip_port, log_msg, LOG_FILE, save_config
 from .context import AppContext
 from .ui_tabs import UIBuilder
-from .ui_widgets import _recolor, Toast
+from .ui_widgets import _recolor, Toast, Tooltip, DeviceTrustModal, SafeActionConfirmModal, TrustVaultDialog
+from .security import SecurityManager
+from .state import UIState
+from .errors import ErrorCode, get_error_detail
 
 _PLAT = sys.platform
 APP_NAME = "Memexicanisimos Android Screen Viewer"
 APP_SHORT = "MASV"
 
 class ScrcpyDockApp:
-    def __init__(self, root: tk.Tk):
+    def __init__(self, root: tk.Tk, single_instance: Any = None):
         self.root = root
+        self.single_instance = single_instance
         self.root.title(APP_NAME)
         self.root.minsize(880, 600)
         self.root.configure(bg=C["bg"])
@@ -84,6 +89,13 @@ class ScrcpyDockApp:
             'send_keyevent':    self._send_keyevent,
             'install_apk':       self._install_apk,
 
+            # Callbacks de Seguridad & Bóveda de Confianza
+            'open_trust_vault':        self._open_trust_vault,
+            'open_device_trust_modal': self._open_device_trust_modal,
+            'pair_wifi':               self._pair_wifi,
+            'lockdown_tcpip':          self._lockdown_tcpip,
+            'panic_lockdown':          self._panic_lockdown,
+
             'clear_log':  self._clear_log,
             'open_log':   self._open_log,
             'filter_log': self._filter_log,
@@ -92,6 +104,9 @@ class ScrcpyDockApp:
 
         self.ui = UIBuilder(self.ctx, self.cb)
         self._build_ui()
+
+        # Suscribir a cambios del autómata de estados
+        self.ctx.state_machine.subscribe(self._on_ui_state_change)
 
         self._check_deps()
         self._refresh_devices()
@@ -129,6 +144,8 @@ class ScrcpyDockApp:
         dev_menu = tk.Menu(menubar, tearoff=0, bg=C["card"], fg=C["text"], activebackground=C["blue"], activeforeground="#FFF")
         dev_menu.add_command(label=_("⚡ Reiniciar Servidor ADB"), command=self._restart_adb)
         dev_menu.add_command(label=_("📶 Conectar por Wi-Fi"), command=lambda: self._nb.select(2))
+        dev_menu.add_command(label=_("🛡️ Bóveda de Dispositivos Confiables"), command=self._open_trust_vault)
+        dev_menu.add_command(label=_("🛡️ Blindar TCP/IP (Cerrar puerto 5555)"), command=self._lockdown_tcpip)
         dev_menu.add_command(label=_("📦 Instalar APK en Teléfono"), command=self._install_apk)
         dev_menu.add_command(label=_("📷 Configurar Webcam Virtual (v4l2)"), command=self._setup_v4l2)
         menubar.add_cascade(label=_("Dispositivo"), menu=dev_menu)
@@ -145,10 +162,11 @@ class ScrcpyDockApp:
         self.root.bind("<Control-q>", lambda _: self._on_close())
         self.root.bind("<Control-r>", lambda _: self._refresh_devices())
         self.root.bind("<Control-i>", lambda _: self._toggle_scene())
-        self.root.bind("<Control-h>", lambda _: self._nb.select(5))
+        self.root.bind("<Control-h>", lambda _: self._select_tab("help"))
+        self.root.bind("<Control-b>", lambda _: self.sidebar.toggle_collapse())
 
-        for i in range(6):
-            self.root.bind(f"<Alt-Key-{i+1}>", lambda _, idx=i: self._nb.select(idx))
+        for i in range(7):
+            self.root.bind(f"<Alt-Key-{i+1}>", lambda _, idx=i: self._select_tab(idx))
 
     def _setup_styles(self):
         s = ttk.Style()
@@ -157,16 +175,6 @@ class ScrcpyDockApp:
                     fieldbackground=C["card"], font=FONT_UI)
         s.configure("TFrame",      background=C["bg"])
         s.configure("TLabel",      background=C["bg"], foreground=C["text"])
-        s.configure("TLabelframe", background=C["card"],
-                    bordercolor=C["purple_dim"], relief="flat", padding=10)
-        s.configure("TLabelframe.Label", background=C["card"],
-                    foreground=C["purple"], font=FONT_UI_B)
-        s.configure("TNotebook", background=C["card2"], borderwidth=0, tabmargins=0)
-        s.configure("TNotebook.Tab", background=C["sep"], foreground=C["muted"],
-                    font=FONT_UI_B, padding=(18, 10))
-        s.map("TNotebook.Tab",
-              background=[("selected", C["card"])],
-              foreground=[("selected", C["text"])])
         s.configure("TCombobox", fieldbackground=C["card2"], foreground=C["text"],
                     background=C["card2"], arrowcolor=C["blue"], padding=4)
         s.map("TCombobox",
@@ -179,24 +187,24 @@ class ScrcpyDockApp:
         s.configure("TCheckbutton", background=C["card"], foreground=C["text2"])
         s.map("TCheckbutton", background=[("active", C["card"])])
         s.configure("Treeview", background=C["card2"], foreground=C["text"],
-                    fieldbackground=C["card2"], rowheight=30, borderwidth=0)
-        s.configure("Treeview.Heading", background=C["sep"],
+                    fieldbackground=C["card2"], rowheight=28, borderwidth=0)
+        s.configure("Treeview.Heading", background=C["card3"],
                     foreground=C["text2"], font=FONT_UI_B, relief="flat")
         s.map("Treeview",
               background=[("selected", C["blue"])],
-              foreground=[(_("selected"), _("#FFFFFF"))])
-        s.configure("TScrollbar", background=C["sep"], troughcolor=C["card"],
+              foreground=[("selected", "#FFFFFF")])
+        s.configure("TScrollbar", background=C["card3"], troughcolor=C["card"],
                     arrowcolor=C["muted"], borderwidth=0)
 
         def _btn(name, bg, fg, hover, dis_bg=C["disabled"], dis_fg=C["muted"]):
             s.configure(name, background=bg, foreground=fg, borderwidth=0,
-                        focusthickness=2, focuscolor=C["focus"],
-                        padding=(12, 6), font=FONT_UI_B, relief="flat")
+                        focusthickness=1, focuscolor=C["focus"],
+                        padding=(10, 5), font=FONT_UI_B, relief="flat")
             s.map(name,
                   background=[("active", hover), ("disabled", dis_bg),
                                ("focus", bg)],
                   foreground=[("disabled", dis_fg)],
-                  relief=[(_("focus"), _("solid"))])
+                  relief=[("focus", "solid")])
 
         _btn("Primary.TButton",   C["indigo"], "#FFF", C["indigo_hover"])
         _btn("Danger.TButton",    C["red"],    "#FFF", C["red_hover"])
@@ -207,76 +215,120 @@ class ScrcpyDockApp:
         _btn("Purple.TButton",    C["purple"], "#FFF", C["purple_hover"])
 
     def _build_ui(self):
-        hdr = tk.Frame(self.root, bg=C["card"], height=64)
+        # ── Header Superior ──────────────────────────────────────────
+        hdr = tk.Frame(self.root, bg=C["card"], height=52)
         hdr.pack(fill="x")
         hdr.pack_propagate(False)
 
-        # Icono + nombre
+        # Marca & Título
         brand = tk.Frame(hdr, bg=C["card"])
-        brand.pack(side="left", padx=16, pady=10)
-        tk.Label(brand, text=_("MASV"), bg=C["card"], fg=C["purple"],
-                 font=(FONT_FAMILY, 18, "bold")).pack(side="left")
+        brand.pack(side="left", padx=(14, 10), pady=6)
+        tk.Label(brand, text=_("MASV"), bg=C["card"], fg=C["indigo"],
+                 font=(FONT_FAMILY, 16, "bold")).pack(side="left")
         tk.Label(brand, text=_("  Memexicanisimos Android Screen Viewer"),
                  bg=C["card"], fg=C["muted"], font=FONT_SM).pack(side="left", pady=(2, 0))
 
+        # Lado derecho del Header
         right_hdr = tk.Frame(hdr, bg=C["card"])
-        right_hdr.pack(side="right", padx=16)
-        self._sess_count_lbl = tk.Label(right_hdr, text="", bg=C["card"],
-                                        fg=C["green"], font=FONT_SM)
-        self._sess_count_lbl.pack(side="right", padx=(8, 0))
-        self._dep_lbl = tk.Label(right_hdr, text="", bg=C["card"],
-                                 fg=C["muted"], font=FONT_SM)
+        right_hdr.pack(side="right", padx=12)
+
+        # Botón de Blindaje Rápido
+        self._btn_panic_lockdown = tk.Button(right_hdr, text="🔒 " + _("Blindar Red"),
+                                             bg=C["red_dim"], fg=C["red"], font=FONT_SM,
+                                             relief="flat", bd=0, padx=10, pady=4,
+                                             cursor="hand2", command=self._panic_lockdown)
+        self._btn_panic_lockdown.pack(side="right", padx=(6, 0))
+        Tooltip(self._btn_panic_lockdown, "Cierra inmediatamente todas las sesiones y revoca el puerto 5555 en los teléfonos.")
+
+        # Switch de Modo Seguro
+        is_safe = self.ctx.security_mgr.is_safe_mode_enabled
+        safe_txt = "🛡️ " + (_("Modo Seguro: ON") if is_safe else _("Modo Seguro: OFF"))
+        safe_fg = C["green"] if is_safe else C["orange"]
+        self._btn_safe_mode = tk.Button(right_hdr, text=safe_txt, bg=C["card2"], fg=safe_fg,
+                                        font=FONT_SM, relief="flat", bd=0, padx=10, pady=4,
+                                        cursor="hand2", command=self._toggle_safe_mode)
+        self._btn_safe_mode.pack(side="right", padx=(6, 0))
+        Tooltip(self._btn_safe_mode, "Bloquea conexiones a IPs públicas y previene intromisiones en equipos no verificados.")
+
+        self._sess_count_lbl = tk.Label(right_hdr, text="", bg=C["card"], fg=C["green"], font=FONT_SM)
+        self._sess_count_lbl.pack(side="right", padx=(6, 0))
+        self._dep_lbl = tk.Label(right_hdr, text="", bg=C["card"], fg=C["muted"], font=FONT_SM)
         self._dep_lbl.pack(side="right")
 
         tk.Frame(self.root, bg=C["sep"], height=1).pack(fill="x")
 
-        self._nb = ttk.Notebook(self.root)
-        self._nb.pack(fill="both", expand=True, padx=8, pady=(4, 0))
+        # ── Cuerpo Principal: Barra Lateral + Área de Contenido ──────
+        body = tk.Frame(self.root, bg=C["bg"])
+        body.pack(fill="both", expand=True)
 
-        self._tab_actions  = tk.Frame(self._nb, bg=C["bg"])
-        self._tab_controls = tk.Frame(self._nb, bg=C["bg"])
-        self._tab_device   = tk.Frame(self._nb, bg=C["bg"])
-        self._tab_profile  = tk.Frame(self._nb, bg=C["bg"])
-        self._tab_console  = tk.Frame(self._nb, bg=C["bg"])
-        self._tab_help     = tk.Frame(self._nb, bg=C["bg"])
+        from .ui_widgets import DashboardSidebar
+        nav_items = [
+            ("quickcast", "🚀", _("Quick Cast"),     "Alt+1"),
+            ("actions",   "⚡", _("Transmisión"),    "Alt+2"),
+            ("device",    "📱", _("Dispositivos"),   "Alt+3"),
+            ("controls",  "🎮", _("Mando Remoto"),   "Alt+4"),
+            ("profiles",  "⚙️", _("Perfiles"),       "Alt+5"),
+            ("console",   "🖥", _("Consola"),        "Alt+6"),
+            ("help",      "❓", _("Ayuda / FAQ"),    "Alt+7"),
+        ]
 
-        # Pestañas en orden lógico limpio: Acciones(0), Controles(1), Dispositivo(2), Perfiles(3), Consola(4), Ayuda(5)
-        self._nb.add(self._tab_actions,  text=_("🚀  Acciones"))
-        self._nb.add(self._tab_controls, text=_("🎮  Controles"))
-        self._nb.add(self._tab_device,   text=_("📱  Dispositivo"))
-        self._nb.add(self._tab_profile,  text=_("⚙️  Perfiles"))
-        self._nb.add(self._tab_console,  text=_("🖥  Consola"))
-        self._nb.add(self._tab_help,     text=_("❓  Ayuda"))
+        self.sidebar = DashboardSidebar(body, nav_items, lambda tid, idx: self._select_tab(tid))
+        self.sidebar.pack(side="left", fill="y")
 
-        self._simple_view = tk.Frame(self.root, bg=C["bg"])
+        tk.Frame(body, bg=C["card_border"], width=1).pack(side="left", fill="y")
 
-        self.ui.build_tab_actions(self._tab_actions)
-        self.ui.build_tab_controls(self._tab_controls)
-        self.ui.build_tab_device(self._tab_device)
-        self.ui.build_tab_profile(self._tab_profile)
-        self.ui.build_tab_console(self._tab_console)
-        self.ui.build_tab_help(self._tab_help)
-        self.ui.build_simple_view(self._simple_view)
+        # Área de Contenido Principal
+        self.main_content = tk.Frame(body, bg=C["bg"])
+        self.main_content.pack(side="left", fill="both", expand=True, padx=4, pady=4)
 
-        bar = tk.Frame(self.root, bg=C["card2"], height=40)
+        self._tab_frames = {
+            "quickcast": tk.Frame(self.main_content, bg=C["bg"]),
+            "actions":   tk.Frame(self.main_content, bg=C["bg"]),
+            "device":    tk.Frame(self.main_content, bg=C["bg"]),
+            "controls":  tk.Frame(self.main_content, bg=C["bg"]),
+            "profiles":  tk.Frame(self.main_content, bg=C["bg"]),
+            "console":   tk.Frame(self.main_content, bg=C["bg"]),
+            "help":      tk.Frame(self.main_content, bg=C["bg"]),
+        }
+
+        self.ui.build_simple_view(self._tab_frames["quickcast"])
+        self.ui.build_tab_actions(self._tab_frames["actions"])
+        self.ui.build_tab_device(self._tab_frames["device"])
+        self.ui.build_tab_controls(self._tab_frames["controls"])
+        self.ui.build_tab_profile(self._tab_frames["profiles"])
+        self.ui.build_tab_console(self._tab_frames["console"])
+        self.ui.build_tab_help(self._tab_frames["help"])
+
+        # Adaptador para compatibilidad de callbacks anteriores
+        class NotebookAdapter:
+            def __init__(self, select_fn):
+                self._select_fn = select_fn
+            def select(self, target):
+                self._select_fn(target)
+
+        self._nb = NotebookAdapter(self._select_tab)
+
+        # Iniciar en Quick Cast Dashboard por defecto
+        self.is_advanced_view = True
+        self._select_tab("quickcast")
+
+        # ── Barra de Estado Inferior (Footer) ────────────────────────
+        bar = tk.Frame(self.root, bg=C["card2"], height=30)
         bar.pack(fill="x", side="bottom")
         bar.pack_propagate(False)
 
-        self.is_advanced_view = True
-        self.btn_toggle_view = tk.Button(bar, text=_("Cambiar a Vista Simple"), bg=C["sep"], fg=C["text"],
-                                     font=FONT_SM, relief="flat", bd=0, padx=12, pady=4,
-                                     command=self._toggle_view)
-        self.btn_toggle_view.pack(side="right", padx=14, pady=4)
-
-        self._status_lbl = tk.Label(bar, text=_("Iniciando…"), bg=C["card2"],
+        self._status_lbl = tk.Label(bar, text="Listo", bg=C["card2"],
                                     fg=C["muted"], font=FONT_SM, anchor="w")
-        self._status_lbl.pack(side="left", padx=14, pady=4)
+        self._status_lbl.pack(side="left", padx=12, fill="x", expand=True)
+
+        tk.Label(bar, text="Ctrl+I Iniciar · Ctrl+R Refrescar · Ctrl+B Menú · Ctrl+H Ayuda",
+                 bg=C["card2"], fg=C["muted"], font=FONT_SM).pack(side="left", padx=6)
 
         # Language switcher
         from .i18n import get_language, set_language
         lang_btn = tk.Button(bar, text="🇺🇸" if get_language() == "es" else "🇲🇽",
                              bg=C["card2"], fg=C["text"], bd=0, relief="flat", cursor="hand2", font=FONT_SM)
-        lang_btn.pack(side="right", padx=(4, 14), pady=4)
+        lang_btn.pack(side="right", padx=(4, 12))
 
         def _toggle_language():
             new_lang = "en" if get_language() == "es" else "es"
@@ -287,42 +339,62 @@ class ScrcpyDockApp:
 
         lang_btn.config(command=_toggle_language)
 
-        tk.Label(bar, text=_("v1.1  |  Ctrl+H → Ayuda  |  Ctrl+Q → Salir"),
-                 bg=C["card2"], fg=C["muted"], font=FONT_SM).pack(side="right", padx=4)
+        tk.Label(bar, text="v1.2", bg=C["card2"], fg=C["muted"], font=FONT_SM).pack(side="right", padx=4)
 
-        self.ui.refs['profile_listbox'].bind("<<ListboxSelect>>", self._on_profile_listbox_sel)
-        self._refresh_profile_listbox()
+        if 'profile_listbox' in self.ui.refs:
+            self.ui.refs['profile_listbox'].bind("<<ListboxSelect>>", self._on_profile_listbox_sel)
+            self._refresh_profile_listbox()
 
-        self._nb.bind("<<NotebookTabChanged>>", self._on_tab_changed)
+    def _select_tab(self, tab_id_or_idx):
+        tab_keys = ["quickcast", "actions", "device", "controls", "profiles", "console", "help"]
+        if isinstance(tab_id_or_idx, int):
+            idx = tab_id_or_idx
+            if 0 <= idx < len(tab_keys):
+                tab_id = tab_keys[idx]
+            else:
+                return
+        else:
+            tab_id = str(tab_id_or_idx)
+            if tab_id == "simple": tab_id = "quickcast"
+            idx = tab_keys.index(tab_id) if tab_id in tab_keys else 0
+
+        if hasattr(self, '_tab_frames'):
+            for f in self._tab_frames.values():
+                f.pack_forget()
+            if tab_id in self._tab_frames:
+                self._tab_frames[tab_id].pack(fill="both", expand=True)
+
+        if hasattr(self, 'sidebar') and self.sidebar.active_id != tab_id:
+            self.sidebar.select(tab_id)
+
+        self._on_tab_changed()
 
     def _toggle_view(self):
-        if self.is_advanced_view:
-            self._nb.pack_forget()
-            self._simple_view.pack(fill="both", expand=True, padx=8, pady=(4, 0))
-            self.btn_toggle_view.config(text=_("Cambiar a Vista Avanzada"))
-            self.is_advanced_view = False
+        cur = self.sidebar.active_id if hasattr(self, 'sidebar') else "quickcast"
+        if cur == "quickcast":
+            self._select_tab("actions")
         else:
-            self._simple_view.pack_forget()
-            self._nb.pack(fill="both", expand=True, padx=8, pady=(4, 0))
-            self.btn_toggle_view.config(text=_("Cambiar a Vista Simple"))
-            self.is_advanced_view = True
+            self._select_tab("quickcast")
 
     def _on_app_close(self):
-        """Detiene todas las sesiones activas de scrcpy y guarda la geometría antes de salir."""
-        try:
-            if hasattr(self, 'ctx') and self.ctx and self.ctx.session_mgr:
-                self.ctx.session_mgr.stop_all()
-            if hasattr(self, 'root') and self.root:
-                self.ctx.cfg["window_geometry"] = self.root.geometry()
-                self.ctx.save_current_config()
-        except Exception as e:
-            print(f"Error durante el cierre: {e}")
-        finally:
-            try: self.root.destroy()
-            except Exception: pass
+        """Detiene sesiones, desactiva servicios y cierra la aplicación de forma limpia y completa."""
+        self._exit()
 
     def _set_status(self, msg: str, color: str = None):
         self._status_lbl.config(text=msg, fg=color or C["muted"])
+
+    def _on_ui_state_change(self, state: UIState, message: str, error_code: Optional[ErrorCode] = None):
+        """Receptor canónico del Autómata Finito de Interfaz."""
+        state_colors = {
+            UIState.IDLE: C["muted"],
+            UIState.PENDING: C["cyan"],
+            UIState.SUCCESS: C["green"],
+            UIState.EMPTY: C["orange"],
+            UIState.FAULT: C["red"],
+        }
+        color = state_colors.get(state, C["muted"])
+        if message:
+            self._set_status(message, color)
 
     # ── Utils & Dependencies ──────────────────────────────────────────
     def _check_deps(self):
@@ -339,12 +411,13 @@ class ScrcpyDockApp:
 
         if missing:
             self._dep_lbl.config(text=f"⚠  Falta: {', '.join(missing)}", fg=C["red"])
-            self._set_status(f"⚠  Instala las dependencias: {', '.join(missing)}", C["red"])
+            err_code = ErrorCode.ADB_NOT_FOUND if "adb" in missing else ErrorCode.SCRCPY_NOT_FOUND
+            self.ctx.state_machine.set_fault(f"⚠  Instala las dependencias: {', '.join(missing)}", err_code)
             self.ui.refs['dep_frame'].pack_forget()
             self.ui.refs['install_frame'].pack(fill="both", expand=True, padx=20, pady=20)
         else:
             self._dep_lbl.config(text=_("✔  ADB + scrcpy OK"), fg=C["green"])
-            self._set_status(_("✔  Dependencias OK. Conecta un dispositivo."), C["green"])
+            self.ctx.state_machine.set_idle(_("✔  Dependencias OK. Conecta un dispositivo."))
             self.ui.refs['install_frame'].pack_forget()
             self.ui.refs['dep_frame'].pack(fill="both", expand=True)
             self.root.after(700, self._check_v4l2)
@@ -424,42 +497,44 @@ class ScrcpyDockApp:
     # ── Devices Tab ───────────────────────────────────────────────────
     def _refresh_devices(self):
         self.ui.refs['scan_lbl'].config(text=_("Buscando…"), fg=C["cyan"])
-        self._set_status(_("🔄  Escaneando dispositivos ADB…"), C["cyan"])
+        self.ctx.state_machine.set_pending(_("🔄  Escaneando dispositivos ADB…"))
         self.ctx.device_mgr.scan_devices(self._update_devs_ui, self.ctx.log)
 
     def _update_devs_ui(self, found: list):
         listbox = self.ui.refs['dev_listbox']
         listbox.delete(0, tk.END)
         for serial, model, state in found:
+            is_trusted = self.ctx.security_mgr.is_trusted_device(serial)
+            alias = self.ctx.security_mgr.get_device_alias(serial, model)
             if state == "ok":
-                listbox.insert(tk.END, f"  🟢  {model}  ({serial})")
+                if is_trusted:
+                    listbox.insert(tk.END, f"  🟢 🛡️  {alias}  ({serial})")
+                else:
+                    listbox.insert(tk.END, f"  🟢 ⚠️  {alias}  ({serial}) [No Verificado]")
             elif state == "unauth":
-                listbox.insert(tk.END, f"  🟠  {model}  ({serial})")
+                listbox.insert(tk.END, f"  🟠 ⚠️  {serial}  (Sin autorizar en pantalla)")
             elif state == "offline":
-                listbox.insert(tk.END, f"  🔴  {model}  ({serial})")
+                listbox.insert(tk.END, f"  🔴 ⚠️  {serial}  (Desconectado / Offline)")
             else:
-                listbox.insert(tk.END, f"  ⚫  {model}  ({serial})")
+                listbox.insert(tk.END, f"  ⚫  {serial}  [{state}]")
 
         simple_combo = self.ui.refs.get('simple_dev_combo')
         if simple_combo:
-            simple_combo['values'] = [f"{model} ({serial})" for serial, model, state in found]
+            simple_combo['values'] = [f"{self.ctx.security_mgr.get_device_alias(serial, model)} ({serial})" for serial, model, state in found]
 
         if found:
             listbox.selection_set(0)
             self._on_dev_select()
             self.ui.refs['scan_lbl'].config(text=f"{len(found)} dispositivo(s)", fg=C["green"])
-            self._set_status(f"✔  {len(found)} dispositivo(s) detectado(s).", C["green"])
+            self.ctx.state_machine.set_idle(f"✔  {len(found)} dispositivo(s) detectado(s).")
         else:
             self.ctx.active_device_serial = None
             self.ctx.active_device.set("Sin dispositivo")
             self.ui.refs['dev_info_lbl'].config(text=_("Sin dispositivos. Conecta un cable USB o activa ADB WiFi."), fg=C["orange"])
             self.ui.refs['scan_lbl'].config(text=_("Sin dispositivos"), fg=C["orange"])
-            self._set_status(_("Sin dispositivos. Conecta un cable USB y activa la Depuración USB."), C["orange"])
+            self.ctx.state_machine.set_empty(_("Sin dispositivos. Conecta un cable USB y activa la Depuración USB."))
             if simple_combo:
                 simple_combo.set("Sin dispositivo")
-            self.ui.refs['dev_info_lbl'].config(text="Sin dispositivos. Conecta un cable USB o activa ADB WiFi.", fg=C["orange"])
-            self.ui.refs['scan_lbl'].config(text="Sin dispositivos", fg=C["orange"])
-            self._set_status("Sin dispositivos. Conecta un cable USB y activa la Depuración USB.", C["orange"])
 
     def _on_dev_select(self, event=None):
         if event and event.widget == self.ui.refs.get('simple_dev_combo'):
@@ -474,24 +549,55 @@ class ScrcpyDockApp:
                 return
             raw = listbox.get(sel[0])
             serial = _extract_serial(raw)
-            model = raw.strip().lstrip("🟢🟠🔴⚫ ").split("  (")[0].strip()
+            model = raw.strip().lstrip("🟢🟠🔴⚫ 🛡️⚠️").split("  (")[0].strip()
 
-        self.ctx.select_device(serial, f"{model} ({serial})")
+        is_trusted = self.ctx.security_mgr.is_trusted_device(serial)
+        alias = self.ctx.security_mgr.get_device_alias(serial, model)
+
+        self.ctx.select_device(serial, f"{alias} ({serial})")
+
+        # Actualizar indicadores de confianza en pestañas
+        action_trust = self.ui.refs.get('action_trust_lbl')
+        if action_trust:
+            if is_trusted:
+                action_trust.config(text="[🛡️ Confiable]", fg=C["green"])
+            else:
+                action_trust.config(text="[⚠️ No Verificado]", fg=C["orange"])
+
+        ctrl_trust = self.ui.refs.get('ctrl_trust_lbl')
+        if ctrl_trust:
+            if is_trusted:
+                ctrl_trust.config(text="[🛡️ Confiable]", fg=C["green"])
+            else:
+                ctrl_trust.config(text="[⚠️ No Verificado]", fg=C["orange"])
+
+        simple_trust = self.ui.refs.get('simple_trust_lbl')
+        if simple_trust:
+            if is_trusted:
+                simple_trust.config(text="[🛡️ Confiable]", fg=C["green"])
+            else:
+                simple_trust.config(text="[⚠️ No Verificado]", fg=C["orange"])
 
         state = next((s for sr, mo, s in self.ctx.device_mgr.devices if sr == serial), "other")
         if state == "unauth":
-            self.ui.refs['dev_info_lbl'].config(text=f"🟠  {serial}  —  ¡Acepta el permiso de depuración en la pantalla del teléfono!", fg=C["orange"])
+            self.ui.refs['dev_info_lbl'].config(text=f"🟠 ⚠️  {serial}  —  ¡Acepta el permiso de depuración en la pantalla del teléfono!", fg=C["orange"])
             self._set_status(_("⚠  Dispositivo no autorizado. Acepta el diálogo en el teléfono."), C["orange"])
         elif state == "offline":
             self.ui.refs['dev_info_lbl'].config(text=f"🔴  {serial}  —  El dispositivo está desconectado (offline). Reinicia ADB.", fg=C["red"])
             self._set_status(_("⚠  Dispositivo offline. Desconecta y vuelve a conectar."), C["red"])
         elif state == "ok":
-            self.ui.refs['dev_info_lbl'].config(text=f"🟢  {model}  ({serial})  —  Conectado y autorizado.", fg=C["green"])
-            self._set_status(f"✔  {model}  —  {serial}", C["green"])
+            if is_trusted:
+                self.ui.refs['dev_info_lbl'].config(text=f"🟢 🛡️  {alias}  ({serial})  —  Conectado y Autorizado.", fg=C["green"])
+                self._set_status(f"✔  {alias}  —  {serial}", C["green"])
+            else:
+                self.ui.refs['dev_info_lbl'].config(text=f"🟢 ⚠️  {model}  ({serial})  —  Dispositivo no verificado en la bóveda.", fg=C["orange"])
+                self._set_status(f"⚠️  {model}  —  {serial} (No verificado)", C["orange"])
+
             assoc = self.ctx.cfg.get("device_associations", {}).get(serial)
             if assoc and assoc in self.ctx.profile_mgr.get_profiles():
                 self.ctx.active_profile.set(assoc)
-                self.ui.refs['assoc_lbl'].config(text=f"↳  Perfil '{assoc}' cargado automáticamente para este dispositivo.", fg=C["muted"])
+                if 'assoc_lbl' in self.ui.refs:
+                    self.ui.refs['assoc_lbl'].config(text=f"↳  Perfil '{assoc}' cargado automáticamente para este dispositivo.", fg=C["muted"])
         
         self._on_tab_changed()
 
@@ -503,6 +609,16 @@ class ScrcpyDockApp:
             messagebox.showerror("IP inválida", f"'{ip_raw}:{port_raw}' no es válida.\nEjemplo: 192.168.1.25:5555")
             return
         ip, port = parsed
+
+        # Validación de seguridad: no permitir conexiones a IPs públicas si Modo Seguro está activo
+        if self.ctx.security_mgr.is_safe_mode_enabled and not SecurityManager.is_private_ip(ip):
+            messagebox.showerror(
+                _("IP no permitida"),
+                _("El Modo Seguro bloquea conexiones a IPs públicas o externas fuera de la red local.\n\n"
+                  f"Dirección ingresada: {ip}")
+            )
+            return
+
         target   = f"{ip}:{port}"
         self.ctx.log("ADB", f"Conectando a {target}…")
         self._set_status(f"Conectando a {target}…", C["cyan"])
@@ -514,6 +630,125 @@ class ScrcpyDockApp:
             except Exception as e:
                 self.ctx.log("ERROR", f"WiFi: {e}")
         threading.Thread(target=task, daemon=True).start()
+
+    def _pair_wifi(self):
+        """Empareja un dispositivo Android 11+ de forma segura mediante 'adb pair'."""
+        pair_ip_raw = self.ui.refs['pair_ip_entry'].get().strip()
+        code_raw = self.ui.refs['pair_code_entry'].get().strip()
+
+        parsed = SecurityManager.parse_pair_ip_port_code(pair_ip_raw, code_raw)
+        if not parsed:
+            messagebox.showerror(
+                _("Error"),
+                _("Código o IP inválidos para emparejar.\n\nFormato esperado:\nIP:Puerto: ej. 192.168.1.50:38291\nCódigo: 6 dígitos numéricos (ej. 123456)")
+            )
+            return
+
+        ip, port, code = parsed
+
+        if self.ctx.security_mgr.is_safe_mode_enabled and not SecurityManager.is_private_ip(ip):
+            messagebox.showerror(
+                _("IP no permitida"),
+                _("El Modo Seguro bloquea conexiones a IPs públicas o externas fuera de la red local.")
+            )
+            return
+
+        self.ctx.log("ADB", f"Emparejando con {ip}:{port}…")
+        self._set_status(f"Emparejando con {ip}:{port}…", C["cyan"])
+
+        def task():
+            ok, msg = SecurityManager.pair_device(self.ctx.adb, ip, port, code)
+            if ok:
+                self.ctx.log("OK", f"Emparejamiento exitoso con {ip}:{port}")
+                # Auto-confiar en la bóveda
+                self.ctx.security_mgr.trust_device(f"{ip}:{port}", "Android WiFi", f"Android {ip}", save_config)
+                self.root.after(0, lambda: [
+                    self._set_status(_("Emparejamiento exitoso"), C["green"]),
+                    Toast(self.root, f"✔ Emparejado con éxito con {ip}:{port}", "success"),
+                    self._refresh_devices()
+                ])
+            else:
+                self.ctx.log("ERROR", f"Error de emparejamiento: {msg}")
+                self.root.after(0, lambda: [
+                    self._set_status(_("Error al emparejar"), C["red"]),
+                    messagebox.showerror(_("Error al emparejar"), f"No se pudo emparejar con el dispositivo:\n\n{msg}")
+                ])
+
+        threading.Thread(target=task, daemon=True).start()
+
+    def _lockdown_tcpip(self):
+        """Cierra el puerto TCP/IP 5555 en el dispositivo activo devolviéndolo a modo USB seguro."""
+        serial = self.ctx.active_device_serial
+        if not serial or not self.ctx.adb:
+            messagebox.showwarning(_("Sin dispositivo"), _("Selecciona un dispositivo activo en la lista primero."))
+            return
+        self.ctx.log("SEC", f"[{serial}] Cerrando puerto TCP/IP 5555 con 'adb usb'…")
+        self._set_status(_("Blindando dispositivo…"), C["orange"])
+        def task():
+            ok, msg = SecurityManager.lockdown_device_tcpip(self.ctx.adb, serial)
+            if ok:
+                self.ctx.log("OK", f"[{serial}] {msg}")
+                self.root.after(0, lambda: [
+                    self._set_status(_("✔ Puerto TCP/IP cerrado."), C["green"]),
+                    Toast(self.root, _("✔ Dispositivo blindado: Puerto TCP/IP cerrado."), "success"),
+                    self._refresh_devices()
+                ])
+            else:
+                self.ctx.log("ERROR", f"[{serial}] Lockdown: {msg}")
+                self.root.after(0, lambda: [
+                    self._set_status(_("Error al blindar"), C["red"]),
+                    messagebox.showwarning(_("Aviso"), f"No se pudo restaurar el modo USB:\n\n{msg}")
+                ])
+        threading.Thread(target=task, daemon=True).start()
+
+    def _panic_lockdown(self):
+        """Detiene todas las sesiones y revoca los puertos TCP/IP en todos los dispositivos conectados."""
+        if messagebox.askyesno(_("Blindar Red / Cerrar Puertos"),
+                               _("¿Deseas cerrar inmediatamente todas las transmisiones activas y revocar el puerto TCP/IP 5555 en todos los dispositivos conectados?")):
+            # Detener todas las sesiones
+            self.ctx.session_mgr.stop_all()
+            # Obtener seriales conectados
+            serials = [s for s, m, st in self.ctx.device_mgr.devices]
+            if serials and self.ctx.adb:
+                def task():
+                    n = SecurityManager.lockdown_all_devices(self.ctx.adb, serials)
+                    self.ctx.log("SEC", f"Lockdown ejecutado en {n} dispositivo(s).")
+                    self.root.after(0, lambda: [
+                        self._refresh_devices(),
+                        self._set_status(_("🔒 Red blindada y puertos cerrados."), C["green"]),
+                        Toast(self.root, _("🔒 Red blindada: todas las sesiones detenidas y puertos cerrados."), "success")
+                    ])
+                threading.Thread(target=task, daemon=True).start()
+            else:
+                self._refresh_devices()
+                self._set_status(_("🔒 Red blindada."), C["green"])
+                Toast(self.root, _("🔒 Todas las sesiones detenidas."), "success")
+
+    def _toggle_safe_mode(self):
+        """Conmuta el estado de Modo Seguro y actualiza los indicadores visuales."""
+        current = self.ctx.security_mgr.is_safe_mode_enabled
+        new_state = not current
+        self.ctx.security_mgr.set_safe_mode(new_state, save_config)
+        safe_txt = "🛡️ " + (_("Modo Seguro: ON") if new_state else _("Modo Seguro: OFF"))
+        safe_fg = C["green"] if new_state else C["orange"]
+        if hasattr(self, '_btn_safe_mode'):
+            self._btn_safe_mode.config(text=safe_txt, fg=safe_fg)
+        status_msg = "Modo Seguro Activado" if new_state else "Modo Seguro Desactivado"
+        Toast(self.root, f"🛡️ {status_msg}", "success" if new_state else "warning")
+        self.ctx.log("SEC", f"{status_msg}: Protección de red y bóveda de confianza {'activada' if new_state else 'desactivada'}.")
+
+    def _open_trust_vault(self):
+        """Abre la ventana modal para gestionar todos los dispositivos confiables."""
+        TrustVaultDialog(self.root, self.ctx.security_mgr, save_config, self._refresh_devices)
+
+    def _open_device_trust_modal(self):
+        """Abre la ventana modal para editar el estado de confianza y alias del dispositivo activo."""
+        serial = self.ctx.active_device_serial
+        if not serial:
+            messagebox.showwarning(_("Sin dispositivo"), _("Selecciona un dispositivo activo en la lista primero."))
+            return
+        model = next((m for s, m, st in self.ctx.device_mgr.devices if s == serial), "Android")
+        DeviceTrustModal(self.root, serial, model, self.ctx.security_mgr, save_config, self._refresh_devices)
 
     def _enable_tcpip(self):
         serial = self.ctx.active_device_serial
@@ -530,7 +765,8 @@ class ScrcpyDockApp:
                 self.root.after(0, lambda: messagebox.showinfo(
                     "TCP/IP habilitado",
                     f"Dispositivo {serial} listo en el puerto 5555.\n"
-                    f"Desconecta el cable USB y conecta por IP."))
+                    f"Desconecta el cable USB y conecta por IP.\n\n"
+                    f"💡 Recuerda pulsar '🛡️ Blindar TCP/IP' al terminar para cerrar el puerto."))
             except Exception as e:
                 self.ctx.log("ERROR", f"TCP/IP: {e}")
         threading.Thread(target=task, daemon=True).start()
@@ -601,7 +837,7 @@ class ScrcpyDockApp:
             pass
 
     def _send_keyevent(self, code):
-        """Envía un keyevent de control remoto al dispositivo activo vía ADB."""
+        """Envía un keyevent de control remoto al dispositivo activo vía ADB de forma segura."""
         serial = self.ctx.active_device_serial
         if not serial or not self.ctx.adb:
             messagebox.showwarning(_("Sin dispositivo"), _("Selecciona un dispositivo activo en la lista primero."))
@@ -614,8 +850,14 @@ class ScrcpyDockApp:
                     try:
                         text = self.root.clipboard_get()
                         if text:
-                            # Use input text for pasting. Simple quote escaping.
-                            escaped_text = text.replace("'", "'\\''")
+                            clean_text = SecurityManager.sanitize_text_input(text)
+                            if not clean_text:
+                                return
+                            # Si Modo Seguro está activo y el texto es largo, pedir confirmación rápida
+                            if self.ctx.security_mgr.is_safe_mode_enabled and len(clean_text) > 80:
+                                if not messagebox.askyesno(_("Confirmar"), f"¿Pegar texto ({len(clean_text)} caracteres) en el dispositivo '{serial}'?"):
+                                    return
+                            escaped_text = clean_text.replace("'", "'\\''")
                             subprocess.run([self.ctx.adb, "-s", serial, "shell", "input", "text", f"'{escaped_text}'"], capture_output=True, timeout=5)
                     except tk.TclError:
                         pass # Clipboard empty
@@ -630,7 +872,7 @@ class ScrcpyDockApp:
         threading.Thread(target=task, daemon=True).start()
 
     def _install_apk(self):
-        """Abre un diálogo para seleccionar un APK e instalarlo vía ADB."""
+        """Abre un diálogo para seleccionar un APK e instalarlo vía ADB con confirmación de seguridad."""
         serial = self.ctx.active_device_serial
         if not serial or not self.ctx.adb:
             messagebox.showwarning(_("Sin dispositivo"), _("Selecciona un dispositivo activo en la lista primero."))
@@ -642,6 +884,17 @@ class ScrcpyDockApp:
         if not apk_path:
             return
         apk_name = os.path.basename(apk_path)
+        is_trusted = self.ctx.security_mgr.is_trusted_device(serial)
+        alias = self.ctx.security_mgr.get_device_alias(serial)
+
+        # Si el Modo Seguro está activo o el dispositivo es desconocido, solicitar confirmación explícita
+        if self.ctx.security_mgr.is_safe_mode_enabled or not is_trusted:
+            if not messagebox.askyesno(
+                _("Confirmar Instalación de APK"),
+                f"¿Deseas instalar '{apk_name}' en el dispositivo '{alias}' ({serial})?"
+            ):
+                return
+
         self.ctx.log("ADB", f"[{serial}] Instalando APK: {apk_name}…")
         self._set_status(f"Instalando {apk_name}…", C["cyan"])
         Toast(self.root, f"Instalando {apk_name}...", "info")
@@ -865,6 +1118,17 @@ class ScrcpyDockApp:
             messagebox.showerror(_("Sin dispositivo"), _("Selecciona un dispositivo en la pestaña Dispositivo."))
             self._nb.select(2) # Fallback to device tab which is index 2 now
             return
+
+        # Verificación de seguridad si Modo Seguro está activo
+        if self.ctx.security_mgr.is_safe_mode_enabled and not self.ctx.security_mgr.is_trusted_device(serial):
+            alias = self.ctx.security_mgr.get_device_alias(serial)
+            if not messagebox.askyesno(
+                _("Advertencia de Seguridad"),
+                f"El dispositivo '{alias}' ({serial}) no está verificado en la Bóveda de Confianza.\n\n"
+                f"¿Deseas iniciar la transmisión de pantalla de todas formas?"
+            ):
+                return
+
         if serial in self.ctx.session_mgr.sessions:
             self._stop_current()
         else:
@@ -887,9 +1151,13 @@ class ScrcpyDockApp:
 
             def on_started():
                 self._refresh_table()
-                self._nb.select(1) # Select Actions tab
+                self._nb.select(0) # Select Actions tab
+                self.ctx.state_machine.set_success(f"✔ Transmisión activa: {profile_name}")
 
-            self.ctx.session_mgr.start_scene(serial, profile_name, profile_data, on_started)
+            self.ctx.state_machine.set_pending(f"Iniciando sesión: {profile_name}...")
+            res = self.ctx.session_mgr.start_scene(serial, profile_name, profile_data, on_started)
+            if not res.success:
+                self.ctx.state_machine.set_fault(res.message, res.error_code or ErrorCode.PROCESS_SPAWN_ERROR)
 
     def _stop_current(self):
         serial = self.ctx.active_device_serial
@@ -898,7 +1166,7 @@ class ScrcpyDockApp:
             return
         self.ctx.session_mgr.stop_session(serial)
         self._refresh_table()
-        self._set_status(_("Sesión detenida."), C["muted"])
+        self.ctx.state_machine.set_idle(_("Sesión detenida."))
 
     def _panic_kill(self):
         if not self.ctx.session_mgr.sessions:
@@ -934,11 +1202,39 @@ class ScrcpyDockApp:
         self.ctx.log("INFO", f"[{serial}] Sesión detenida.")
 
     def _on_tab_changed(self, event=None):
-        if self.ctx.active_device_serial:
-            self.ui.refs['action_device_lbl'].config(text=f"📱  {self.ctx.active_device_serial}", fg=C["text"])
-        else:
-            self.ui.refs['action_device_lbl'].config(text=_("📱  Sin dispositivo seleccionado"), fg=C["muted"])
-        self.ui.refs['action_profile_lbl'].config(text=f"⚙️  {self.ctx.active_profile.get()}", fg=C["cyan"])
+        serial = self.ctx.active_device_serial
+        is_trusted = self.ctx.security_mgr.is_trusted_device(serial) if serial else False
+        trust_text = " [🛡️ Confiable]" if is_trusted else (" [⚠️ No Verificado]" if serial else "")
+        trust_color = C["green"] if is_trusted else C["orange"]
+
+        if 'action_device_lbl' in self.ui.refs:
+            if serial:
+                alias = self.ctx.security_mgr.get_device_alias(serial)
+                self.ui.refs['action_device_lbl'].config(text=f"📱  {alias} ({serial})", fg=C["text"])
+            else:
+                self.ui.refs['action_device_lbl'].config(text=_("📱  Sin dispositivo seleccionado"), fg=C["muted"])
+
+        if 'action_trust_lbl' in self.ui.refs:
+            self.ui.refs['action_trust_lbl'].config(text=trust_text, fg=trust_color)
+
+        if 'action_profile_lbl' in self.ui.refs:
+            self.ui.refs['action_profile_lbl'].config(text=f"⚙️  {self.ctx.active_profile.get()}", fg=C["cyan"])
+
+        if 'ctrl_device_lbl' in self.ui.refs:
+            if serial:
+                alias = self.ctx.security_mgr.get_device_alias(serial)
+                self.ui.refs['ctrl_device_lbl'].config(text=f"📱  {alias} ({serial})", fg=C["text"])
+            else:
+                self.ui.refs['ctrl_device_lbl'].config(text=_("📱  Sin dispositivo"), fg=C["muted"])
+
+        if 'ctrl_trust_lbl' in self.ui.refs:
+            self.ui.refs['ctrl_trust_lbl'].config(text=trust_text, fg=trust_color)
+
+        if 'ctrl_profile_lbl' in self.ui.refs:
+            self.ui.refs['ctrl_profile_lbl'].config(text=f"⚙️  {self.ctx.active_profile.get()}", fg=C["cyan"])
+
+        if 'simple_trust_lbl' in self.ui.refs:
+            self.ui.refs['simple_trust_lbl'].config(text=trust_text, fg=trust_color)
 
     # ── Logging Tab ───────────────────────────────────────────────────
     def _pump_logs(self):
@@ -1220,10 +1516,48 @@ class ScrcpyDockApp:
         threading.Thread(target=self.tray_icon.run, daemon=True).start()
 
     def _exit(self):
-        self.ctx.session_mgr.stop_all()
-        try: self.root.destroy()
-        except Exception: pass
-        sys.exit(0)
+        """Cierre determinista absoluto: detiene trackers, sesiones, tray y procesos residuales."""
+        try:
+            if hasattr(self, 'ctx') and self.ctx:
+                if hasattr(self.ctx, 'device_mgr') and self.ctx.device_mgr:
+                    try:
+                        self.ctx.device_mgr.stop_tracking()
+                    except Exception:
+                        pass
+                if self.ctx.security_mgr and self.ctx.security_mgr.is_auto_lockdown_enabled and self.ctx.adb:
+                    serials = [s for s, m, st in self.ctx.device_mgr.devices]
+                    if serials:
+                        SecurityManager.lockdown_all_devices(self.ctx.adb, serials)
+                if self.ctx.session_mgr:
+                    self.ctx.session_mgr.stop_all()
+                if hasattr(self, 'root') and self.root:
+                    try:
+                        self.ctx.cfg["window_geometry"] = self.root.geometry()
+                        self.ctx.save_current_config()
+                    except Exception:
+                        pass
+        except Exception as e:
+            print(f"Error durante el cierre: {e}")
+
+        if hasattr(self, 'tray_icon') and self.tray_icon:
+            try:
+                self.tray_icon.stop()
+            except Exception:
+                pass
+
+        if hasattr(self, 'single_instance') and self.single_instance:
+            try:
+                self.single_instance.release()
+            except Exception:
+                pass
+
+        try:
+            self.root.destroy()
+        except Exception:
+            pass
+
+        import os
+        os._exit(0)
 
 def _make_tray_icon(size: int = 64):
     img = Image.new("RGBA", (size, size), (0, 0, 0, 0))
@@ -1252,9 +1586,12 @@ def main():
                                "La aplicación ya está en ejecución.\nBusca el icono en la bandeja del sistema.")
         sys.exit(1)
 
-    root = tk.Tk()
-    app  = ScrcpyDockApp(root)
-    root.mainloop()
+    try:
+        root = tk.Tk()
+        app  = ScrcpyDockApp(root, single_instance=single_inst)
+        root.mainloop()
+    finally:
+        single_inst.release()
 
 if __name__ == "__main__":
     main()

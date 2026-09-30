@@ -23,9 +23,11 @@ Designed especially for **gamers, streamers, content creators, and developers** 
 ### 🚀 What's New in Version 1.2
 
 - 🎨 **Warm Cozy Dark UI**: Completely redesigned interface using Warm Stone (`#1C1917`), Amber Gold (`#F59E0B`), and Terracotta (`#EA580C`).
+- 🛡️ **Trusted Devices Vault & Safe Mode**: Whitelist vault to prevent unauthorized connections to third-party devices on LAN/Wi-Fi networks.
+- 🔒 **Secure Wi-Fi Pairing (Android 11+)**: Support for `adb pair` with 6-digit PIN and TLS encryption.
+- 🔒 **TCP/IP Lockdown & Auto-Shield**: Quick button to close port 5555 (`adb usb`) and auto-lockdown on exit to protect phones on Wi-Fi.
 - 🗄️ **Native Window Menu Bar**: Top menu bar (`File`, `Edit`, `View`, `Device`, `Help`) with keyboard shortcuts (`Ctrl+Q`, `Ctrl+R`, `Alt+1..6`).
 - 📦 **1-Click Linux `.run` Installer**: Self-extracting installer for Linux that installs to `~/.local/share/masv/`, creates desktop shortcuts, and enables the `MASV` terminal command.
-- 🛡️ **Strict IP Validation**: Built-in `ipaddress` validation and strict `0600`/`0700` POSIX atomic permissions.
 - 🎬 **Expanded Codec & Camera Support**: Support for `VP8`, `VP9`, `AV1`, `H.264`, `H.265`, Android 12+ native camera capture, audio codecs, and v4l2 virtual webcams.
 - 🌐 **Full Bilingual Support**: Toggle dynamically between Spanish and English on both the app and web landing page.
 
@@ -66,9 +68,11 @@ Diseñada especialmente para **gamers, streamers, creadores de contenido y desar
 ### 🚀 Novedades de la Versión 1.2
 
 - 🎨 **Interfaz Cálida Personal**: Rediseño visual en tonos *Warm Stone*, Ámbar Dorado y Terracota para mayor confort visual.
+- 🛡️ **Bóveda de Dispositivos Confiables y Modo Seguro**: Lista blanca para evitar intromisiones o conexiones a equipos ajenos en redes Wi-Fi / LAN.
+- 🔒 **Emparejamiento Seguro (Android 11+)**: Soporte para `adb pair` con código de 6 dígitos cifrado por TLS.
+- 🔒 **Blindaje TCP/IP y Auto-Cierre**: Botón de pánico y cierre automático de puertos (`adb usb`) al desconectar o salir de la app.
 - 🗄️ **Barra de Menús Nativa Superior**: Menú superior (`Archivo`, `Editar`, `Ver`, `Dispositivo`, `Ayuda`) con atajos (`Ctrl+Q`, `Ctrl+R`, `Alt+1..6`).
 - 📦 **Instalador Ejecutable `.run` para Linux**: Instalador ejecutable de 1-clic que configura el acceso directo en Escritorio y habilita el comando `MASV` en terminal.
-- 🛡️ **Validación Estricta de IP**: Integración del módulo `ipaddress` y permisos POSIX `0600`/`0700` atómicos.
 - 🎬 **Códecs y Cámaras Avanzadas**: Soporte para `VP8`, `VP9`, `AV1`, `H.264`, `H.265`, cámara nativa Android 12+, códecs de audio y `v4l2loopback`.
 - 🌐 **Soporte Bilingüe Completo**: Conmutación dinámica entre Español e Inglés tanto en la aplicación como en la página web.
 

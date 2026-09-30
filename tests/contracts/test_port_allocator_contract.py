@@ -33,15 +33,17 @@ class PortAllocatorContract(unittest.TestCase):
         alloc.release(99999)
 
     def test_skips_port_already_in_use_by_external_process(self):
-        # Ocupar 27183 con un socket real en loopback
+        # Ocupar puerto de prueba con un socket real en loopback
         blocker = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        blocker.bind(("127.0.0.1", 27183))
+        blocker.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        test_base = 39183
+        blocker.bind(("127.0.0.1", test_base))
         blocker.listen(1)
         try:
-            alloc = PortAllocator(base=27183)
+            alloc = PortAllocator(base=test_base)
             result = alloc.acquire()
             self.assertTrue(result.success)
-            self.assertNotEqual(result.data, 27183)
+            self.assertNotEqual(result.data, test_base)
         finally:
             blocker.close()
 

@@ -2,6 +2,8 @@ import queue
 import tkinter as tk
 from .utils import load_config, save_config, find_portable_binaries
 from .managers import ProfileManager, DeviceManager, SessionManager
+from .security import SecurityManager
+from .state import UIStateMachine, UIState
 from .i18n import set_language
 
 class AppContext:
@@ -10,9 +12,11 @@ class AppContext:
         self.log_q = queue.Queue()
         self.cfg = load_config()
         
+        self.state_machine = UIStateMachine(UIState.IDLE)
         self.profile_mgr = ProfileManager(self.cfg)
         self.device_mgr = DeviceManager()
-        self.session_mgr = SessionManager(self.log_q)
+        self.session_mgr = SessionManager(self.log_q, device_mgr=self.device_mgr)
+        self.security_mgr = SecurityManager(self.cfg)
         
         self.active_device = tk.StringVar(value="Sin dispositivo")
         self.active_device_serial = None # Serial puro

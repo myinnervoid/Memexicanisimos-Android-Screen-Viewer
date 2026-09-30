@@ -53,7 +53,7 @@ class ServicesIntegrationSmoke(unittest.TestCase):
         vault = {
             "version": 1,
             "trusted_devices": [
-                {"serial": "FKTVB20A17002956",
+                {"serial": "MOCK_HWY9_SERIAL_01",
                  "label": "Huawei Y9",
                  "added_at": 1726281000.0},
             ],
@@ -70,7 +70,7 @@ class ServicesIntegrationSmoke(unittest.TestCase):
         dec = sec2.decrypt_vault(enc.data)
         self.assertTrue(dec.success)
         self.assertTrue(
-            sec2.is_whitelisted_device("FKTVB20A17002956", dec.data),
+            sec2.is_whitelisted_device("MOCK_HWY9_SERIAL_01", dec.data),
         )
         self.assertFalse(
             sec2.is_whitelisted_device("UNKNOWN", dec.data),

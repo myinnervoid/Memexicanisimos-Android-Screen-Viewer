@@ -55,6 +55,10 @@ jobs:
           Remove-Item -Recurse -Force scrcpy_temp -ErrorAction SilentlyContinue
           Remove-Item -Force scrcpy-win64.zip -ErrorAction SilentlyContinue
 
+      - name: Run Automated Test Suite
+        run: |
+          python -m unittest discover -s tests -v
+
       - name: Build Executable
         env:
           PYTHONIOENCODING: 'utf-8'

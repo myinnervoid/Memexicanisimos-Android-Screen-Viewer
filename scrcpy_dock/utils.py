@@ -1,16 +1,25 @@
 import os, sys, re, time, socket, shutil, json
 
-# ── Paleta Warm Cozy Dark — Sistema de Diseño Canónico Warm ─────────────────
-# Diseño cálido personal (Warm Stone, Ámbar Dorado, Terracota y Marfil)
+# ── Paleta Warm Modern Dark — Sistema de Diseño Canónico MASV ────────────────
+# Diseño cálido personal (Warm Stone Deep, Ámbar Dorado, Terracota y Marfil)
 C = {
-    # Fondos principales (Elevación por capas cálidas)
-    "bg":          "#1C1917",   # Warm Stone 900 - Ventana principal
-    "card":        "#262422",   # Warm Stone 850 - Tarjetas y contenedores
-    "card2":       "#322E2B",   # Warm Stone 800 - Headers, toolbars, entradas
-    "card3":       "#44403C",   # Warm Stone 700 - Hover sutil
+    # Fondos principales (Elevación por capas cálidas profundas)
+    "bg":          "#141210",   # Warm Stone Deep 950 - Ventana principal
+    "card":        "#1E1B18",   # Warm Stone 900 - Tarjetas y contenedores
+    "card2":       "#282522",   # Warm Stone 850 - Headers, toolbars, entradas
+    "card3":       "#35312D",   # Warm Stone 800 - Hover sutil
+    "card_border": "#383430",   # Borde de tarjeta moderno de 1px
 
     # Separadores y bordes
-    "sep":         "#44403C",   # Borde de separación sutil cálido
+    "sep":         "#2F2B27",   # Borde de separación sutil cálido
+
+    # Navegación por pastillas (Pill Navigation)
+    "pill_bg":     "#221F1C",   # Fondo de barra de pastillas
+    "pill_btn":    "#2C2825",   # Botón de pastilla inactivo
+    "pill_hover":  "#38332E",   # Hover de pastilla
+    "pill_active": "#D97706",   # Pastilla activa (Ámbar)
+    "pill_text":   "#A8A29E",   # Texto inactivo
+    "pill_text_act":"#FFFFFF",  # Texto activo
 
     # Acciones primarias y acentos
     "blue":        "#D97706",   # Ámbar Cálido Primario
@@ -19,9 +28,9 @@ C = {
     "indigo_hover":"#D97706",
 
     # Peligro / Cancelar
-    "red":         "#F43F5E",   # Rosa/Rojo cálido
-    "red_dim":     "#4C0519",   # Fondo de alerta destructiva
-    "red_hover":   "#E11D48",
+    "red":         "#E11D48",   # Rosa/Rojo moderno
+    "red_dim":     "#3B0D18",   # Fondo de alerta sutil
+    "red_hover":   "#BE123C",
 
     # Éxito / Estado Activo
     "green":       "#10B981",   # Esmeralda cálido
@@ -46,7 +55,7 @@ C = {
     "muted":       "#A8A29E",   # Stone 400 - Etiquetas y pistas
 
     # Estados desactivados
-    "disabled":    "#44403C",
+    "disabled":    "#383430",
 
     # Foco de accesibilidad (Tab)
     "focus":       "#F59E0B",
@@ -55,7 +64,7 @@ C = {
     "state_ok":      "#10B981",
     "state_warn":    "#F59E0B",
     "state_err":     "#EF4444",
-    "state_neutral": "#94A3B8",
+    "state_neutral": "#78716C",
 }
 
 _PLAT = sys.platform
@@ -118,6 +127,12 @@ DEFAULT_CONFIG = {
     "window_state": "normal",
     "onboarding_done": False,
     "language": "es",
+    "security": {
+        "safe_mode_enabled": True,
+        "auto_lockdown_on_exit": True,
+        "trusted_devices": {},
+        "blocked_ips": []
+    }
 }
 
 def load_config() -> dict:
@@ -129,6 +144,10 @@ def load_config() -> dict:
         for k, v in DEFAULT_CONFIG.items():
             if k not in data:
                 data[k] = v
+            elif isinstance(v, dict) and isinstance(data[k], dict):
+                for sub_k, sub_v in v.items():
+                    if sub_k not in data[k]:
+                        data[k][sub_k] = sub_v
         return data
     except Exception as e:
         print(f"Error loading config: {e}")
@@ -218,7 +237,7 @@ class SingleInstance:
 
 def _extract_serial(text: str) -> str:
     """Extrae el serial del formato 'Modelo (Serial)' o devuelve el texto limpio."""
-    m = re.search(r"\(([^)]+)\)$", text)
+    m = re.search(r"\(([^)]+)\)", text)
     if m:
         return m.group(1).strip()
     return text.strip()
