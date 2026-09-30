@@ -123,6 +123,7 @@ class ServicesAllowedDependenciesContract(unittest.TestCase):
         # módulos internos
         "scrcpy_dock",
         "__future__",
+        "threading"
     })
 
     def test_all_imports_from_allowed_roots(self):
