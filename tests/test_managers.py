@@ -13,7 +13,9 @@ class TestManagersEvolution(unittest.TestCase):
         }
         self.log_q = queue.Queue()
         self.pm = ProfileManager(self.cfg)
-        self.sm = SessionManager(self.log_q)
+        from unittest.mock import patch
+        with patch('scrcpy_dock.managers.find_portable_binaries', return_value=('/mock/adb', '/mock/scrcpy')):
+            self.sm = SessionManager(self.log_q)
 
     def test_profile_manager_empty_name_fails(self):
         res = self.pm.save_profile("", {"bitrate": "8M"}, None)
