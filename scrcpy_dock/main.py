@@ -16,7 +16,7 @@ except ImportError:
 
 import re
 from typing import Optional, List, Dict, Any, Tuple
-from .utils import C, FONT_UI, FONT_UI_B, FONT_SM, FONT_LG, FONT_MONO, FONT_FAMILY, SingleInstance, _extract_serial, parse_ip_port, log_msg, LOG_FILE, save_config
+from .utils import C, FONT_UI, FONT_UI_B, FONT_SM, FONT_LG, FONT_MONO, FONT_FAMILY, SingleInstance, _extract_serial, parse_ip_port, log_msg, LOG_FILE, save_config, apply_theme
 from .context import AppContext
 from .ui_tabs import UIBuilder
 from .ui_widgets import _recolor, Toast, Tooltip, DeviceTrustModal, SafeActionConfirmModal, TrustVaultDialog
@@ -37,6 +37,12 @@ class ScrcpyDockApp:
         self.root.configure(bg=C["bg"])
 
         self.ctx = AppContext(root)
+
+        # Load and apply theme from config
+        saved_theme = self.ctx.cfg.get("theme", "warm_stone")
+        apply_theme(saved_theme)
+        self.root.configure(bg=C["bg"])
+
         self._setup_styles()
         self._build_menu_bar()
 
@@ -139,6 +145,13 @@ class ScrcpyDockApp:
         view_menu = tk.Menu(menubar, tearoff=0, bg=C["card"], fg=C["text"], activebackground=C["blue"], activeforeground="#FFF")
         view_menu.add_command(label=_("🔀 Alternar Vista (Simple / Avanzada)"), command=self._toggle_view)
         view_menu.add_command(label=_("🖥 Ir a Consola de Registros"), command=lambda: self._nb.select(4))
+
+        theme_menu = tk.Menu(view_menu, tearoff=0, bg=C["card"], fg=C["text"], activebackground=C["blue"], activeforeground="#FFF")
+        theme_menu.add_command(label="Warm Stone (Default)", command=lambda: self._change_theme("warm_stone"))
+        theme_menu.add_command(label="Cyber Obsidian (Dark)", command=lambda: self._change_theme("cyber_obsidian"))
+        theme_menu.add_command(label="Nordic Slate (Minimal)", command=lambda: self._change_theme("nordic_slate"))
+        view_menu.add_cascade(label=_("Tema Visual"), menu=theme_menu)
+
         menubar.add_cascade(label=_("Ver"), menu=view_menu)
 
         dev_menu = tk.Menu(menubar, tearoff=0, bg=C["card"], fg=C["text"], activebackground=C["blue"], activeforeground="#FFF")
@@ -157,6 +170,39 @@ class ScrcpyDockApp:
         menubar.add_cascade(label=_("Ayuda"), menu=help_menu)
 
         self.root.config(menu=menubar)
+
+
+    def _change_theme(self, theme_name: str):
+        self.ctx.cfg["theme"] = theme_name
+        save_config(self.ctx.cfg)
+        apply_theme(theme_name)
+        self._setup_styles()
+        self.root.config(bg=C["bg"])
+
+        # Function to deeply recolor all tk widgets
+        def _deep_recolor(widget):
+            cls_name = widget.winfo_class()
+
+            try:
+                if cls_name in ('Frame', 'Toplevel', 'Tk'):
+                    widget.config(bg=C["bg"])
+                elif cls_name == 'Label':
+                    widget.config(bg=C["bg"], fg=C["text"])
+                elif cls_name == 'Button':
+                    widget.config(bg=C["card"], fg=C["text"])
+                elif cls_name == 'Menu':
+                    widget.config(bg=C["card"], fg=C["text"], activebackground=C["blue"], activeforeground="#FFF")
+            except Exception:
+                pass
+
+            for child in widget.winfo_children():
+                _deep_recolor(child)
+
+        # Actually call the recolor function
+        _deep_recolor(self.root)
+
+        # Notify state update to redraw any specific colored widgets
+        self.ctx.state_machine.transition_to(self.ctx.state_machine.current_state, self.ctx.state_machine.message, self.ctx.state_machine.error_code)
 
     def _bind_shortcuts(self):
         self.root.bind("<Control-q>", lambda _: self._on_close())

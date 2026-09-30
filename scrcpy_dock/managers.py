@@ -257,7 +257,7 @@ class SessionManager:
         else:
             _, scrcpy_bin = find_portable_binaries()
             from pathlib import Path
-            self._scrcpy = ScrcpyEngine(Path(scrcpy_bin), Path("/usr/local/share/scrcpy/scrcpy-server"))
+            self._scrcpy = ScrcpyEngine(Path(scrcpy_bin or "/usr/local/bin/scrcpy"), Path("/usr/local/share/scrcpy/scrcpy-server"))
 
         self._allocator = allocator or PortAllocator(base=27183, max_offset=20)
         self._clock = clock or time.monotonic
