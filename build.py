@@ -38,13 +38,18 @@ def build():
         main_script
     ]
 
+    sep = ';' if plat == 'win32' else ':'
     if os.path.exists(bin_path) and os.listdir(bin_path):
-        sep = ';' if plat == 'win32' else ':'
         add_data = f"--add-data={bin_path}{sep}bin"
         args.insert(args.index(main_script), add_data)
         safe_print("[MASV] Carpeta 'bin/' detectada. Se incluirá en el ejecutable portátil.")
     else:
         safe_print("[MASV] Carpeta 'bin/' vacía o no encontrada. El ejecutable dependerá del PATH del sistema.")
+
+    assets_path = os.path.join(base_dir, "assets")
+    if os.path.exists(assets_path) and os.listdir(assets_path):
+        args.insert(args.index(main_script), f"--add-data={assets_path}{sep}assets")
+        safe_print("[MASV] Carpeta 'assets/' detectada e incluida en el ejecutable.")
 
     # Solución específica para Linux: incluir libpython.so explícitamente para evitar error PyInstaller PYI-21058 (dlopen)
     if plat == "linux":
@@ -66,6 +71,14 @@ def build():
                 tar_path = os.path.join(dist_dir, "MASV-Linux.tar.gz")
                 with tarfile.open(tar_path, "w:gz") as tar:
                     tar.add(bin_file, arcname="MASV")
+                    install_sh = os.path.join(base_dir, "install.sh")
+                    if os.path.exists(install_sh):
+                        tar.add(install_sh, arcname="install.sh")
+                    uninstall_sh = os.path.join(base_dir, "uninstall.sh")
+                    if os.path.exists(uninstall_sh):
+                        tar.add(uninstall_sh, arcname="uninstall.sh")
+                    if os.path.isdir(assets_path) and os.listdir(assets_path):
+                        tar.add(assets_path, arcname="assets")
                     # Only add bin_path if it exists and is a directory with contents
                     if os.path.isdir(bin_path) and os.listdir(bin_path):
                         tar.add(bin_path, arcname="bin")

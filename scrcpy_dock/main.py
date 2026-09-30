@@ -1626,6 +1626,48 @@ def _make_tray_icon(size: int = 64):
     return img
 
 def main():
+    if "--install" in sys.argv:
+        from .services.installer_service import InstallerService
+        from pathlib import Path
+        import shutil
+        svc = InstallerService()
+        svc.ensure_layout()
+        exe_path = Path(sys.executable if getattr(sys, 'frozen', False) else os.path.abspath(sys.argv[0]))
+        icon_path = Path(__file__).parent.parent / "assets" / "logo.png"
+        if getattr(sys, 'frozen', False) and hasattr(sys, '_MEIPASS'):
+            icon_path = Path(sys._MEIPASS) / "assets" / "logo.png"
+        
+        target_icon = svc.assets_dir / "logo.png"
+        if icon_path.exists():
+            shutil.copy2(icon_path, target_icon)
+            res = svc.write_desktop_entry(exe_path, target_icon)
+        else:
+            res = svc.write_desktop_entry(exe_path, exe_path)
+
+        if res.success:
+            print("[MASV] Instalación completada con éxito.")
+            print(f"[MASV] Enlace en terminal: {svc.bin_symlink_path}")
+            print(f"[MASV] Acceso de escritorio: {svc.desktop_entry_path}")
+            sys.exit(0)
+        else:
+            print(f"[MASV] Error al instalar: {res.message}")
+            sys.exit(1)
+
+    if "--uninstall" in sys.argv:
+        from .services.installer_service import InstallerService
+        svc = InstallerService()
+        purge = "--purge" in sys.argv
+        res = svc.uninstall(purge=purge)
+        if res.success:
+            msg = "[MASV] Desinstalación completada con éxito."
+            if purge:
+                msg += " (Configuraciones y datos purgados)."
+            print(msg)
+            sys.exit(0)
+        else:
+            print(f"[MASV] Error al desinstalar: {res.message}")
+            sys.exit(1)
+
     single_inst = SingleInstance()
     if not single_inst.acquire():
         messagebox.showwarning("MASV",
