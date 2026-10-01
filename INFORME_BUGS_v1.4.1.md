@@ -555,9 +555,10 @@ sincronizados con el registro de ejecución de `ANALISIS.md` §11.
 
 | Métrica | Al redactar este informe | Tras Fases A–D3 |
 | :--- | :---: | :---: |
-| Pruebas | 269 | **462** |
-| Cobertura total | 35 % | **75 %** |
+| Pruebas | 269 | **532** |
+| Cobertura total | 35 % | **78 %** |
 | Cobertura `core/adb_engine.py` | 46 % | **100 %** |
+| Módulos de negocio bajo el 80 % | 4 | **0** (mínimo 81 %) |
 | Cobertura UI (`ui_tabs.py`) | 0–3 % | **98 %** |
 | Bloques con CC > 10 | 20 (máx. 63) | **14 (máx. 18)** |
 | Bloques Rank D o F | 5 (3 D + 2 F) | **0** |

@@ -83,29 +83,33 @@ Medidas **hoy** sobre el repositorio, no estimadas. Comandos en el §10.
 
 Runner: `python -m unittest discover -s tests` (el del CI). Herramienta: `coverage.py`.
 
-| Capa | Umbral Ley 7 | Medido | Veredicto |
-| :--- | :---: | :---: | :---: |
-| **UI** (`main.py`, `ui_tabs.py`, `ui_widgets.py`) | ≥ 60 % | **0 % / 0 % / 16 %** | ❌ **Brecha grave** |
-| **Lógica de negocio / núcleo** | ≥ 80 % | ver desglose | 🟡 Mixto |
-| **TOTAL proyecto** | — | **35 %** (4.664 stmts, 3.052 sin cubrir) | — |
+| Capa | Umbral Ley 7 | Medido (auditoría v1.4.1) | Medido (hoy) | Veredicto |
+| :--- | :---: | :---: | :---: | :---: |
+| **UI** (`main.py`, `ui_tabs.py`, `ui_widgets.py`) | ≥ 60 % | 0 % / 0 % / 16 % | **61 % / 98 % / 49 %** | 🟡 (`ui_widgets.py`) |
+| **Lógica de negocio / núcleo** (17 módulos) | ≥ 80 % | 46 %–100 % | **81 %–100 %** | ✅ |
+| **TOTAL proyecto** | — | **35 %** (4.664 stmts) | **78 %** (5.031 stmts) | — |
 
-Desglose de la capa de negocio (17 módulos):
+Desglose de la capa de negocio (17 módulos) — auditoría → hoy:
 
-| Módulo | Cob. | Módulo | Cob. |
-| :--- | :---: | :--- | :---: |
-| `errors.py` | **100 %** | `services/tether_service.py` | 81 % |
-| `domain/models.py` | **100 %** | `core/tether_engine.py` | 77 % |
-| `domain/protocols.py` | **100 %** | `core/scrcpy_engine.py` | 75 % |
-| `core/port_allocator.py` | **100 %** | `managers.py` | 72 % |
-| `contracts.py` | 98 % | `context.py` | 72 % |
-| `state.py` | 95 % | `security.py` | 71 % |
-| `services/profile_service.py` | 93 % | `utils.py` | 64 % |
-| `services/security_service.py` | 93 % | **`core/adb_engine.py`** | **46 %** ⚠️ |
-| `services/installer_service.py` | 90 % | | |
+| Módulo | v1.4.1 | Hoy | Módulo | v1.4.1 | Hoy |
+| :--- | :---: | :---: | :--- | :---: | :---: |
+| `errors.py` | 100 % | **100 %** | `services/tether_service.py` | 81 % | **81 %** |
+| `domain/models.py` | 100 % | **100 %** | `core/tether_engine.py` | 77 % | **100 %** |
+| `domain/protocols.py` | 100 % | **100 %** | `core/scrcpy_engine.py` | 75 % | **83 %** |
+| `core/port_allocator.py` | 100 % | **100 %** | `managers.py` | 72 % | **85 %** |
+| `contracts.py` | 98 % | **98 %** | `context.py` | 72 % | **81 %** |
+| `state.py` | 95 % | **97 %** | `security.py` | 71 % | **100 %** |
+| `services/profile_service.py` | 93 % | **98 %** | `utils.py` | 64 % | **100 %** |
+| `services/security_service.py` | 93 % | **91 %** | **`core/adb_engine.py`** | **46 %** ⚠️ | **100 %** |
+| `services/installer_service.py` | 90 % | **90 %** | `services/stream_service.py` | — | **84 %** |
 
-**Lectura:** el dominio y los contratos están excelentemente cubiertos (100 %), pero **el adaptador más crítico para la estabilidad operativa —`adb_engine.py`— está al 46 %**: sin cubrir las líneas 379-402 (`revert_tcpip` y sus marcadores de transición de transporte) ni 597-655 (todo el bucle de reconexión de `_TrackerThread._run_once`). La cobertura cae a cero justo donde vive la lógica de reconexión y lock-down.
+> **Matiz de comparabilidad**: en `security.py`, `security_service.py` y `utils.py` el número de sentencias cambió con los refactors (B5 añadió la persistencia cifrada, C3 las primitivas del motor). Un porcentaje algo menor sobre un denominador mayor puede significar **más** líneas cubiertas: `security_service.py` pasó de 93 % de 91 sentencias a 91 % de 141 (de ~85 a 129 líneas cubiertas).
+
+**Lectura (auditoría):** el dominio y los contratos están excelentemente cubiertos (100 %), pero **el adaptador más crítico para la estabilidad operativa —`adb_engine.py`— está al 46 %**: sin cubrir las líneas 379-402 (`revert_tcpip` y sus marcadores de transición de transporte) ni 597-655 (todo el bucle de reconexión de `_TrackerThread._run_once`). La cobertura cae a cero justo donde vive la lógica de reconexión y lock-down.
 
 > **✅ CERRADO en D3 (§11.6).** Este párrafo señalaba exactamente las dos zonas que quedaron sin cubrir, y fueron las que se atacaron: `revert_tcpip` completo (incluidos los falsos negativos de ADR-009) y el `_TrackerThread` entero. `adb_engine.py` está hoy al **100 %**.
+>
+> **✅ CERRADO en D3-bis (§11.7).** Los tres últimos módulos bajo el 80 % — `utils.py` (72 %), `security.py` (74 %) y `tether_engine.py` (77 %) — están hoy al **100 % los tres**. **Ningún módulo de negocio o núcleo está ya por debajo del umbral**: el mínimo es `services/tether_service.py` con 81 %. La Ley 7 de negocio queda en ✅.
 
 ### 3.2 Complejidad ciclomática (umbral Ley 7: ≤ 10)
 
@@ -157,13 +161,13 @@ Concentrada en las invocaciones repetidas de `subprocess.run(...)` en `adb_engin
 
 | Métrica | Umbral | Medido | ¿Cumple? |
 | :--- | :---: | :---: | :---: |
-| Cobertura lógica de negocio | ≥ 80 % | **72 %–100 %** (era 46 %–100 %): 3 módulos del núcleo por debajo — `utils` 72 %, `security` 74 %, `tether_engine` 77 % | 🟡 |
-| Cobertura UI | ≥ 60 % | 49 %–98 % (tras D1) | 🟡 |
+| Cobertura lógica de negocio | ≥ 80 % | **81 %–100 %** (era 46 %–100 %) — los 17 módulos cumplen; el mínimo es `services/tether_service.py` 81 % | ✅ |
+| Cobertura UI | ≥ 60 % | 61 % (`main.py`) · 98 % (`ui_tabs.py`) · 49 % (`ui_widgets.py`) | 🟡 |
 | Complejidad ciclomática | ≤ 10 | **14** bloques > 10 (máx. 18; era 20 con máx. 63) — **0 con rank D o F** | 🟡 |
 | Duplicación | ≤ 5 % | 2,9 % | ✅ |
 | Vulnerabilidades | 0 altas/críticas | 0 | ✅ |
 
-**2 ✅ · 3 🟡 · 0 ❌** — ningún umbral queda en rojo. La cobertura total pasó de 35 % a **75 %**; el peor caso de negocio (`adb_engine.py`, 46 %) está ahora al **100 %** y quedan tres módulos del núcleo entre 72 % y 77 % para alcanzar el 80 %.
+**3 ✅ · 2 🟡 · 0 ❌** — la Ley 7 de negocio pasa a verde. Quedan dos 🟡: la cobertura de `ui_widgets.py` (49 %, objetivo `C2`) y los 14 bloques de complejidad entre 11 y 18. Cobertura total del proyecto: 35 % → **78 %**.
 
 ---
 
@@ -887,7 +891,62 @@ IP, deduplicar las 295 claves i18n huérfanas y reconstruir los ~26 ADR citados 
 | Módulos de negocio por debajo del 80 % | 4 | **3** (`utils` 72 %, `security` 74 %, `tether_engine` 77 %) |
 | Umbrales de la Ley 7 en rojo | 1 (complejidad) | **0** |
 
+> Cifras de este apartado: estado **al cerrar D3**. En D3-bis (§11.7) la cobertura total subió a 78 % y los tres módulos del núcleo que quedaban pendientes pasaron al 100 %.
+
 **Lo que queda de la Fase D**: D2 (linter en CI), D4 (exhaustividad de `ERROR_CATALOG` y contraste WCAG) y D5 (`requirements-dev.txt`, matriz de trade-offs). Y de las fases anteriores: C2 (modularización de la UI, ya con doble blindaje D1+D3), los 3 módulos del núcleo entre 72 % y 77 %, los 14 bloques CC entre 11 y 18, unificar las convenciones de fallo de los parsers de IP, deduplicar las 295 claves i18n huérfanas y reconstruir los ~26 ADR citados y no escritos.
+
+### 11.7 Fase D — D3-bis · Cierre de la Ley 7 de negocio (2026-10-01)
+
+Los tres últimos módulos por debajo del 80 % quedan cerrados. **532/532 pruebas en verde**
+(70 nuevas en `tests/test_core_edge_paths.py`).
+
+| Módulo | Antes | Después |
+| :--- | :---: | :---: |
+| `scrcpy_dock/utils.py` | 72 % | **100 %** |
+| `scrcpy_dock/security.py` | 74 % | **100 %** |
+| `scrcpy_dock/core/tether_engine.py` | 77 % | **100 %** |
+
+**Ningún módulo de negocio o núcleo está por debajo del 80 %**: el mínimo es
+`services/tether_service.py` con 81 %. **Con la Ley 7 de negocio en ✅.**
+
+**Qué se cubrió** — en los tres casos eran **ramas de borde**, no lógica central:
+
+| Módulo | Ramas |
+| :--- | :--- |
+| `utils` | Tipografía por plataforma (`darwin`/`win32`/`linux`) reimportando el módulo con `expanduser`/`makedirs`/`chmod` parcheados para **no tocar el HOME real**; `chmod 0700` que falla sin abortar el arranque; fusión de subclaves que faltan en una sección existente; config corrupta o que no es un diccionario; guardado atómico donde falla `os.replace` (se limpia el temporal) o no se puede endurecer permisos; carpetas portables en modo empaquetado (`sys._MEIPASS`); `parse_ip_port` con puerto 0, fuera de rango o no numérico; `SingleInstance` (segunda instancia rechazada, reincorporación tras `release`, socket roto); rotación del log a los 5 MB, incluso si no se puede borrar ni renombrar, y destino imposible sin propagar |
+| `security` | Sección `security` que no es un diccionario; bóveda con cripto caída; config que dice estar cifrada y no tiene archivo; **los tres caminos donde persistir falla** (no se puede crear la carpeta, `save_vault` falla, la ida y vuelta no cuadra) → en todos, la copia en claro se conserva; backup previo que no se puede copiar y backup que no se reescribe; alta/baja/revocación y operaciones idempotentes; `parse_pair_ip_port_code` con los 7 rechazos (código corto, puerto 0, host no parseable…); `sanitize_text_input` con controles; `validate_extra_arguments` con los 7 operadores de shell + comillas sin cerrar; `pair_device` (éxito, rechazo, timeout, fallo inesperado); `lockdown_device_tcpip` (inválidos, éxito, rechazo, excepción); `lockdown_all_devices` contando solo éxitos; `kill_adb_server` |
+| `tether_engine` | Búsqueda de gnirehtet en modo empaquetado; `start` que no consigue lanzar el proceso; `stop` con código ≠ 0 y `stop` con excepción |
+
+**Hallazgo de este tramo (Menor, documentado)**: `TetherEngine(ruta)` **no valida que la ruta
+exista** en el constructor. Si se le pasa una ruta configurada pero inexistente, `start()` intenta
+lanzarla y devuelve `PROCESS_SPAWN_ERROR` con el mensaje del sistema (`[Errno 2] No such file...`),
+y `stop()` devuelve `UNKNOWN_ERROR`. No es un defecto (el mensaje es claro y no se pierde nada),
+pero queda fijado por pruebas para que nadie lo confunda con un fallo de gnirehtet. Lo mismo cabe
+para `_MEIPASS`: en modo desarrollo esa rama no se ejecuta nunca, y ahora hay prueba.
+
+**Los 5 fallos de la primera pasada fueron de mis pruebas, no del código** — y ambos casos enseñaron
+algo:
+
+1. **`__init__` ya migra la bóveda.** Al construir `SecurityManager` con dispositivos en la config y
+   un `vault_dir`, el constructor llama a `_persist_vault()` y el flag `is_vault_encrypted` ya es
+   `True` antes de la prueba. Mis aserciones comprobaban el estado global en vez del resultado de la
+   llamada bajo prueba. Corregido aislando el estado (sembrar `_trusted` **después** de construir).
+   Efecto colateral positivo: la prueba confirma que el flag **sólo** se activa tras una escritura
+   verificada.
+2. **`TetherEngine(ruta)` no es lo mismo que "sin binario".** `None` o una búsqueda sin resultados da
+   `BINARY_NOT_FOUND`; una ruta con valor pero inexistente da el error del sistema. Mi prueba
+   mezclaba ambos escenarios. Corregido separándolos en dos pruebas que ahora fijan las dos
+   conductas reales.
+
+**Metodología (aislamiento)**: `CONFIG_FILE` y `LOG_FILE` se redirigen a un temporal en cada clase;
+la prueba de recarga por plataforma parchea `expanduser`, `makedirs` y `chmod`, y **restaura el
+módulo** al final; el log se prueba con un destino imposible (un directorio) en vez de con un
+monkeypatch global de `open()`. Ninguna prueba escribe en `~/.config/masv/`.
+
+**Lo que queda**: C2 (modularización de la UI — es lo que subiría `ui_widgets.py` del 49 % al
+umbral), los 14 bloques CC entre 11 y 18, D2 (linter en CI), D4 (`ERROR_CATALOG` + WCAG), D5,
+unificar las convenciones de fallo de los parsers de IP, deduplicar las 295 claves i18n huérfanas y
+reconstruir los ~26 ADR citados y no escritos.
 
 ---
 
