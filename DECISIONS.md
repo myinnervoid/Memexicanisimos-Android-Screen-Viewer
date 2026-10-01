@@ -15,6 +15,10 @@
 33. [ADR-033: Extracción de `StreamService` con Proveedores (no valores)](#adr-033)
 34. [ADR-034: Datos desde el Modelo, Nunca desde la Etiqueta del Widget](#adr-034)
 35. [ADR-035: Una Pestaña, un Módulo — y el Contenedor se Limpia en un Solo Sitio](#adr-035)
+36. [ADR-036: Ensayos de Componentes de UI y Prohibición de Enmascaramiento de `_` en Callbacks](#adr-036)
+37. [ADR-037: Las Dependencias Opcionales de UI Degradan, Nunca Rompen la Importación](#adr-037)
+38. [ADR-038: El Pipeline se Verifica en las Condiciones del Pipeline](#adr-038)
+39. [ADR-039: Ninguna Prueba Puede Escribir en los Datos del Usuario — y Hay un Guardián que lo Comprueba](#adr-039)
 
 > ⚠️ **Hueco de trazabilidad detectado (2026-10-01):** el código cita **ADR-001 a ADR-031**
 > (`ADR-006/007/008/009` en `adb_engine`, `ADR-029` en `port_allocator`, `ADR-031` en
@@ -156,9 +160,47 @@
   - Prohibir formalmente el uso de `_` como nombre de parámetro en handlers y callbacks de interfaz donde se invoque traducción de texto; usar siempre nombres explícitos como `event=None`.
   - Integrar linter estricto `pyflakes` en el pipeline de GitHub Actions (`.github/workflows/build.yml`) y declarar dependencias en `requirements-dev.txt`.
 - **Consecuencias**:
-  - *Positivas*: la cobertura de `ui_widgets.py` saltó del 49 % al **81,8 %**, dejando la Ley 7 de interfaz en **✅ VERDE**; los 558 tests pasan en verde; el copiado en chips y la selección de pastillas funcionan sin excepciones.
+  - *Positivas*: la cobertura de `ui_widgets.py` saltó del 49 % al **94 %** (medido con display; ver §11.9), dejando la Ley 7 de interfaz en **✅ VERDE**; los 558 tests pasan en verde; el copiado en chips y la selección de pastillas funcionan sin excepciones.
   - *Negativas*: los tests de UI requieren simulación y control de mapeo de ventanas en modo headless (Tkinter `update` y neutralización de modales bloqueantes).
   - *Verificación*: `tests/test_ui_widgets_coverage.py` (14 pruebas unitarias) ejecutadas en CI y en local.
+
+---
+
+<a name="adr-037"></a>
+### ADR-037: Las Dependencias Opcionales de UI Degradan, Nunca Rompen la Importación
+
+- **Contexto del Problema**: `main.py` envolvía `import pystray` en `except ImportError`. Sin pantalla (CI headless, servidor, sesión sin X) esa importación no falla con `ImportError` sino con `Xlib.error.DisplayNameError`, que se escapaba: **`import scrcpy_dock.main` no funcionaba sin display**. Efecto medido en un runner headless: 3 módulos de pruebas ni se importaban (`_FailedTest`) y 15 pruebas más morían dentro de su propio código — pruebas que no usan Tk y que deberían haber pasado.
+- **Decisión Adoptada**: toda dependencia de UI que sea **opcional** (bandeja del sistema, y por extensión cualquier cosa que necesite servidor gráfico) se importa dentro de una guarda que atrapa **cualquier** fallo y degrada a una bandera documentada (`TRAY_AVAILABLE = False`). El resto del módulo debe importarse y funcionar sin ella.
+- **Consecuencias**:
+  - *Positivas*: la app y toda la suite son importables sin pantalla; en headless las pruebas de UI **se saltan** con elegancia en vez de reventar; el daemon y el núcleo no dependen del entorno gráfico.
+  - *Negativas*: `except Exception` también silencia una instalación rota de `pystray`/PIL. Se acepta porque la bandeja es cosmética y su ausencia se degrada sola (la opción simplemente no se ofrece), y porque exigir display para *importar* es un coste mucho mayor.
+  - *Regla derivada*: nada que se necesite para importar el paquete puede depender del servidor gráfico.
+  - *Verificación*: `ANALISIS.md` §11.9 · headless pasa de `errors=18, skipped=18` a **0 errores**.
+
+---
+
+<a name="adr-038"></a>
+### ADR-038: El Pipeline se Verifica en las Condiciones del Pipeline
+
+- **Contexto del Problema**: la Fase D añadió un paso de linter al CI y declaró la suite verde. Ninguna de las dos cosas se sostuvo al comprobarlas en las condiciones del runner: (1) el paso de linter devolvía **exit 1 con 55 hallazgos** — un `run:` falla el job con código distinto de cero, así que el pipeline se ponía rojo en el primer push, en los tres sistemas; (2) los runners son headless y el flujo no preparaba pantalla: además de P3.30, **43 pruebas de UI se habrían saltado en silencio**, dejando un CI verde que nunca ejercitaba la interfaz; (3) la cobertura declarada (82 %) no se reproduce con la suite completa y display (85 %), ni sin él (49 %) — la cifra medía otra cosa.
+- **Decisión Adoptada**: (a) un paso de linter sólo está "integrado" cuando **el comando exacto del workflow devuelve 0 sobre el árbol real** — si hay hallazgos, se limpian o no se añade el paso (no se tolera con `|| true`); (b) la suite debe quedar **verde en un runner headless**: las pruebas de UI se saltan con elegancia cuando no hay display, y en Linux el CI corre bajo `xvfb-run -a` para que **se ejecuten de verdad** (el salto es red de seguridad, no objetivo); (c) toda cifra de cobertura se declara **con sus condiciones** (con o sin display), porque la misma suite mide 85 % o 49 % según haya pantalla.
+- **Consecuencias**:
+  - *Positivas*: el CI ejecuta las 43 pruebas de UI en lugar de saltarlas; el linter es estricto y a la vez verde; las métricas de la Ley 7 son reproducibles por cualquiera.
+  - *Negativas*: una dependencia más en el CI (`xvfb`) y dos pasos de pruebas condicionados por sistema operativo; hay que mantener el árbol limpio de hallazgos para no volver a romper el job.
+  - *Verificación*: `pyflakes scrcpy_dock/ tests/` → exit 0; headless `558 ejecutadas, OK (43 skips), 0 errores`; con display `558 OK`; YAML validado con `yaml.safe_load`.
+
+---
+
+<a name="adr-039"></a>
+### ADR-039: Ninguna Prueba Puede Escribir en los Datos del Usuario — y Hay un Guardián que lo Comprueba
+
+- **Contexto del Problema**: `tests/test_ui_widgets_coverage.py` construía `TrustPromptModal` con un `cfg` de prueba parcial y sin redirigir las rutas; el modal persistía ese `cfg` por su cuenta (`from .utils import save_config` dentro del handler). Resultado: **cada ejecución de la suite reescribía `~/.config/masv/config.json`** con `{"trusted_devices": {}}` y se perdieron los perfiles personalizados del usuario (Ley 10: pérdida de datos). Dos detalles agravaron la invisibilidad: la docstring del archivo de pruebas **afirmaba** que redirigía las configuraciones a temporales, y el mismo error ya había aparecido en la auditoría original (`test_core.py`, hallazgo A1) donde se corrigió sólo ese archivo, sin una regla general.
+- **Decisión Adoptada**: (a) toda prueba que pueda provocar un guardado **redirige** `CONFIG_FILE`, `CONFIG_DIR` y `LOG_FILE` a un temporal (`tests/ui_harness.aislar_config`), y las que además ejercitan el guardado anulan `save_config` con un registrador en memoria; (b) **ningún widget escribe en disco por su cuenta**: recibe un `save_cb` y lo invoca, igual que `DeviceTrustModal`/`TrustVaultDialog` — `TrustPromptModal` se alineó con ellos; (c) la invariante no se documenta, **se comprueba**: `tests/test_suite_sin_efectos.py` falla si un módulo de pruebas puede guardar y no aísla (regla estática) y si ejecutar las pruebas de widgets en un subproceso cambia un solo byte del archivo real (sha256 antes/después).
+- **Consecuencias**:
+  - *Positivas*: la suite es segura de correr en cualquier máquina, incluida la del usuario y el CI; el aislamiento vive en un único sitio; el guardián convierte "confío en haberlo revisado" en una comprobación automática que además es de extremo a extremo.
+  - *Negativas*: el guardián ejecuta un subproceso con las pruebas de widgets (~1,5 s) y añade una regla estática que hay que respetar al crear módulos nuevos.
+  - *Regla derivada*: una afirmación de aislamiento en una docstring no es aislamiento. Si una propiedad importa tanto como para escribirla en un comentario, hay que escribir la prueba que la verifique.
+  - *Verificación*: sha256 de `~/.config/masv/config.json` idéntico antes y después de la suite completa (561 pruebas); el guardián falla si se le quita el aislamiento a un módulo.
 
 ---
 
@@ -178,5 +220,9 @@
 | **Descomponer en validadores puros (uno por campo) en lugar de un `if` gigante** | Un campo, una regla: añadir un campo no obliga a releer toda la sanitización y cada regla se prueba aislada. | Más métodos (8 en vez de ~40 líneas de `if`). El parseo del dict ya no se lee de un tirón. | Mantener la función monolítica y bajar su CC con `# noqa`/helpers anidados. | Es el patrón que dejó `sanitize_profile_dict` en CC 28 sin una sola prueba por campo. |
 | **Un módulo por pestaña + fachada estable, en vez del archivo único** | Cada pestaña se prueba y se revisa sola; la cobertura de la capa sube al 99 % y P3.25 se vuelve imposible por construcción. | Un nivel más de importaciones; un objeto de contexto que atravesar. | Dejar `ui_tabs.py` con 1.034 líneas y siete constructores. | Con el archivo único, 3 de 7 pestañas se construían sin limpiar el contenedor y nadie podía verlo sin abrir el archivo entero. |
 | **Extracción mecánica verificada línea a línea, en vez de retranscribir el código** | Cero riesgo de perder o inventar una línea en una partición de 1.000 líneas; la verificación queda como prueba objetiva. | Un script de extracción y otro de verificación que hay que mantener mientras dura la tarea. | Mover el código a mano, releyendo. | Una transposición manual de 1.000 líneas no tiene forma de demostrar que está completa. |
+| **Degradar las dependencias opcionales de UI en vez de exigir display para importar** | La app y la suite son importables sin pantalla; en headless las pruebas de UI se saltan en vez de reventar. | `except Exception` silencia también una instalación rota de `pystray`/PIL. | Mantener `except ImportError` y exigir servidor gráfico. | Sin display el módulo principal no se importaba: 18 errores en un runner headless, incluso en pruebas que no usan Tk. |
+| **`xvfb-run` en el CI en vez de aceptar los saltos de las pruebas de UI** | Las 43 pruebas de interfaz se ejecutan de verdad en Linux; el CI no puede estar verde por omisión. | Una dependencia más (`xvfb`) y dos pasos de pruebas condicionados por SO. | Dejar que las pruebas de UI se salten en CI. | El pipeline habría estado verde sin haber ejercitado nunca la interfaz — cobertura aparente, no real. |
+| **Aislar y verificar (con guardián) que la suite no toca datos del usuario, en vez de confiar en la revisión** | La suite es segura en cualquier máquina; la pérdida de configuración se detecta automáticamente. | Un subproceso extra en la suite (~1,5 s) y una regla estática que respetar. | Documentar el aislamiento en la docstring del archivo de pruebas. | Es exactamente lo que falló: la docstring afirmaba el aislamiento y el archivo no lo hacía; se perdieron los perfiles del usuario. |
+| **Los widgets reciben `save_cb` en vez de guardar por su cuenta** | Un componente de interfaz no puede destruir la configuración del usuario, ni siquiera si le pasan un objeto incompleto. | Un parámetro más que propagar desde `main.py`. | Que el widget importe `save_config` y persista el `cfg` que le den. | Con un `cfg` parcial escribía una configuración incompleta sobre la real (P3.32). |
 | **Sanitización de `extra_args` con lista de rechazo** | Prevención de ataques de inyección de comandos en perfiles compartidos. | Rechazo de scripts compuestos dentro del campo de argumentos. | Ejecutar mediante shell directo con permisos elevados. | Riesgo crítico de seguridad según la Ley Global 3. |
 | **Almacenamiento JSON plano con guardado atómico (`fsync` + `os.replace`)** | Cero dependencias de base de datos externa, portabilidad absoluta. | No apto para consultas relacionales masivas concurrentes. | SQLite / PostgreSQL embebido. | Sobrecomplejidad innecesaria para un gestor de configuración local de escritorio. |

@@ -1,10 +1,9 @@
 import unittest
 import os
-import json
 import tempfile
 from unittest.mock import patch
 from scrcpy_dock.utils import parse_ip_port, _extract_serial, load_config, save_config
-from scrcpy_dock.managers import ProfileManager, SessionManager
+from scrcpy_dock.managers import ProfileManager
 from scrcpy_dock.i18n import _translations, get_language, set_language
 
 class TestUtils(unittest.TestCase):

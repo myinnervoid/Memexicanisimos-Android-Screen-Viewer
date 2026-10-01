@@ -15,7 +15,9 @@ Cubre todos los widgets y componentes compartidos de interfaz:
 Aislamiento:
 - Ejecuta en Tkinter oculto (root.withdraw())
 - Neutraliza modales bloqueantes (wait_window, grab_set)
-- Redirige directorios y configuraciones a temporales
+- Redirige `CONFIG_FILE`, `CONFIG_DIR` y `LOG_FILE` a un directorio temporal y
+  anula `save_config`, de modo que ninguna prueba pueda escribir en la
+  configuración real del usuario (ver P3.32)
 """
 from __future__ import annotations
 
@@ -26,6 +28,8 @@ from tkinter import ttk
 import unittest
 from unittest.mock import MagicMock, patch
 
+import scrcpy_dock.utils as utils
+from tests.ui_harness import aislar_config
 from scrcpy_dock.ui_widgets import (
     AccordionItem,
     DashboardSidebar,
@@ -68,6 +72,21 @@ class TestUiWidgets(unittest.TestCase):
     def setUp(self):
         if not self.root:
             self.skipTest("Entorno gráfico no disponible (DISPLAY no configurado)")
+
+        # Aislamiento del entorno del usuario (P3.32): un `cfg` parcial acababa
+        # escrito en la configuración REAL a través de `TrustPromptModal`.
+        self._tmp = tempfile.TemporaryDirectory()
+        tmp = self._tmp.name
+        self.guardados: list = []
+        self._patches = [
+            *aislar_config(tmp),
+            # Ningún widget debe tocar el disco: se registra el intento.
+            patch.object(utils, "save_config", lambda cfg: self.guardados.append(cfg)),
+        ]
+        for p in self._patches:
+            p.start()
+        self.addCleanup(self._tmp.cleanup)
+
         # Neutralizar bloqueos de ventana para que los modales no cuelguen el runner
         self._patch_wait = patch("tkinter.Misc.wait_window", lambda self, window=None: None)
         self._patch_grab = patch("tkinter.Misc.grab_set", lambda self: None)
@@ -77,6 +96,8 @@ class TestUiWidgets(unittest.TestCase):
     def tearDown(self):
         self._patch_grab.stop()
         self._patch_wait.stop()
+        for p in reversed(self._patches):
+            p.stop()
         # Limpiar ventanas hijas creadas
         if self.root:
             for child in list(self.root.winfo_children()):

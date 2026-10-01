@@ -1,12 +1,19 @@
-import unittest
-import os
-import json
 import tempfile
+import unittest
+
 from scrcpy_dock.security import SecurityManager
-from scrcpy_dock.utils import DEFAULT_CONFIG, load_config, save_config
+from tests.ui_harness import aislar_config
 
 class TestSecurityManager(unittest.TestCase):
     def setUp(self):
+        # La configuración del usuario se redirige a un temporal: ninguna prueba
+        # de seguridad puede escribir en ~/.config/masv/ (P3.32).
+        self._tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self._tmp.cleanup)
+        for p in aislar_config(self._tmp.name):
+            p.start()
+            self.addCleanup(p.stop)
+
         self.cfg = {
             "security": {
                 "safe_mode_enabled": True,

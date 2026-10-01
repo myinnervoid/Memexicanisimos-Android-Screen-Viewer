@@ -177,13 +177,25 @@ class _DialogRecorder:
         return None
 
 
+def aislar_config(tmp: str) -> list:
+    """Parches que redirigen la configuración y el log del usuario a un temporal.
+
+    Es la pieza que impide que una prueba escriba en `~/.config/masv/config.json`
+    (P3.32). Quien construya objetos que puedan guardar configuración debe
+    arrancarlos; `tests/test_suite_sin_efectos.py` lo comprueba.
+    """
+    return [
+        patch.object(utils, "CONFIG_FILE", str(Path(tmp, "config.json"))),
+        patch.object(utils, "CONFIG_DIR", tmp),
+        patch.object(utils, "LOG_FILE", str(Path(tmp, "masv.log"))),
+        patch.object(context_mod, "CONFIG_DIR", tmp),
+    ]
+
+
 def parches_entorno(cfg_data: dict, tmp: str) -> list:
     """Aísla el entorno del usuario y sustituye todo lo que toca hardware/red."""
     return [
-        patch.object(utils, "CONFIG_FILE", str(Path(tmp, "config.json"))),
-        patch.object(utils, "LOG_FILE", str(Path(tmp, "masv.log"))),
-        patch.object(utils, "CONFIG_DIR", tmp),
-        patch.object(context_mod, "CONFIG_DIR", tmp),
+        *aislar_config(tmp),
         patch.object(context_mod, "find_portable_binaries",
                      return_value=("/usr/bin/adb", "/usr/local/bin/scrcpy")),
         patch.object(context_mod, "AdbEngine", _FakeAdbEngine),

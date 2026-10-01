@@ -83,12 +83,22 @@ Medidas **hoy** sobre el repositorio, no estimadas. Comandos en el §10.
 
 Runner: `python -m unittest discover -s tests` (el del CI). Herramienta: `coverage.py`.
 
-| Capa | Umbral Ley 7 | Medido (auditoría v1.4.1) | Medido (hoy) | Veredicto |
+| Capa | Umbral Ley 7 | Medido (auditoría v1.4.1) | Medido (hoy, con display) | Veredicto |
 | :--- | :---: | :---: | :---: | :---: |
-| **UI** (`main.py` · `ui_tabs.py` · `ui_widgets.py`) | ≥ 60 % | 0 % / 0 % / 16 % | **62 % · 100 % · 49 %** | 🟡 (`ui_widgets.py`) |
+| **UI** (`main.py` · `ui_tabs.py` · `ui_widgets.py`) | ≥ 60 % | 0 % / 0 % / 16 % | **62 % · 100 % · 94 %** | ✅ |
 | **Pestañas** (`ui/tabs/`, 7 módulos + `common`) | ≥ 60 % | (no existía) | **99 %** (526 sentencias; 5 módulos al 100 %) | ✅ |
 | **Lógica de negocio / núcleo** (17 módulos) | ≥ 80 % | 46 %–100 % | **81 %–100 %** | ✅ |
-| **TOTAL proyecto** | — | **35 %** (4.664 stmts) | **78 %** (5.048 stmts) | — |
+| **TOTAL proyecto** | — | **35 %** (4.664 stmts) | **85 %** (5.049 stmts) | — |
+
+> **La medición depende de que haya pantalla, y eso importa.** Las 43 pruebas de UI necesitan un
+> display: sin él se saltan y la cobertura se desploma — medido: `ui_widgets.py` **94 % con display
+> y 10 % sin él**; el total, **85 % y 49 %**. Toda cifra de cobertura de UI de este documento está
+> tomada **con display** (`DISPLAY=:1` en local, `xvfb-run` en el CI desde P3.31).
+>
+> Las cifras que declaró la Fase D (`ui_widgets.py` 81,8 %, total 82 %) **no se reproducen** en
+> ninguno de los tres escenarios probados (suite completa con display: 94 %/85 %; suite completa sin
+> display: 10 %/49 %; sólo el archivo de pruebas de widgets: 94 %). Se sustituyen por las medidas
+> arriba, que son las que produce el runner del CI.
 
 Desglose de la capa de negocio (17 módulos) — auditoría → hoy:
 
@@ -168,12 +178,12 @@ La duplicación que queda son invocaciones de `subprocess.run(...)` en `adb_engi
 | Métrica | Umbral | Medido | ¿Cumple? |
 | :--- | :---: | :---: | :---: |
 | Cobertura lógica de negocio | ≥ 80 % | **81 %–100 %** (era 46 %–100 %) — los 17 módulos cumplen; el mínimo es `services/tether_service.py` 81 % | ✅ |
-| Cobertura UI | ≥ 60 % | **61 %–98 %** (`main.py` 61 %, `ui_tabs.py`/tabs 98 %, `ui_widgets.py` 81.8 %) | ✅ |
+| Cobertura UI | ≥ 60 % | **62 %–100 %** (`main.py` 62 %, `ui/tabs/` 99 %, `ui_widgets.py` 94 %, `ui_tabs.py` 100 %) — medido con display | ✅ |
 | Complejidad ciclomática | ≤ 10 | **14** bloques > 10 (máx. 18; era 20 con máx. 63) — **0 con rank D o F** | 🟡 |
 | Duplicación | ≤ 5 % | 1,4 % | ✅ |
 | Vulnerabilidades | 0 altas/críticas | 0 | ✅ |
 
-**4 ✅ · 1 🟡 · 0 ❌** — la Ley 7 de UI pasa a verde. Queda un solo 🟡 en todo el proyecto: los 14 bloques de complejidad entre 11 y 18 (con 0 bloques rank D o F). Cobertura total del proyecto: 35 % → **82 %** (558 pruebas en verde).
+**4 ✅ · 1 🟡 · 0 ❌** — la Ley 7 de UI pasa a verde (con display: sin él, las 43 pruebas de UI se saltan y las cifras no significan nada). Queda un solo 🟡 en todo el proyecto: los 14 bloques de complejidad entre 11 y 18 (con 0 bloques rank D o F). Cobertura total del proyecto: 35 % → **85 %** (558 pruebas en verde).
 
 ---
 
@@ -419,7 +429,7 @@ El síntoma clásico que la v3.2 quería eliminar —**«la capa de interfaz eje
 > 98 %**; `ui_widgets.py` **16 % → 49 %**; `main.py` al 55 %.
 > La primera pasada cazó **2 defectos reales** (§11.4). D2–D5 pendientes.
 
-> **Estado: ✅ CERRADA la deuda ciclomática (01-oct, §11.5), ✅ D3 (01-oct, §11.6) y ✅ C2 (01-oct, §11.8).** Con D1 como red se demolieron
+> **Estado: ✅ CERRADA la deuda ciclomática (01-oct, §11.5), ✅ D3 (01-oct, §11.6), ✅ C2 (01-oct, §11.8) y ✅ D (01-oct, §11.9).** Con D1 como red se demolieron
 > los **tres últimos bloques Rank D** del repositorio: `sanitize_profile_dict` CC **28 → 2**,
 > `_exit` CC **23 → 1**, `_on_dev_select` CC **21 → 2**. El repositorio queda con **0 bloques
 > Rank D o F** y 14 bloques > 10 (todos Rank C, máximo 18). La segunda
@@ -427,6 +437,11 @@ El síntoma clásico que la v3.2 quería eliminar —**«la capa de interfaz eje
 > **D3**: `adb_engine.py` pasó de **46 % a 100 %** de cobertura (63 pruebas nuevas).
 > **C2**: `ui_tabs.py` (1.034 líneas) se partió en **7 pestañas atómicas** (`ui/tabs/`, 99 % de
 > cobertura) más una fachada de 62 líneas que conserva la API. **544/544 OK.**
+> **D (cierre + verificación)**: cobertura de `ui_widgets.py` al **94 %**, linter en CI y
+> deduplicación i18n (ADR-036). La verificación posterior encontró y corrigió **tres defectos del
+> propio pipeline** que no se ven en local — P3.29 (el linter dejaba el job en rojo: 55 hallazgos),
+> P3.30 (sin display no se importaba el módulo principal: 18 errores) y P3.31 (el CI no tenía
+> pantalla: 43 pruebas de UI se habrían saltado en silencio). **558/558 OK.**
 
 | # | Acción | Criterio de aceptación |
 | :--- | :--- | :--- |
@@ -1038,6 +1053,78 @@ siguen en verde.
 3. **P3.26 & Deduplicación i18n (✅ Cerrado):** Se eliminaron las 12 claves duplicadas en `_translations["en"]`, se separó la IP dinámica en el diálogo de Modo Seguro y se añadió `'Dirección ingresada:'`. Verificación estricta mediante AST: **100 % de las 406 invocaciones activas a `_()` en el código poseen traducción en inglés** (0 faltantes, 0 duplicadas).
 4. **D2 — Linter en CI/CD (`.github/workflows/build.yml`):** Integración del paso `Static Code Analysis & Linting (Pyflakes)` previo a la ejecución de pruebas y empaquetado.
 5. **D5 — Tooling de desarrollo (`requirements-dev.txt`):** Declaración explícita de `pyflakes`, `coverage`, `radon` y `pip-audit`.
+
+### 11.9 Fase D — Verificación independiente y blindaje real del CI (2026-10-01)
+
+La Fase D se declaró concluida en `f12a330` (cobertura de `ui_widgets`, linter en CI, deduplicación
+i18n, ADR-036). Esta sección es la **verificación contra el repositorio**, no la aceptación del
+informe. Lo declarado es cierto en lo esencial —y se corrigió lo que no lo era:
+
+| Declarado | Verificado |
+| :--- | :--- |
+| 558 pruebas | **558/558 OK** con display; sin display 558 ejecutadas, OK (43 skips) |
+| `ui_widgets.py` al 81,8 % | **94 %** medido (10 % sin display). El 81,8 % no se reproduce en ningún escenario; se adopta la cifra medida |
+| Cobertura total 82 % | **85 %** medido con display (49 % sin display) |
+| P3.26 cerrado: 12 claves duplicadas fuera | **0 duplicadas** (auditoría AST), 406 claves usadas, **0 sin traducción**, 294 huérfanas |
+| P3.27 `PillNavBar.select` | Existe (`ui_widgets.py:110`) y los botones lo invocan |
+| P3.28 `copy(event=None)` | Confirmado: ya no enmascara `_` |
+| Linter en CI (D2) | El paso existe y **el repositorio queda limpio**: `pyflakes scrcpy_dock/ tests/` → exit 0 |
+| `requirements-dev.txt` / ADR-036 | Presentes |
+
+**Y cuatro defectos que la declaración no cubría, porque ninguno se manifiesta en local:**
+
+1. **P3.29 (🔴, corregido)** — el paso de linter que se añadió al CI devolvía **exit 1 con 55
+   hallazgos** en el árbol real: el job se ponía en rojo en el primer push, en los tres sistemas de
+   la matriz. Corregido retirando 52 imports muertos (con comprobación previa de que ninguno fuera
+   un re-export) y resolviendo los 3 hallazgos de criterio (un f-string sin marcadores, dos
+   asignaciones muertas y una referencia que debía sobrevivir al recolector). El mismo comando que
+   usa el workflow ahora devuelve **exit 0**.
+2. **P3.30 (🔴, corregido)** — `main.py` envolvía `import pystray` en `except ImportError`, pero sin
+   pantalla esa importación levanta `Xlib.error.DisplayNameError`, que no es un `ImportError`. En un
+   entorno headless el módulo principal **no se importaba**: 3 módulos de pruebas fallaban al
+   importarse (`_FailedTest`) y 15 pruebas más morían dentro — pruebas que ni siquiera usan Tk. Total
+   medido: `errors=18, skipped=18` en vez de un saltado limpio. Corregido con `except Exception` y el
+   motivo documentado: la bandeja es opcional. Resultado: headless **0 errores**.
+3. **P3.31 (🟠, corregido)** — el CI corre en runners headless y sólo instalaba `python3-tk`: aun con
+   P3.30 arreglado, las 43 pruebas de UI **se habrían saltado en silencio** y el CI habría estado
+   verde sin haber ejercitado nunca la interfaz. Corregido instalando `xvfb` y ejecutando la suite
+   bajo `xvfb-run -a` en Linux (Windows/macOS siguen con el comando plano, y si allí no hubiera
+   display las pruebas se saltan sin romper el job).
+4. **P3.32 (🔴 PÉRDIDA DE DATOS, corregido + guardián)** — el archivo de pruebas de widgets construía
+   `TrustPromptModal` con un `cfg` parcial y sin redirigir las rutas; el modal llamaba a
+   `save_config(self.cfg)` por su cuenta, así que **cada ejecución de la suite reescribía
+   `~/.config/masv/config.json`** con `{"trusted_devices": {}}` (29 bytes donde había 2.397): se
+   perdieron los perfiles personalizados del usuario. Dos capas de causa raíz: la prueba no aislaba
+   el entorno (aunque su docstring **afirmaba** que sí: *una afirmación de aislamiento no es
+   aislamiento*), y el widget persistía el `cfg` que le dieran sin validar que fuera una
+   configuración completa, a diferencia de sus hermanos que reciben `save_cb`. Corregido aislando
+   el entorno (`tests/ui_harness.aislar_config`), haciendo que el modal reciba `save_cb` como sus
+   hermanos, y añadiendo `tests/test_suite_sin_efectos.py`: guardián estático + prueba de
+   extremo a extremo que compara el sha256 del archivo real antes y después de ejecutar las pruebas
+   de widgets en un subproceso. Datos recuperados de la copia antigua del usuario (perfil `Lalo`);
+   `Frontal` reconstruido por inferencia, pendiente de su revisión. Ver `INFORME_BUGS` §3.32.
+
+**La lección que cierra el bloque**: los tres primeros comparten la misma forma — *el pipeline se
+declaró verde sin ejecutarlo en las condiciones del pipeline*. Un paso de linter no está "blindado"
+hasta que el comando devuelve 0 en el árbol real; una suite no está "en verde" en CI hasta que corre
+en un runner sin pantalla. Ver ADR-037 y ADR-038.
+
+**Métricas tras la verificación:**
+
+| Métrica | Declarado en la fase | Verificado |
+| :--- | :---: | :---: |
+| Pruebas | 558 (555 + 3 skips) | **561** (0 skips con display · 44 skips sin display, 0 errores) |
+| `ui_widgets.py` | 81,8 % | **94 %** |
+| Cobertura total | 82 % | **85 %** |
+| `pyflakes` en el árbol | — | **exit 0** (era exit 1 con 55 hallazgos) |
+| Claves i18n duplicadas / sin traducir | 0 / 0 | **0 / 0** |
+| Bloques CC > 10 · Rank D/F | 14 · 0 | **14 · 0** |
+| Pruebas que escriben en la config real | (no se sabía) | **0** — había **1**, corregida y con guardián |
+
+**Lo que sigue pendiente** (sin cambios respecto a lo que ya estaba declarado): las **294 claves i18n
+huérfanas**; los **14 bloques de complejidad** entre 11 y 18 (`_toggle_scene` 18, `_toggle_view` 17
+en `main.py`); D4 (exhaustividad de `ERROR_CATALOG` + contraste WCAG) y D5; y los ~26 ADR citados en
+el código y no escritos.
 
 ---
 

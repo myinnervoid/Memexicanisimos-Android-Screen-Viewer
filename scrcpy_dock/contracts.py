@@ -3,8 +3,8 @@
 Estándar de 5 Vectores — Vector 2 (Contratos de Datos & Esquema) y Ley Global 5.
 """
 
-from dataclasses import dataclass, field
-from typing import Generic, TypeVar, Optional, Dict, Any, List
+from dataclasses import dataclass
+from typing import Generic, TypeVar, Optional, Dict, Any
 from .errors import ErrorCode
 
 T = TypeVar("T")

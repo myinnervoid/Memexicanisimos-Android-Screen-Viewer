@@ -1,6 +1,6 @@
 import threading
 import logging
-from typing import Dict, Optional, Any
+from typing import Dict, Any
 
 from scrcpy_dock.contracts import OperationResult
 from scrcpy_dock.errors import ErrorCode

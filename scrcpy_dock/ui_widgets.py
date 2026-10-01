@@ -973,13 +973,20 @@ class DeviceTrustModal:
 
 class TrustPromptModal:
     """Modal amigable cuando un dispositivo no verificado intenta conectarse en Modo Seguro."""
-    def __init__(self, parent, serial: str, model: str, alias: str, security_mgr, cfg=None):
+
+    def __init__(self, parent, serial: str, model: str, alias: str, security_mgr,
+                 cfg=None, save_cb=None):
         self.result = "cancel"
         self.serial = serial
         self.model = model or "Android"
         self.alias = alias or model or serial
         self.sec = security_mgr
         self.cfg = cfg
+        # El modal NO escribe en disco por su cuenta: recibe el guardado igual que
+        # `DeviceTrustModal`/`TrustVaultDialog` (misma convención: `save_cb(cfg)`).
+        # Escribir aquí el `cfg` que le pasaran fue lo que permitió que una prueba
+        # con un `cfg` parcial destruyera la configuración real del usuario (P3.32).
+        self.save_cb = save_cb
 
         self.win = tk.Toplevel(parent)
         self.win.title(_("Dispositivo No Verificado — Bóveda de Seguridad"))
@@ -1042,10 +1049,9 @@ class TrustPromptModal:
         btn_cancel.pack(side="right")
 
     def _on_trust(self):
-        from .utils import save_config
         self.sec.trust_device(self.serial, self.model, self.alias)
-        if self.cfg:
-            save_config(self.cfg)
+        if self.save_cb and self.cfg:
+            self.save_cb(self.cfg)
         self.result = "trust"
         self.win.destroy()
 

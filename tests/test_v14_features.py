@@ -2,9 +2,9 @@ import unittest
 from unittest.mock import MagicMock
 import tkinter as tk
 
-from scrcpy_dock.i18n import _, set_language, get_language, _translations
+from scrcpy_dock.i18n import _, set_language, get_language
 from scrcpy_dock.context import AppContext
-from scrcpy_dock.ui_widgets import AccordionItem, TrustPromptModal, ProfileWizard
+from scrcpy_dock.ui_widgets import AccordionItem, ProfileWizard
 
 
 class TestV14Features(unittest.TestCase):

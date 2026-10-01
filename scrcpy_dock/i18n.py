@@ -1,5 +1,3 @@
-import json
-import os
 
 _current_lang = "es"
 

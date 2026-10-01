@@ -1,10 +1,9 @@
 """I1 · DeviceManager debe consumir AdbEngine, no subprocess."""
 from __future__ import annotations
 import unittest
-from pathlib import Path
 from unittest.mock import patch
 
-from scrcpy_dock.domain.models import Device, DeviceState
+from scrcpy_dock.domain.models import Device
 from tests.integration.fakes import FakeAdbEngine
 from scrcpy_dock.managers import DeviceManager
 

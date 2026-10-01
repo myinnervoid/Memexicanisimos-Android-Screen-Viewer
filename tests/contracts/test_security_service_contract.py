@@ -1,12 +1,9 @@
 """Contratos congelados de SecurityService. NO modificar sin reabrir ADR-020."""
 from __future__ import annotations
-import json
-import os
 import sys
 import tempfile
 import unittest
 from pathlib import Path
-from unittest.mock import patch
 
 from scrcpy_dock.services.security_service import SecurityService
 from scrcpy_dock.contracts import ErrorCode

@@ -1,17 +1,14 @@
-import threading
 import time
 from dataclasses import dataclass, replace
 from typing import List, Dict, Optional, Tuple, Callable, Any
 
 from .contracts import OperationResult, DeviceEntry, SessionInfo
 from .errors import ErrorCode
-from .security import SecurityManager
 from .domain.models import (
     Codec,
     Device,
     DeviceCapabilities,
     DeviceState,
-    ConnectionType,
     SessionConfig,
 )
 from .domain.protocols import SessionProcess
@@ -444,13 +441,12 @@ class SessionManager:
         proc = launch_res.data
         timeout = 5.0 if device.android_sdk <= 29 else 2.5
 
-        # Handshake síncrono
+        # Handshake síncrono: si `wait` retorna, el proceso murió al arrancar.
         try:
-            exit_code = proc.wait(timeout=timeout)
+            proc.wait(timeout=timeout)
             is_dead = True
         except Exception:
             is_dead = False
-            exit_code = None
 
         if not is_dead and proc.poll() is None:
             # Proceso sobrevivió el handshake

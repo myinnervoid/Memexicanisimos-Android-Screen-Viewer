@@ -4,7 +4,7 @@ Estándar de 5 Vectores — Vector 2 (Contratos de Datos & Catálogo de Fallos)
 """
 
 from enum import Enum
-from typing import Dict, NamedTuple, Optional
+from typing import Dict, NamedTuple
 
 class ErrorCode(str, Enum):
     # Sin error

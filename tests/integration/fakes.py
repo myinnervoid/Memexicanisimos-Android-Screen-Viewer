@@ -6,13 +6,13 @@ pero sin tocar subprocess ni sockets.
 from __future__ import annotations
 
 import subprocess
-from typing import Callable, Optional
+from typing import Callable
 from unittest.mock import MagicMock
 
 from scrcpy_dock.contracts import OperationResult
 from scrcpy_dock.errors import ErrorCode
 from scrcpy_dock.domain.models import (
-    Codec, Device, DeviceCapabilities, SessionConfig,
+    Device, SessionConfig,
 )
 
 

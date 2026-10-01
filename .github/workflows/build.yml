@@ -37,7 +37,7 @@ jobs:
         if: runner.os == 'Linux'
         run: |
           sudo apt-get update -qq
-          sudo apt-get install -y python3-tk
+          sudo apt-get install -y python3-tk xvfb
 
       - name: Install Python dependencies
         run: |
@@ -60,7 +60,13 @@ jobs:
           Remove-Item -Recurse -Force scrcpy_temp -ErrorAction SilentlyContinue
           Remove-Item -Force scrcpy-win64.zip -ErrorAction SilentlyContinue
 
-      - name: Run Automated Test Suite
+      - name: Run Automated Test Suite (Linux · display virtual para las pruebas de UI)
+        if: runner.os == 'Linux'
+        run: |
+          xvfb-run -a python -m unittest discover -s tests -v
+
+      - name: Run Automated Test Suite (Windows / macOS)
+        if: runner.os != 'Linux'
         run: |
           python -m unittest discover -s tests -v
 

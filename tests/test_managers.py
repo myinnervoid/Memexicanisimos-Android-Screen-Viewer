@@ -1,6 +1,6 @@
 import unittest
 import queue
-from scrcpy_dock.managers import ProfileManager, SessionManager, DeviceManager
+from scrcpy_dock.managers import ProfileManager, SessionManager
 from scrcpy_dock.security import SecurityManager
 from scrcpy_dock.errors import ErrorCode
 

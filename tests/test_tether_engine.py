@@ -1,6 +1,5 @@
 import unittest
 from unittest.mock import patch, MagicMock
-import subprocess
 from scrcpy_dock.core.tether_engine import TetherEngine
 from scrcpy_dock.services.tether_service import TetherService
 from scrcpy_dock.errors import ErrorCode

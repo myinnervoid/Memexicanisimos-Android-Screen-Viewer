@@ -11,15 +11,19 @@ try:
     import pystray
     from PIL import Image, ImageDraw, ImageFont, ImageTk
     TRAY_AVAILABLE = True
-except ImportError:
+except Exception:
+    # No es sólo ImportError: sin display, `import pystray` levanta
+    # `Xlib.error.DisplayNameError` (Python 3, Linux, CI headless). Si esto se
+    # escapa, el módulo entero deja de importarse y ninguna prueba de UI puede
+    # correr en un entorno sin pantalla. La bandeja es opcional: se desactiva.
     TRAY_AVAILABLE = False
 
 import re
-from typing import Optional, List, Dict, Any, Tuple
-from .utils import C, FONT_UI, FONT_UI_B, FONT_SM, FONT_LG, FONT_MONO, FONT_FAMILY, SingleInstance, _extract_serial, parse_ip_port, log_msg, LOG_FILE, save_config, apply_theme
+from typing import Optional, Any
+from .utils import C, FONT_UI, FONT_UI_B, FONT_SM, FONT_FAMILY, SingleInstance, _extract_serial, parse_ip_port, log_msg, LOG_FILE, save_config, apply_theme
 from .context import AppContext
 from .ui_tabs import UIBuilder
-from .ui_widgets import _recolor, Toast, Tooltip, DeviceTrustModal, SafeActionConfirmModal, TrustVaultDialog, TrustPromptModal
+from .ui_widgets import Toast, Tooltip, DeviceTrustModal, TrustVaultDialog, TrustPromptModal
 from .security import SecurityManager
 from .state import UIState
 from .core.adb_engine import AdbEngine
@@ -1533,7 +1537,7 @@ class ScrcpyDockApp:
         if self.ctx.security_mgr.is_safe_mode_enabled and not self.ctx.security_mgr.is_trusted_device(serial):
             alias = self.ctx.security_mgr.get_device_alias(serial)
             model = self.ctx.device_mgr.get_device_model(serial) or "Android"
-            modal = TrustPromptModal(self.root, serial, model, alias, self.ctx.security_mgr, self.ctx.cfg)
+            modal = TrustPromptModal(self.root, serial, model, alias, self.ctx.security_mgr, self.ctx.cfg, save_config)
             if not modal.result or modal.result == "cancel":
                 return
             if modal.result == "trust":
@@ -1591,7 +1595,7 @@ class ScrcpyDockApp:
         if self.ctx.security_mgr.is_safe_mode_enabled and not self.ctx.security_mgr.is_trusted_device(serial):
             alias = self.ctx.security_mgr.get_device_alias(serial)
             model = self.ctx.device_mgr.get_device_model(serial) or "Android"
-            modal = TrustPromptModal(self.root, serial, model, alias, self.ctx.security_mgr, self.ctx.cfg)
+            modal = TrustPromptModal(self.root, serial, model, alias, self.ctx.security_mgr, self.ctx.cfg, save_config)
             if not modal.result or modal.result == "cancel":
                 return
             if modal.result == "trust":
@@ -1822,7 +1826,7 @@ class ScrcpyDockApp:
                        fg=C["text"], activebackground=C["blue"],
                        activeforeground="#FFFFFF", relief="flat",
                        font=(FONT_FAMILY, 10))
-        menu.add_command(label=f"■  Detener sesión (Supr)",
+        menu.add_command(label="■  Detener sesión (Supr)",
                          command=self._stop_selected)
         menu.add_separator()
         menu.add_command(label="📋  Copiar serial",
@@ -2154,7 +2158,10 @@ def main():
 
     try:
         root = tk.Tk()
-        app  = ScrcpyDockApp(root, single_instance=single_inst)
+        # La instancia se cuelga del `root` a propósito: el bucle de eventos corre
+        # dentro de `mainloop()` y la app debe seguir viva mientras tanto. Sin esta
+        # referencia, el único que la sostendría sería el registro de callbacks de Tk.
+        root.masv_app = ScrcpyDockApp(root, single_instance=single_inst)
         root.mainloop()
     finally:
         single_inst.release()

@@ -552,6 +552,191 @@ El parámetro del callback de clic de Tkinter se llamaba `_` (`def copy(_=None):
 
 **Corrección**: se renombró el parámetro a `event=None`, restaurando el acceso a `_()` para las cadenas `"✔ Copiado"` y `"📋 Copiar"`. Cubierto en `tests/test_ui_widgets_coverage.py`.
 
+**Verificación posterior (01-oct)**: la deduplicación de `i18n.py` quedó confirmada con auditoría
+AST propia: 453 invocaciones activas de `_()` sobre **406 claves distintas**, **0 duplicadas** y
+**0 sin traducción inglesa**. Quedan **294 claves huérfanas** (en la tabla y ningún sitio las pide).
+
+---
+
+### 3.29 🔴 El paso de linter recién añadido al CI fallaba siempre *(encontrado al verificar la fase, 01-oct · ✅ CORREGIDO)*
+
+**Archivo**: `.github/workflows/build.yml` (paso *Static Code Analysis & Linting*)
+
+```yaml
+      - name: Static Code Analysis & Linting (Pyflakes)
+        run: |
+          python -m pyflakes scrcpy_dock/ tests/
+```
+
+Un `run:` de GitHub Actions **falla el job si el comando devuelve un código distinto de cero**. Ese
+comando devolvía **1 con 55 hallazgos** en el árbol tal como quedó la fase (52 imports sin usar, 2
+variables asignadas y nunca leídas, 1 f-string sin marcadores): el pipeline se ponía en rojo en el
+primer push, y en los **tres** sistemas de la matriz.
+
+```
+$ python -m pyflakes scrcpy_dock/ tests/   → exit 1   (55 hallazgos)
+```
+
+**Corrección aplicada**:
+- **52 imports muertos** retirados con `autoflake --remove-all-unused-imports` en 24 archivos. Antes
+  se comprobó que ninguno fuera un re-export: los importadores de `managers`, `main` y
+  `tests/integration/fakes` no usan ninguno de los nombres retirados.
+- `main.py`: `label=f"■  Detener sesión (Supr)"` → sin `f` (no tenía marcadores).
+- `managers.py`: `exit_code = proc.wait(...)` / `exit_code = None` no se leían nunca; se conserva la
+  llamada (`proc.wait(timeout=timeout)`, que es la que espera el handshake) y se van las asignaciones.
+- `main.py:main()`: `app = ScrcpyDockApp(...)` no se usaba, pero la instancia debe sobrevivir
+  mientras corre `mainloop()`. Se cuelga del root (`root.masv_app = …`) en vez de dejarla a merced
+  del recolector, con el porqué comentado.
+
+**Verificación**: `python -m pyflakes scrcpy_dock/ tests/` → **exit 0**, y la suite sigue
+**558/558 OK**.
+
+---
+
+### 3.30 🔴 Sin display, el módulo principal no se importaba *(encontrado al verificar la fase, 01-oct · ✅ CORREGIDO)*
+
+**Archivo**: `scrcpy_dock/main.py:7-13`
+
+```python
+try:
+    import pystray
+    from PIL import Image, ImageDraw, ImageFont, ImageTk
+    TRAY_AVAILABLE = True
+except ImportError:          # ← demasiado estrecho
+    TRAY_AVAILABLE = False
+```
+
+Sin pantalla, `import pystray` **no** levanta `ImportError`: levanta
+`Xlib.error.DisplayNameError: Bad display name ""`. Al no estar contemplado, la excepción escapaba y
+`import scrcpy_dock.main` fallaba al completo.
+
+**Impacto medido en un entorno headless** (el caso exacto de `ubuntu-latest` en CI):
+
+```
+Ran 496 tests — FAILED (errors=18, skipped=18)
+```
+
+Los 18 errores tenían **una sola causa raíz**: tres módulos de pruebas (`test_ui_smoke`,
+`test_fase_c2_regressions`, `test_fase_d_regressions`) no llegaban ni a importarse (`_FailedTest`), y
+quince pruebas más morían en el `import scrcpy_dock.main` que hacen por dentro — pruebas que, por lo
+demás, **no usan Tk en absoluto** (usan dobles de la app). Efecto perverso: el arnés de UI no
+llegaba a saltarse con elegancia, *explotaba* al importar.
+
+**Corrección**: `except Exception` con el motivo documentado — la bandeja es opcional y se degrada.
+
+**Verificación**:
+
+| Entorno | Antes | Ahora |
+| :--- | :--- | :--- |
+| Sin display (headless) | 18 errores, 18 skips | **558 ejecutadas, OK (43 skips)**, 0 errores |
+| Con display | 558 OK | **558 OK**, 0 skips |
+
+---
+
+### 3.31 🟠 El CI no preparaba pantalla para las pruebas de UI *(encontrado al verificar la fase, 01-oct · ✅ CORREGIDO)*
+
+**Archivo**: `.github/workflows/build.yml` (pasos de dependencias y de pruebas)
+
+Los runners de GitHub son headless y el flujo sólo instalaba `python3-tk`. Aun con el import
+arreglado (P3.30), en Linux las **43 pruebas de UI** se habrían saltado en silencio: el CI habría
+estado verde sin haber ejercitado nunca la interfaz — cobertura aparente, no real.
+
+**Corrección**: se instala `xvfb` y en Linux la suite corre bajo display virtual:
+
+```yaml
+      - name: Install system dependencies (Ubuntu)
+        run: sudo apt-get install -y python3-tk xvfb
+
+      - name: Run Automated Test Suite (Linux · display virtual para las pruebas de UI)
+        if: runner.os == 'Linux'
+        run: xvfb-run -a python -m unittest discover -s tests -v
+```
+
+En Windows/macOS se mantiene el comando plano; si algún runner no tuviera display, las pruebas de UI
+**se saltan** en lugar de reventar (lo garantiza P3.30), así que el job no cae por el entorno.
+Verificado que el YAML es válido y los pasos quedan bien condicionados (`yaml.safe_load` sobre los
+14 pasos del job).
+
+---
+
+### 3.32 🔴 La suite de pruebas borraba la configuración real del usuario *(encontrado al verificar la fase, 01-oct · ✅ CORREGIDO + GUARDIÁN)*
+
+**Archivo**: `tests/test_ui_widgets_coverage.py` (origen) · `scrcpy_dock/ui_widgets.py:TrustPromptModal._on_trust` (vía de escritura)
+
+**Qué pasaba.** `test_ui_widgets_coverage.py` construía el modal con un `cfg` parcial:
+
+```python
+cfg = {...}                                             # dict de prueba, sin "profiles"
+m1 = TrustPromptModal(self.root, "SER1", "Model1", "Alias1", sec, cfg)
+```
+
+y `TrustPromptModal._on_trust` guardaba **ese** `cfg` en el archivo de configuración real,
+importando la función dentro del método y sin pasar por ningún callback:
+
+```python
+    def _on_trust(self):
+        from .utils import save_config      # ← escribe en ~/.config/masv/config.json
+        self.sec.trust_device(self.serial, self.model, self.alias)
+        if self.cfg:
+            save_config(self.cfg)
+```
+
+El archivo de pruebas **no** redirigía `CONFIG_FILE`/`CONFIG_DIR` (aunque su docstring afirmaba
+"Redirige directorios y configuraciones a temporales"). Resultado: **cada ejecución de la suite
+reescribía la configuración del usuario** con `{"trusted_devices": {}}`.
+
+**Evidencia recogida**:
+
+```
+$ cat ~/.config/masv/config.json
+{"trusted_devices": {}}                      ← 29 bytes; la del usuario tenía 2.397
+
+$ md5sum ~/.config/masv/config.json          # antes y después de correr sólo ese archivo
+9f89081d8746c52f88040dbbbab2f00f             # idéntico: escribe siempre lo mismo
+$ stat -c '%y' ~/.config/masv/config.json    # pero el mtime cambia en cada corrida
+2026-10-01 05:14:14  →  2026-10-01 05:14:28
+```
+
+**Impacto (Ley 10: pérdida de datos = Crítico)**: se perdieron los perfiles personalizados del
+usuario y sus asociaciones de dispositivo. Se detectó porque una comprobación rutinaria del estado
+de la config tras la suite empezó a fallar con `KeyError: 'profiles'`.
+
+**Causa raíz, en dos capas** (ambas corregidas):
+
+1. **La prueba no aislaba el entorno** — el mismo error que la auditoría original ya había
+   encontrado en `test_core.py` (hallazgo A1) y que la Fase A arregló. La docstring afirmaba lo
+   contrario, así que la revisión no lo vio: *una afirmación de aislamiento no es aislamiento*.
+2. **El widget escribía el disco por su cuenta.** Sus hermanos (`DeviceTrustModal`,
+   `TrustVaultDialog`) reciben un `save_cb` y no tocan disco; `TrustPromptModal` se importaba
+   `save_config` dentro del handler y persistía el `cfg` que le dieran, **sin comprobar que fuera
+   una configuración completa**. Eso es lo que convirtió un `cfg` de prueba en un borrado real.
+
+**Correcciones aplicadas**:
+
+- **Aislamiento del entorno en la prueba** (y de paso en `test_security.py` y
+  `TestB5SeguridadUnificada`): `CONFIG_FILE`, `CONFIG_DIR` y `LOG_FILE` a un temporal, con
+  `save_config` grabando en memoria. Se factorizó en `tests/ui_harness.aislar_config(tmp)` para que
+  haya un único sitio que mantener.
+- **`TrustPromptModal` ya no escribe en disco**: recibe `save_cb` como sus hermanos
+  (`save_cb(cfg)`), y `main.py` le pasa `save_config` en sus dos puntos de construcción. El
+  comportamiento de la app es idéntico; el modal ya no puede destruir nada por su cuenta.
+- **Guardián permanente** `tests/test_suite_sin_efectos.py` (3 pruebas), con dos puertas:
+  - *estática*: todo módulo de pruebas que pueda provocar un guardado debe aislar la config (o
+    importar el arnés que lo hace);
+  - *de extremo a extremo*: ejecuta en subproceso las pruebas de widgets y comprueba que el archivo
+    real queda **byte a byte igual** (sha256 antes/después).
+  Verificado que **muerde**: al quitarle el aislamiento a un módulo, el guardián falla.
+
+**Recuperación de los datos**: la restauración salió de la copia antigua del usuario
+(`~/.config/scrcpy-dock/config.json`, 25-jul), que conservaba su perfil **`Lalo`** completo, más las
+asociaciones de dispositivo y el `last_selected_profile`. El perfil **`Frontal`** no existía en
+ninguna copia local: se reconstruyó **por inferencia** (cámara frontal) y queda señalado para que el
+usuario lo revise. La config restaurada tiene sus 5 perfiles y `language: "en"`. El archivo dañado
+se conservó como `config.json.danado-P3.32.bak` (evidencia).
+
+**Verificación**: `md5` de la config **idéntico antes y después** de la suite completa (561
+pruebas); el guardián pasa; las 5 pruebas de la fase y las 14 de widgets siguen en verde.
+
 ---
 
 ## 4. Cobertura de pruebas — brechas concretas
@@ -646,23 +831,26 @@ PY
 Los tres documentos del sistema (`ANALISIS.md`, `AUDIT_REPORT.md` y este informe) se mantienen
 sincronizados con el registro de ejecución de `ANALISIS.md` §11.
 
-| Métrica | Al redactar este informe | Tras Fases A–C2 |
+| Métrica | Al redactar este informe | Tras Fases A–D (verificado) |
 | :--- | :---: | :---: |
-| Pruebas | 269 | **544** |
-| Cobertura total | 35 % | **78 %** |
+| Pruebas | 269 | **561** (561 OK con display · 44 skips y 0 errores sin display) |
+| Cobertura total | 35 % | **85 %** |
 | Cobertura `core/adb_engine.py` | 46 % | **100 %** |
 | Módulos de negocio bajo el 80 % | 4 | **0** (mínimo 81 %) |
 | Cobertura de la capa de pestañas | 0 % | **99 %** (`ui/tabs/`, 526 sentencias) |
+| Cobertura `ui_widgets.py` | 16 % | **94 %** (medido; la fase declaró 81,8 %) |
 | Cobertura UI (`ui_tabs.py`) | 0–3 % | **100 %** |
 | Bloques con CC > 10 | 20 (máx. 63) | **14 (máx. 18)** |
 | Bloques Rank D o F | 5 (3 D + 2 F) | **0** |
 | Umbrales de la Ley 7 en rojo | 2 | **0** |
 | `ErrorCode` con `ErrorDetail` | 11 / 30 | **16 / 31** |
-| Literales `_()` sin traducción EN | 133 | **0** (404/404) |
+| Literales `_()` sin traducción EN | 133 | **0** (406 claves, 453 invocaciones, 0 duplicadas) |
+| Claves i18n huérfanas | ~133 | **294** (pendiente de limpieza) |
 | Invocaciones ADB directas desde la UI | 17 | **0** |
 | Implementaciones criptográficas | 2 (una muerta) | **1** (`SecurityService`) |
 | Bóveda de confianza | Texto plano | **Cifrada (`vault.enc`)** con migración verificada |
 | Defectos Críticos abiertos | 2 | **0** |
+| Pruebas que escriben en la config real | 1 (§3.32) | **0** (con guardián permanente) |
 
 **Hallazgos nuevos aparecidos al ejecutar las fases** (no estaban en §3): el motor ADB duplicado
 y la pérdida del canal de logs (`ANALISIS.md` §11.3), la rama inalcanzable por la whitelist

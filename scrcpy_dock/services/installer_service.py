@@ -8,7 +8,6 @@ from __future__ import annotations
 import logging
 import os
 import shutil
-import stat
 import textwrap
 from pathlib import Path
 from typing import Callable, Optional

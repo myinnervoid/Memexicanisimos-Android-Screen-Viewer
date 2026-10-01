@@ -3,7 +3,6 @@ import shutil
 import sys
 import subprocess
 import logging
-from pathlib import Path
 
 from scrcpy_dock.contracts import OperationResult
 from scrcpy_dock.errors import ErrorCode

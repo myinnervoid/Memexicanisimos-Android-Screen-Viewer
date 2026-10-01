@@ -1,5 +1,5 @@
 import unittest
-from scrcpy_dock.contracts import OperationResult, DeviceEntry, SessionInfo, ProfileConfig, TrustedDeviceEntry
+from scrcpy_dock.contracts import OperationResult, DeviceEntry, ProfileConfig
 from scrcpy_dock.errors import ErrorCode, get_error_detail
 
 class TestOperationResult(unittest.TestCase):

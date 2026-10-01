@@ -27,6 +27,8 @@ from scrcpy_dock.security import SecurityManager
 from scrcpy_dock.services.security_service import SecurityService
 from scrcpy_dock.state import UIState, UIStateMachine
 
+from tests.ui_harness import aislar_config
+
 VIVO_PROPS = {
     "ro.build.version.sdk": "35",
     "ro.build.version.release": "15",
@@ -286,6 +288,15 @@ def _empty_cfg(vault_encrypted: bool = False, trusted=None) -> dict:
 
 
 class TestB5SeguridadUnificada(unittest.TestCase):
+    def setUp(self):
+        # Aislamiento de la configuración real del usuario (P3.32): estas pruebas
+        # construyen `SecurityManager` con persistencia.
+        self._tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self._tmp.cleanup)
+        for p in aislar_config(self._tmp.name):
+            p.start()
+            self.addCleanup(p.stop)
+
     def test_la_criptografia_vive_solo_en_security_service(self):
         from scrcpy_dock import security as sec_mod
 

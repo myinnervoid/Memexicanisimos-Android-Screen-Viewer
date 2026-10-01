@@ -3,11 +3,11 @@ from __future__ import annotations
 import unittest
 
 from scrcpy_dock.core.port_allocator import PortAllocator
-from scrcpy_dock.domain.models import Codec, Device
+from scrcpy_dock.domain.models import Codec
 from tests.integration.fakes import (
     FakeAdbEngine, FakeScrcpyEngine, FakeClock,
 )
-from tests.contracts.helpers import make_huawei_y9, make_modern_samsung
+from tests.contracts.helpers import make_huawei_y9
 from scrcpy_dock.managers import SessionManager
 from tests.integration.test_i2_session_manager import FakeProfile
 

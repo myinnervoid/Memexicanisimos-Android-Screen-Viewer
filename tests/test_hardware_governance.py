@@ -1,7 +1,7 @@
 import unittest
 import queue
 from unittest.mock import patch, MagicMock
-from scrcpy_dock.managers import SessionManager, DeviceManager, ScrcpySession
+from scrcpy_dock.managers import SessionManager, ScrcpySession
 
 class DummyDeviceManager:
     def __init__(self, props_map):

@@ -5,7 +5,7 @@ Invariantes de datos congelados según ADR-001, ADR-002 y API Contract v1.
 from __future__ import annotations
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Optional, Sequence
+from typing import Optional
 
 
 class Codec(str, Enum):

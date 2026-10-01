@@ -12,7 +12,6 @@ from scrcpy_dock.domain.models import Codec, SessionConfig
 from tests.contracts.helpers import (
     make_device, make_huawei_y9, make_modern_samsung,
     make_caps, make_caps_huawei_y9, make_caps_modern_samsung,
-    fake_completed_process,
 )
 
 

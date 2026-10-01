@@ -1,8 +1,6 @@
 """Contratos congelados de InstallerService. NO modificar sin reabrir ADR-018/019."""
 from __future__ import annotations
-import os
 import sys
-import stat
 import tempfile
 import unittest
 from pathlib import Path
