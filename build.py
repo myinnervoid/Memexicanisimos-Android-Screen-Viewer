@@ -54,7 +54,12 @@ def build():
     # Solución específica para Linux: incluir libpython.so explícitamente para evitar error PyInstaller PYI-21058 (dlopen)
     if plat == "linux":
         py_ver = f"{sys.version_info.major}.{sys.version_info.minor}"
-        candidates = glob.glob(f"/lib/*/libpython{py_ver}*.so*") + glob.glob(f"/usr/lib/*/libpython{py_ver}*.so*")
+        candidates = (
+            glob.glob(f"/lib/*/libpython{py_ver}*.so*") +
+            glob.glob(f"/usr/lib/*/libpython{py_ver}*.so*") +
+            glob.glob(f"{sys.base_prefix}/lib/libpython{py_ver}*.so*") +
+            glob.glob(f"{sys.base_prefix}/lib/*/libpython{py_ver}*.so*")
+        )
         for so_file in candidates:
             if os.path.exists(so_file) and not os.path.islink(so_file):
                 # Incluir el archivo binario real y su versión simbólica
