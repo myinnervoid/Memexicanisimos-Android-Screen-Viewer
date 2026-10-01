@@ -437,25 +437,34 @@ class TestC5BuildCommandDescompuesto(unittest.TestCase):
         idx = res.data.index("--max-size")
         self.assertEqual(res.data[idx + 1], "1920")
 
-    def test_los_flags_de_tamano_estan_vetados_por_la_whitelist(self):
-        """HALLAZGO: `--max-size`/`--camera-size`/`-m` no están permitidos.
+    def test_los_flags_de_tamano_estan_permitidos_y_la_rama_es_alcanzable(self):
+        """⑫ (INFORME §3.16 / ANALISIS §11.3): se habilitan `--max-size`, `--camera-size` y `-m`.
 
-        La rama "respetar el tamaño ya elegido" (`_has_size_flag`) es por tanto
-        **inalcanzable desde la UI**: la whitelist la rechaza antes. Se deja
-        cubierta a nivel unitario para que la decisión sea explícita — o se
-        habilita el flag en `ALLOWED_EXTRA_FLAGS`, o la rama se elimina.
+        El hallazgo era que la rama «respetar el tamaño ya elegido» (`_has_size_flag`)
+        no se podía alcanzar desde la UI: la whitelist rechazaba el flag antes de
+        evaluarlo. Un dock de streaming (OBS, cámara cenital pedagógica) necesita
+        limitar el lado mayor y el tamaño del sensor, así que se habilita el flag en
+        `ALLOWED_EXTRA_FLAGS` en vez de borrar la rama.
         """
         res = self._argv(video_source="camera",
                          extra_args=("--camera-size=4608x3456",))
-        self.assertFalse(res.success)
-        self.assertEqual(res.error, ErrorCode.INVALID_EXTRA_ARGS)
+        self.assertTrue(res.success, res.message)
+        self.assertIn("--camera-size=4608x3456", res.data)
 
-        # La rama existe y funciona si algún día se permite el flag.
+        # Un flag que no es de tamaño no se confunde con uno (usa el import del módulo).
         from scrcpy_dock.domain.models import SessionConfig
-        self.assertTrue(ScrcpyEngine._has_size_flag(
+        self.assertFalse(ScrcpyEngine._has_size_flag(
             SessionConfig(port=1, codec=Codec.H264, resolution="native",
-                          bit_rate=1_000, extra_args=("--max-size=1920",)),
-        ))
+                          bit_rate=1_000, extra_args=("--window-title=x",))))
+
+    def test_el_tamano_elegido_por_el_usuario_no_se_duplica_en_camara(self):
+        """El default de cámara (1920) **no** pisa el tamaño que ya eligió el usuario."""
+        res = self._argv(resolution="native", video_source="camera",
+                         extra_args=("--max-size=1280",))
+        self.assertTrue(res.success, res.message)
+        del_tamano = [t for t in res.data if t.startswith(("--max-size", "--camera-size"))]
+        self.assertEqual(del_tamano, ["--max-size=1280"], res.data)
+        self.assertNotIn("1920", res.data)
 
     def test_la_whitelist_si_permite_el_titulo_de_ventana(self):
         res = self._argv(extra_args=("--window-title=Mi título",))

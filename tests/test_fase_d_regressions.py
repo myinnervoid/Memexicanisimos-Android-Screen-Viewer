@@ -985,8 +985,8 @@ class TestRedDeToggleScene(unittest.TestCase):
 
         self.app._toggle_scene()
 
-        self.assertTrue(self.sitio.dialogs.did("showerror"))
-        self.assertIn("Sin dispositivo", str(self.sitio.dialogs.last("showerror")))
+        self.assertTrue(self.sitio.dialogs.did("showwarning"))
+        self.assertIn("Sin dispositivo", str(self.sitio.dialogs.last("showwarning")))
         self.app._nb.select.assert_called_once_with(2)   # pestaña Dispositivo
 
     def test_modo_seguro_cancelado_no_arranca(self):

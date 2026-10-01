@@ -70,7 +70,7 @@ class TestConfigEdges(_UtilsAislado):
 
         self.assertEqual(cfg["security"]["blocked_ips"], ["10.0.0.5"], "lo del usuario manda")
         self.assertTrue(cfg["security"]["safe_mode_enabled"], "lo que falta se rellena")
-        self.assertEqual(len(cfg["profiles"]), 3, "los perfiles de fábrica se recrean")
+        self.assertEqual(len(cfg["profiles"]), len(utils.DEFAULT_CONFIG["profiles"]), "los perfiles de fábrica se recrean")
 
     def test_config_corrupta_cae_a_los_valores_de_fabrica(self):
         self.cfg_file.write_text("{esto no es json válido", encoding="utf-8")
