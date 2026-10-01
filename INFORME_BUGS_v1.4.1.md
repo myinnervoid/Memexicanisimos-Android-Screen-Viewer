@@ -553,8 +553,8 @@ El parámetro del callback de clic de Tkinter se llamaba `_` (`def copy(_=None):
 **Corrección**: se renombró el parámetro a `event=None`, restaurando el acceso a `_()` para las cadenas `"✔ Copiado"` y `"📋 Copiar"`. Cubierto en `tests/test_ui_widgets_coverage.py`.
 
 **Verificación posterior (01-oct)**: la deduplicación de `i18n.py` quedó confirmada con auditoría
-AST propia: 453 invocaciones activas de `_()` sobre **406 claves distintas**, **0 duplicadas** y
-**0 sin traducción inglesa**. Quedan **294 claves huérfanas** (en la tabla y ningún sitio las pide).
+AST propia: **0 duplicadas** y **0 claves sin traducción inglesa**. Y la tabla quedó **podada**:
+**700 → 425 entradas** (−275), alineada 1:1 con lo que el código usa de verdad.
 
 ---
 
@@ -739,6 +739,38 @@ pruebas); el guardián pasa; las 5 pruebas de la fase y las 14 de widgets siguen
 
 ---
 
+### 3.33 🟡 La auditoría de i18n contaba 19 claves vivas como huérfanas *(encontrado al planificar la poda, 01-oct · ✅ CORREGIDO + GUARDIÁN)*
+
+**Archivo**: `scrcpy_dock/i18n.py` · `scrcpy_dock/ui/tabs/tab_help.py:32`
+
+Los títulos de los 19 acordeones de la FAQ no se traducen con un literal directo, sino que se
+**pasan por variable** a un ayudante que traduce dentro:
+
+```python
+    def _add(title, build_fn):                      # tab_help.py
+        item = AccordionItem(inner, _(title), build_fn, canvas_ref=canvas)
+    ...
+    _add("🚀  1. Inicio rápido — Primeros pasos con MASV", _faq_quickstart)
+```
+
+Un escaneo de `_("literal")` —el que usaron la auditoría y la propia Fase D— **no ve esos 19
+títulos** y los clasifica como entradas muertas. Consecuencias reales:
+
+- Las cifras publicadas eran un **subconteo**: «404/404» y luego «406 claves usadas» medían sólo
+  literales; el número real de claves vivas es **425** (406 por literal + 19 por flujo).
+- El «pendiente» decía «295 claves i18n huérfanas»: en realidad eran **275**, y una poda ingenua
+  habría borrado **19 traducciones en uso** (todos los títulos de la Ayuda) sin que ninguna prueba
+  ni el linter dijeran nada. Es la misma clase de trampa que P3.26, en la dirección contraria:
+  una entrada muerta que gana en silencio, o una entrada viva que desaparece en silencio.
+
+**Corrección**: la poda se hizo por **doble vía** (literales + literales que fluyen a `_()` a través
+de `_add`/`_selector`), y se añadió `tests/test_i18n_integridad.py` (5 pruebas) que cierra las tres
+trampas a la vez: **sin duplicadas** (contadas en el literal del AST, no en el diccionario),
+**sin faltantes** y **sin huérfanas**; más una prueba que exige que la vía de flujo siga
+declarada, para que nadie la olvide al añadir otra puerta hacia `_()`.
+
+---
+
 ## 4. Cobertura de pruebas — brechas concretas
 
 Lo que **no** cubre la suite actual (269 tests) y permitió que los bugs anteriores pasaran:
@@ -844,8 +876,9 @@ sincronizados con el registro de ejecución de `ANALISIS.md` §11.
 | Bloques Rank D o F | 5 (3 D + 2 F) | **0** |
 | Umbrales de la Ley 7 en rojo | 2 | **0** |
 | `ErrorCode` con `ErrorDetail` | 11 / 30 | **16 / 31** |
-| Literales `_()` sin traducción EN | 133 | **0** (406 claves, 453 invocaciones, 0 duplicadas) |
-| Claves i18n huérfanas | ~133 | **294** (pendiente de limpieza) |
+| Literales `_()` sin traducción EN | 133 | **0** (425 claves vivas: 406 por literal + 19 por flujo) |
+| Claves i18n huérfanas | ~295 | **0** (podadas 275; las 19 falsas huérfanas de la FAQ conservadas) |
+| Entradas en la tabla i18n | 700 | **425** (alineada 1:1 con el código) |
 | Invocaciones ADB directas desde la UI | 17 | **0** |
 | Implementaciones criptográficas | 2 (una muerta) | **1** (`SecurityService`) |
 | Bóveda de confianza | Texto plano | **Cifrada (`vault.enc`)** con migración verificada |
@@ -860,7 +893,7 @@ y la pérdida del canal de logs (`ANALISIS.md` §11.3), la rama inalcanzable por
 
 **Pendiente**: C2 (modularización de la UI, respaldada ya por D1), D2–D5, los 14 bloques CC entre 11
 y 18, la cobertura de `adb_engine.py` (46 %), unificar las convenciones de fallo de los parsers de
-IP, deduplicar las 295 claves i18n huérfanas y reconstruir los ADR ausentes.
+IP, **podar las claves i18n huérfanas (hecho: 275 eliminadas, tabla alineada 1:1)** y reconstruir los ADR ausentes.
 
 ---
 

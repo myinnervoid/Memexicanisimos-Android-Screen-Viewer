@@ -710,7 +710,7 @@ real del pool — no por regresión (verificado: con el pool simulado libre pasa
 | :--- | :--- | :--- | :--- | :---: |
 | C1 | `StreamService`: la compilación del perfil y el lanzamiento salen de `start_scene_legacy`; el manager queda como fachada | `services/stream_service.py` (nuevo), `managers.py` | `TestC1StreamService` (7 pruebas); `start_scene_legacy` CC **45 → 1** | ✅ |
 | C3 | Primitivas `shell`/`install`/`connect`/`kill_server` en el motor + **una sola instancia** compartida | `core/adb_engine.py`, `context.py`, `managers.py`, `main.py` | `TestC3*` (11 pruebas); `subprocess.run([self.ctx.adb` en `main.py`: **17 → 0**; 13 llamadas vía motor | ✅ |
-| C4 | 136 cadenas sin traducción EN + fusión verificada | `i18n.py` (bloque `_EN_EXTRA`) | `TestC4CoberturaI18n` (3 pruebas); cobertura de claves usadas **404/404 = 100 %** | ✅ |
+| C4 | 136 cadenas sin traducción EN + fusión verificada | `i18n.py` (bloque `_EN_EXTRA`) | `TestC4CoberturaI18n` (3 pruebas); claves vivas **425** (406 por literal + 19 por la vía de flujo de la FAQ), 0 faltantes | ✅ |
 | C5 | `build_command` descompuesto en 14 ensambladores/guardas | `core/scrcpy_engine.py` | `TestC5BuildCommandDescompuesto` (8 pruebas); CC **63 → 6**, todos los bloques ≤ 9 | ✅ |
 | C2 | Dividir la presentación (`ui/tabs/*`) | — | 🚫 **No ejecutada** (ver decisión abajo) | 🚫 |
 
@@ -720,7 +720,8 @@ real del pool — no por regresión (verificado: con el pool simulado libre pasa
 2. **El canal de logs se descartaba (Mayor, corregido).** `SessionManager.__init__` hacía `self.log_q = None` en cuanto se le inyectaba un motor ADB: al conectar el motor único, el panel de logs habría dejado de recibir los mensajes de sesión por esa vía. Corregido conservando el `Queue` explícito.
 3. **Rama inalcanzable por la whitelist (Menor, documentado).** `_append_video_size`/`_has_size_flag` respetan un tamaño ya elegido (`--max-size`, `--camera-size`, `-m`), pero **ninguno de esos flags está en `ALLOWED_EXTRA_FLAGS`**: esa rama es inalcanzable desde la UI y sólo se puede ejercitar por código. Decisión pendiente: habilitar los flags de tamaño o eliminar la rama muerta.
 4. **Trampa de alias en la extracción (Mayor, corregido).** Al extraer el servicio, capturar el motor y el asignador **por valor** rompió 3 pruebas y a cualquier consumidor que sustituya `mgr._scrcpy` después (lo hacen los tests y la propia app al re-detectar binarios). `StreamService` recibe ahora **proveedores** (callables), no valores.
-5. **Deuda real de i18n mayor que la declarada (Menor).** No eran "6 claves redundantes": hay **295 entradas EN que no referencia ninguna llamada literal a `_()`** (algunas pueden construirse en runtime). Se tradujo todo lo que faltaba; **no se borró nada** porque la deduplicación exige su propio ADR y pruebas.
+5. **Deuda real de i18n mayor que la declarada (Menor).** No eran "6 claves redundantes": hay **295 entradas EN que no referencia ninguna llamada literal a `_()`**. Se tradujo todo lo que faltaba y **no se borró nada** en ese momento porque la limpieza exigía su propio ADR y pruebas.
+   > **Resuelto en §11.11 (01-oct)**: de esas 295, **19 no eran huérfanas** (los títulos de la FAQ pasan por variable a `_()`, ver P3.33) y **275 sí**. La tabla quedó podada a **425 entradas** alineadas 1:1 con el código.
 6. **La suite no puede correr con la app abierta (Mayor, sin corregir).** `PortAllocator` comprueba disponibilidad real de puerto, y las pruebas de contrato asumen el pool `27183+` libre. Con MASV ejecutándose (uso normal), 4 pruebas fallan. Es una **fragilidad del diseño de pruebas**, no del producto: los tests de contrato de puertos deberían usar una base efímera propia.
 
 **Métricas tras la Fase C:**
@@ -880,7 +881,7 @@ filas inventadas, y por eso no vio nada) apareció esto:
 (cobertura de `adb_engine.py` 46 % → ≥ 80 %), D4 (exhaustividad de `ERROR_CATALOG` y contraste WCAG)
 y D5 (separar `requirements-dev.txt`, extraer la matriz de trade-offs). Y la deuda declarada en
 §11.3–11.4: C2 (modularización de la UI), unificar las convenciones de fallo de los dos parsers de
-IP, deduplicar las 295 claves i18n huérfanas y reconstruir los ~26 ADR citados y no escritos.
+IP, podar las claves i18n huérfanas (hecho en §11.11: 275 podadas) y reconstruir los ~26 ADR citados y no escritos.
 
 ### 11.6 Fase D — D3 · Endurecimiento de `AdbEngine` (2026-10-01)
 
@@ -916,7 +917,7 @@ IP, deduplicar las 295 claves i18n huérfanas y reconstruir los ~26 ADR citados 
 
 > Cifras de este apartado: estado **al cerrar D3**. En D3-bis (§11.7) la cobertura total subió a 78 % y los tres módulos del núcleo que quedaban pendientes pasaron al 100 %.
 
-**Lo que queda de la Fase D**: D2 (linter en CI), D4 (exhaustividad de `ERROR_CATALOG` y contraste WCAG) y D5 (`requirements-dev.txt`, matriz de trade-offs). Y de las fases anteriores: C2 (modularización de la UI, ya con doble blindaje D1+D3), los 3 módulos del núcleo entre 72 % y 77 %, los 14 bloques CC entre 11 y 18, unificar las convenciones de fallo de los parsers de IP, deduplicar las 295 claves i18n huérfanas y reconstruir los ~26 ADR citados y no escritos.
+**Lo que queda de la Fase D**: D2 (linter en CI), D4 (exhaustividad de `ERROR_CATALOG` y contraste WCAG) y D5 (`requirements-dev.txt`, matriz de trade-offs). Y de las fases anteriores: C2 (modularización de la UI, ya con doble blindaje D1+D3), los 3 módulos del núcleo entre 72 % y 77 %, los 14 bloques CC entre 11 y 18, unificar las convenciones de fallo de los parsers de IP, podar las claves i18n huérfanas (hecho en §11.11: 275 podadas) y reconstruir los ~26 ADR citados y no escritos.
 
 ### 11.7 Fase D — D3-bis · Cierre de la Ley 7 de negocio (2026-10-01)
 
@@ -968,7 +969,7 @@ monkeypatch global de `open()`. Ninguna prueba escribe en `~/.config/masv/`.
 
 **Lo que queda**: C2 (modularización de la UI — es lo que subiría `ui_widgets.py` del 49 % al
 umbral), los 14 bloques CC entre 11 y 18, D2 (linter en CI), D4 (`ERROR_CATALOG` + WCAG), D5,
-unificar las convenciones de fallo de los parsers de IP, deduplicar las 295 claves i18n huérfanas y
+unificar las convenciones de fallo de los parsers de IP, podar las claves i18n huérfanas (hecho en §11.11: 275 podadas) y
 reconstruir los ~26 ADR citados y no escritos.
 
 ### 11.8 Fase C — C2 · Partición de `ui_tabs.py` en pestañas atómicas (2026-10-01)
@@ -1054,7 +1055,7 @@ siguen en verde.
 4. **D2 — Linter en CI/CD (`.github/workflows/build.yml`):** Integración del paso `Static Code Analysis & Linting (Pyflakes)` previo a la ejecución de pruebas y empaquetado.
 5. **D5 — Tooling de desarrollo (`requirements-dev.txt`):** Declaración explícita de `pyflakes`, `coverage`, `radon` y `pip-audit`.
 
-### 11.9 Fase D — Verificación independiente y blindaje real del CI (2026-10-01)
+### 11.10 Fase D — Verificación independiente y blindaje real del CI (2026-10-01)
 
 La Fase D se declaró concluida en `f12a330` (cobertura de `ui_widgets`, linter en CI, deduplicación
 i18n, ADR-036). Esta sección es la **verificación contra el repositorio**, no la aceptación del
@@ -1065,7 +1066,7 @@ informe. Lo declarado es cierto en lo esencial —y se corrigió lo que no lo er
 | 558 pruebas | **558/558 OK** con display; sin display 558 ejecutadas, OK (43 skips) |
 | `ui_widgets.py` al 81,8 % | **94 %** medido (10 % sin display). El 81,8 % no se reproduce en ningún escenario; se adopta la cifra medida |
 | Cobertura total 82 % | **85 %** medido con display (49 % sin display) |
-| P3.26 cerrado: 12 claves duplicadas fuera | **0 duplicadas** (auditoría AST), 406 claves usadas, **0 sin traducción**, 294 huérfanas |
+| P3.26 cerrado: 12 claves duplicadas fuera | **0 duplicadas** (auditoría AST), **425 claves vivas**, 0 sin traducción, **0 huérfanas** (275 podadas) |
 | P3.27 `PillNavBar.select` | Existe (`ui_widgets.py:110`) y los botones lo invocan |
 | P3.28 `copy(event=None)` | Confirmado: ya no enmascara `_` |
 | Linter en CI (D2) | El paso existe y **el repositorio queda limpio**: `pyflakes scrcpy_dock/ tests/` → exit 0 |
@@ -1125,6 +1126,39 @@ en un runner sin pantalla. Ver ADR-037 y ADR-038.
 huérfanas**; los **14 bloques de complejidad** entre 11 y 18 (`_toggle_scene` 18, `_toggle_view` 17
 en `main.py`); D4 (exhaustividad de `ERROR_CATALOG` + contraste WCAG) y D5; y los ~26 ADR citados en
 el código y no escritos.
+
+### 11.11 Poda de la tabla de traducciones (2026-10-01)
+
+`scrcpy_dock/i18n.py`: **741 → 466 líneas**, **700 → 425 entradas**. La tabla queda alineada 1:1 con
+lo que el código usa de verdad: **0 huérfanas, 0 faltantes, 0 duplicadas**.
+
+**El método importa tanto como el resultado.** La poda se hizo por **doble vía**:
+
+| Vía | Qué capta | Claves |
+| :--- | :--- | :---: |
+| **Estática** | literales pasados directamente a `_("…")` | 406 |
+| **De flujo** | literales que llegan a `_()` a través de otra función (`_add("título", …)` → `_(title)` en la Ayuda) | 19 |
+| | **Total de claves vivas** | **425** |
+
+Sin la segunda vía se habrían borrado **19 traducciones en uso** (todos los títulos de los 19
+acordeones de la FAQ) y ninguna prueba ni el linter lo habrían notado: es la trampa de P3.26 en la
+dirección contraria (ver `INFORME_BUGS` §3.33). Además, las cifras publicadas hasta ahora eran un
+subconteo: «404/404» y «406 claves» medían sólo literales.
+
+**Guardián permanente**: `tests/test_i18n_integridad.py` (5 pruebas) cierra las tres trampas y
+exige que la vía de flujo siga declarada en `VIAS_DE_FLUJO` — si alguien añade otra puerta hacia
+`_()`, la prueba se lo dice. Verificado que **muerde**: inyectando una entrada huérfana, falla.
+
+**Métricas tras la poda:**
+
+| Métrica | Antes | Después |
+| :--- | :---: | :---: |
+| Líneas de `i18n.py` | 741 | **466** |
+| Entradas en la tabla | 700 | **425** |
+| Claves huérfanas | 275 | **0** |
+| Claves duplicadas | 0 | **0** |
+| Claves usadas sin traducción | 0 | **0** |
+| Pruebas | 561 | **566** |
 
 ---
 

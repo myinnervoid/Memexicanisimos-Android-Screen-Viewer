@@ -19,6 +19,7 @@
 37. [ADR-037: Las Dependencias Opcionales de UI Degradan, Nunca Rompen la Importación](#adr-037)
 38. [ADR-038: El Pipeline se Verifica en las Condiciones del Pipeline](#adr-038)
 39. [ADR-039: Ninguna Prueba Puede Escribir en los Datos del Usuario — y Hay un Guardián que lo Comprueba](#adr-039)
+40. [ADR-040: La Tabla de Traducciones es un Espejo del Código — y se Cuenta por Dos Vías](#adr-040)
 
 > ⚠️ **Hueco de trazabilidad detectado (2026-10-01):** el código cita **ADR-001 a ADR-031**
 > (`ADR-006/007/008/009` en `adb_engine`, `ADR-029` en `port_allocator`, `ADR-031` en
@@ -204,6 +205,18 @@
 
 ---
 
+<a name="adr-040"></a>
+### ADR-040: La Tabla de Traducciones es un Espejo del Código — y se Cuenta por Dos Vías
+
+- **Contexto del Problema**: `i18n.py` acumulaba 700 entradas para 425 claves realmente vivas: 275 sobras de versiones anteriores. Cada sobra es una trampa de mantenimiento — quien edita la entrada muerta para corregir lo que ve el usuario no observa ningún efecto (es el caso de P3.26: 6 claves duplicadas donde ganaba la última). Y al medir «claves usadas» con un escaneo de literales `_("…")` el resultado era un **subconteo**: los 19 títulos de la FAQ llegan a `_()` por variable (`_add("título", …)` → `_(title)`), así que aparecían como huérfanos y una poda ingenua habría borrado 19 traducciones en uso, sin que fallara ninguna prueba ni el linter.
+- **Decisión Adoptada**: (a) la tabla contiene **exactamente** lo que el código usa — ni entradas muertas ni cadenas sin traducir; (b) para decidir qué está vivo se cuentan **dos vías**: los literales que van directos a `_()` y los que llegan a `_()` a través de un ayudante declarado en `VIAS_DE_FLUJO`; (c) las tres trampas se comprueban en `tests/test_i18n_integridad.py`: sin duplicadas (contadas en el **literal del AST**, porque en el diccionario la última gana y el duplicado se esfuma), sin faltantes y sin huérfanas. Si alguien crea otra puerta hacia `_()`, debe declararla y la prueba se lo recuerda.
+- **Consecuencias**:
+  - *Positivas*: la tabla pasa de 741 a 466 líneas y se puede leer como un espejo del código; editar una traducción siempre tiene efecto; el subconteo de las auditorías anteriores (404/406 «claves usadas») queda corregido a 425.
+  - *Negativas*: añadir una traducción por una vía nueva exige tocar `VIAS_DE_FLUJO`; la verdad de la tabla depende de un escaneo estático, así que un texto montado en runtime con f-strings seguiría sin detectarse (hoy no existe ninguno).
+  - *Verificación*: guardián de 5 pruebas que **muerde** (con una entrada huérfana inyectada, falla); suite 566/566; `pyflakes` exit 0.
+
+---
+
 ## ⚖️ Matriz de Trade-offs de Decisiones Técnicas
 
 | Decisión Técnica | Beneficio Directo | Costo / Penalización | Alternativa Descartada | Razón del Rechazo |
@@ -224,5 +237,7 @@
 | **`xvfb-run` en el CI en vez de aceptar los saltos de las pruebas de UI** | Las 43 pruebas de interfaz se ejecutan de verdad en Linux; el CI no puede estar verde por omisión. | Una dependencia más (`xvfb`) y dos pasos de pruebas condicionados por SO. | Dejar que las pruebas de UI se salten en CI. | El pipeline habría estado verde sin haber ejercitado nunca la interfaz — cobertura aparente, no real. |
 | **Aislar y verificar (con guardián) que la suite no toca datos del usuario, en vez de confiar en la revisión** | La suite es segura en cualquier máquina; la pérdida de configuración se detecta automáticamente. | Un subproceso extra en la suite (~1,5 s) y una regla estática que respetar. | Documentar el aislamiento en la docstring del archivo de pruebas. | Es exactamente lo que falló: la docstring afirmaba el aislamiento y el archivo no lo hacía; se perdieron los perfiles del usuario. |
 | **Los widgets reciben `save_cb` en vez de guardar por su cuenta** | Un componente de interfaz no puede destruir la configuración del usuario, ni siquiera si le pasan un objeto incompleto. | Un parámetro más que propagar desde `main.py`. | Que el widget importe `save_config` y persista el `cfg` que le den. | Con un `cfg` parcial escribía una configuración incompleta sobre la real (P3.32). |
+| **Contar lo usado por dos vías (literal + flujo) en vez de sólo literales** | La poda no borra traducciones vivas; las cifras de i18n dejan de ser un subconteo. | Hay que declarar cada puerta nueva hacia `_()` en `VIAS_DE_FLUJO`. | Escanear sólo `_("literal")`. | Los 19 títulos de la FAQ llegan por variable: aparecían como huérfanos y se habrían borrado (P3.33). |
+| **Que la tabla i18n sea un espejo exacto del código, con guardián** | Editar una traducción siempre surte efecto; no quedan entradas muertas ni cadenas sin traducir. | Mantener el escaneo y la lista de vías al día. | Dejar las 275 sobras «por si acaso» y confiar en la revisión. | Cada sobra es un cebo: la de P3.26 enmascaraba la traducción buena y nadie lo notó hasta que pyflakes la delató. |
 | **Sanitización de `extra_args` con lista de rechazo** | Prevención de ataques de inyección de comandos en perfiles compartidos. | Rechazo de scripts compuestos dentro del campo de argumentos. | Ejecutar mediante shell directo con permisos elevados. | Riesgo crítico de seguridad según la Ley Global 3. |
 | **Almacenamiento JSON plano con guardado atómico (`fsync` + `os.replace`)** | Cero dependencias de base de datos externa, portabilidad absoluta. | No apto para consultas relacionales masivas concurrentes. | SQLite / PostgreSQL embebido. | Sobrecomplejidad innecesaria para un gestor de configuración local de escritorio. |
