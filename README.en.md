@@ -33,6 +33,13 @@ Tailored for **content creators, streamers, photographers, gamers, and developer
   - Fixed accordion expand/collapse toggling and complete bilingual parity.
 - 🎨 **Calibrated Themes & Contrast:**
   - `Warm Stone` (Default), `Cyber Obsidian`, and `Nordic Slate` with dynamic redraws ensuring perfect contrast and readability.
+- 📷 **Smart Camera Mode & Modern Sensor Protection (48MP / 12MP):**
+  - Guaranteed compatibility for Android 12+ (SDK 31+) phones with high-resolution physical camera sensors (vivo, Samsung, Motorola, Xiaomi).
+  - Automatic preventive max-size clamping to 1920 px and omission of `--no-downsize-on-error`, preventing hardware MediaCodec crashes on ultra-high resolutions (e.g. 4608x3456 on 48MP sensors).
+  - Assisted `v4l2loopback` detection: if `/dev/video9` is not loaded in Linux, seamlessly offers a 1-click on-screen desktop preview window or guidance for OBS Studio setup.
+  - Transparent profile normalization: extracts camera and OTG flags from `extra_args` without triggering security whitelist errors.
+- 🧪 **Exhaustive Connection Test Suite (269 Tests):**
+  - Automated test coverage for USB screen mirroring, camera mode, OTG mode, TCP/IP wireless networking, and chipset governance (Kirin vs Qualcomm).
 - 🔀 **Productivity Shortcuts:**
   - `Ctrl + M`: Toggle Compact Mode (500x620) and Advanced Dashboard.
   - `Ctrl + B`: Collapse / Expand sidebar (Dashboard).

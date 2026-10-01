@@ -33,6 +33,13 @@ Diseñada especialmente para **creadores de contenido, streamers, fotógrafos, g
   - Corrección de apertura/cierre de acordeones y documentación 100% bilingüe.
 - 🎨 **Temas Visuales y Contrastes Calibrados:**
   - `Warm Stone` (por defecto), `Cyber Obsidian` y `Nordic Slate` con refresco dinámico que preserva la legibilidad perfecta de tarjetas, textos y botones.
+- 📷 **Modo Cámara Inteligente & Protección de Sensores Modernos (48MP / 12MP):**
+  - Soporte garantizado para cámaras de Android 12+ (SDK 31+) con sensores físicos de alta resolución (vivo, Samsung, Motorola, Xiaomi).
+  - Límite automático preventivo a 1920 px y omisión de `--no-downsize-on-error`, evitando que MediaCodec colapse al recibir dimensiones masivas (ej. 4608x3456 en sensores de 48MP).
+  - Detección asistida de `v4l2loopback`: si `/dev/video9` no está cargado en Linux, permite alternar con un clic hacia una ventana de previsualización en pantalla o revisar la guía de instalación para OBS Studio.
+  - Normalización automática de perfiles: extrae flags de cámara y OTG desde `extra_args` sin disparar errores de lista blanca.
+- 🧪 **Suite Exhaustiva de Pruebas de Conexión (269 Tests):**
+  - Verificación automatizada de duplicación USB, modo cámara, modo OTG, conectividad inalámbrica TCP/IP y gobernanza de hardware (Kirin vs Qualcomm).
 - 🔀 **Atajos Rápidos de Productividad:**
   - `Ctrl + M`: Alternar Modo Compacto (500x620) y Avanzado.
   - `Ctrl + B`: Colapsar / Expandir barra lateral (Dashboard).
