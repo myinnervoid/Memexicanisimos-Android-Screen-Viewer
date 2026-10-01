@@ -182,6 +182,38 @@ class DeviceManager:
         self._caps_cache[serial] = caps
         return caps
 
+    def _mapear_dispositivo_para_ui(self, d: Device) -> Tuple[Tuple[str, str, str], DeviceEntry]:
+        """Mapea un Device de dominio a la tupla legacy de Tkinter y al DeviceEntry."""
+        if d.state == DeviceState.DEVICE:
+            tupla = (d.serial, d.model, "ok")
+            conn_val = getattr(d.connection_type, "value", str(d.connection_type))
+            entry = DeviceEntry(
+                serial=d.serial,
+                model=d.model,
+                state="device",
+                android_version=d.android_sdk,
+                connection_type=conn_val,
+            )
+            return tupla, entry
+
+        if d.state == DeviceState.UNAUTHORIZED:
+            return (
+                (d.serial, "⚠  Acepta el permiso en el teléfono", "unauth"),
+                DeviceEntry(serial=d.serial, model="Android", state="unauthorized"),
+            )
+
+        if d.state == DeviceState.OFFLINE:
+            return (
+                (d.serial, "🔌  Dispositivo desconectado (offline)", "offline"),
+                DeviceEntry(serial=d.serial, model="Android", state="offline"),
+            )
+
+        st_str = d.state.value if hasattr(d.state, "value") else str(d.state)
+        return (
+            (d.serial, f"[{st_str}]", "other"),
+            DeviceEntry(serial=d.serial, model="Android", state=st_str),
+        )
+
     def scan_devices(
         self,
         callback_update_ui: Optional[Callable] = None,
@@ -197,31 +229,13 @@ class DeviceManager:
             return res
 
         devices = res.data or []
-
-        # Actualizar modelos legacy para la UI de Tkinter
         found: List[Tuple[str, str, str]] = []
         entries: List[DeviceEntry] = []
 
         for d in devices:
-            if d.state == DeviceState.DEVICE:
-                found.append((d.serial, d.model, "ok"))
-                entries.append(DeviceEntry(
-                    serial=d.serial,
-                    model=d.model,
-                    state="device",
-                    android_version=d.android_sdk,
-                    connection_type=d.connection_type.value,
-                ))
-            elif d.state == DeviceState.UNAUTHORIZED:
-                found.append((d.serial, "⚠  Acepta el permiso en el teléfono", "unauth"))
-                entries.append(DeviceEntry(serial=d.serial, model="Android", state="unauthorized"))
-            elif d.state == DeviceState.OFFLINE:
-                found.append((d.serial, "🔌  Dispositivo desconectado (offline)", "offline"))
-                entries.append(DeviceEntry(serial=d.serial, model="Android", state="offline"))
-            else:
-                st_str = d.state.value if hasattr(d.state, "value") else str(d.state)
-                found.append((d.serial, f"[{st_str}]", "other"))
-                entries.append(DeviceEntry(serial=d.serial, model="Android", state=st_str))
+            tupla, entry = self._mapear_dispositivo_para_ui(d)
+            found.append(tupla)
+            entries.append(entry)
 
         self.devices = found
         self.device_entries = entries
@@ -406,6 +420,52 @@ class SessionManager:
         # 4. Lanzar con handshake y fallback
         return self._launch_with_fallback(device, caps, config)
 
+    @staticmethod
+    def _verificar_handshake(proc: Any, timeout: float) -> bool:
+        """Retorna True si el proceso sobrevivió el handshake inicial."""
+        try:
+            proc.wait(timeout=timeout)
+            return False
+        except Exception:
+            return proc.poll() is None
+
+    def _registrar_sesion_activa(
+        self, device: Device, config: SessionConfig, proc: Any
+    ) -> _SessionInfo:
+        """Registra la sesión en las tablas hexagonal y legacy."""
+        info = _SessionInfo(port=config.port, process=proc)
+        self._session_info[device.serial] = info
+        self.sessions[device.serial] = ScrcpySession(
+            serial=device.serial,
+            profile_name=getattr(config, "video_source", "display"),
+            proc=proc,
+            assigned_port=config.port,
+        )
+        return info
+
+    def _reintentar_con_fallback(
+        self,
+        device: Device,
+        caps: DeviceCapabilities,
+        config: SessionConfig,
+        collected_stderr: List[str],
+        elapsed: float,
+    ) -> OperationResult[_SessionInfo]:
+        """Evalúa si el fallo fue de códec y reintenta con H.264."""
+        self._allocator.release(config.port)
+        if config.codec == Codec.H264:
+            return OperationResult.fail(ErrorCode.PROCESS_CRASH, "handshake falló")
+
+        if not self._scrcpy.is_codec_failure(collected_stderr, elapsed, device.android_sdk):
+            return OperationResult.fail(ErrorCode.PROCESS_CRASH, "handshake falló")
+
+        retry_port_res = self._allocator.acquire()
+        if not retry_port_res.success:
+            return OperationResult.fail(ErrorCode.PORT_POOL_EXHAUSTED, retry_port_res.message)
+
+        retry_config = replace(config, port=retry_port_res.data, codec=Codec.H264)
+        return self._launch_with_fallback(device, caps, retry_config)
+
     def _launch_with_fallback(
         self,
         device: Device,
@@ -418,20 +478,13 @@ class SessionManager:
             return OperationResult.fail(cmd_res.error_code or ErrorCode.INVALID_INPUT, cmd_res.message)
 
         collected_stderr: List[str] = []
-
-        def _on_line(line: str):
-            collected_stderr.append(line)
-
-        def _on_exit(exit_code: int):
-            pass
-
         t0 = self._clock()
         launch_res = self._scrcpy.launch(
             config,
             device,
             caps,
-            on_stderr_line=_on_line,
-            on_exit=_on_exit,
+            on_stderr_line=collected_stderr.append,
+            on_exit=lambda exit_code: None,
         )
 
         if not launch_res.success:
@@ -441,40 +494,11 @@ class SessionManager:
         proc = launch_res.data
         timeout = 5.0 if device.android_sdk <= 29 else 2.5
 
-        # Handshake síncrono: si `wait` retorna, el proceso murió al arrancar.
-        try:
-            proc.wait(timeout=timeout)
-            is_dead = True
-        except Exception:
-            is_dead = False
+        if self._verificar_handshake(proc, timeout):
+            return OperationResult.ok(self._registrar_sesion_activa(device, config, proc))
 
-        if not is_dead and proc.poll() is None:
-            # Proceso sobrevivió el handshake
-            info = _SessionInfo(port=config.port, process=proc)
-            self._session_info[device.serial] = info
-            self.sessions[device.serial] = ScrcpySession(
-                serial=device.serial,
-                profile_name=getattr(config, "video_source", "display"),
-                proc=proc,
-                assigned_port=config.port,
-            )
-            return OperationResult.ok(info)
-
-        # Murió durante el handshake: evaluar fallback de códec
         elapsed = self._clock() - t0
-        if (
-            config.codec != Codec.H264
-            and self._scrcpy.is_codec_failure(collected_stderr, elapsed, device.android_sdk)
-        ):
-            self._allocator.release(config.port)
-            retry_port_res = self._allocator.acquire()
-            if not retry_port_res.success:
-                return OperationResult.fail(ErrorCode.PORT_POOL_EXHAUSTED, retry_port_res.message)
-            retry_config = replace(config, port=retry_port_res.data, codec=Codec.H264)
-            return self._launch_with_fallback(device, caps, retry_config)
-
-        self._allocator.release(config.port)
-        return OperationResult.fail(ErrorCode.PROCESS_CRASH, "handshake falló")
+        return self._reintentar_con_fallback(device, caps, config, collected_stderr, elapsed)
 
     def stop_scene(self, serial: str) -> None:
         """Detiene la sesión hexagonal y libera el puerto."""

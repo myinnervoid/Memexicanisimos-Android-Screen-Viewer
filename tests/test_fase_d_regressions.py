@@ -56,55 +56,121 @@ def _textos_de(widget) -> list:
 # Se compara sin número de línea a propósito: la línea cambia con cualquier
 # edición del archivo y convertiría el guardián en ruido.
 #
-# Los 7 que quedan son justamente los que **no tienen red de comportamiento**
-# (ver §11.12 de ANALISIS.md): se cubren antes de tocarlos.
-BLOQUES_PENDIENTES = [
-    "main.py _change_theme",
-    "main.py _select_tab",
-    "managers.py _launch_with_fallback",
-    "managers.py scan_devices",
-    "core/scrcpy_engine.py get_compatible_codecs",
-]
+# Todos los bloques de deuda ciclomática han sido demolidos.
+# La lista de bloques > 10 es ahora exactamente CERO (0) bloques.
+BLOQUES_PENDIENTES: list[str] = []
+
+class _McCabeVisitor(ast.NodeVisitor):
+    def __init__(self):
+        self.complexity = 1
+
+    def visit_If(self, node):
+        self.complexity += 1
+        self.generic_visit(node)
+
+    def visit_For(self, node):
+        self.complexity += 1
+        self.generic_visit(node)
+
+    def visit_AsyncFor(self, node):
+        self.complexity += 1
+        self.generic_visit(node)
+
+    def visit_While(self, node):
+        self.complexity += 1
+        self.generic_visit(node)
+
+    def visit_IfExp(self, node):
+        self.complexity += 1
+        self.generic_visit(node)
+
+    def visit_ExceptHandler(self, node):
+        self.complexity += 1
+        self.generic_visit(node)
+
+    def visit_With(self, node):
+        self.complexity += 1
+        self.generic_visit(node)
+
+    def visit_AsyncWith(self, node):
+        self.complexity += 1
+        self.generic_visit(node)
+
+    def visit_Assert(self, node):
+        self.complexity += 1
+        self.generic_visit(node)
+
+    def visit_comprehension(self, node):
+        self.complexity += 1 + len(node.ifs)
+        self.generic_visit(node)
+
+    def visit_BoolOp(self, node):
+        self.complexity += len(node.values) - 1
+        self.generic_visit(node)
+
+
+def _obtener_bloques_cc(codigo: str):
+    """Extrae bloques de funciones y métodos con su CC (compatible con radon)."""
+    try:
+        from radon.complexity import cc_visit
+        from radon.visitors import Function
+        return [b for b in cc_visit(ast.parse(codigo)) if isinstance(b, Function)]
+    except ImportError:
+        pass
+
+    class FunctionBlock:
+        def __init__(self, name, lineno, complexity):
+            self.name = name
+            self.lineno = lineno
+            self.complexity = complexity
+
+    tree = ast.parse(codigo)
+    bloques = []
+
+    def _medir(fn_node):
+        v = _McCabeVisitor()
+        for child in ast.iter_child_nodes(fn_node):
+            if not isinstance(child, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                v.visit(child)
+        return FunctionBlock(fn_node.name, fn_node.lineno, v.complexity)
+
+    for item in tree.body:
+        if isinstance(item, (ast.FunctionDef, ast.AsyncFunctionDef)):
+            bloques.append(_medir(item))
+        elif isinstance(item, ast.ClassDef):
+            for m in item.body:
+                if isinstance(m, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                    bloques.append(_medir(m))
+    return bloques
+
 
 class TestComplejidadSinBloquesD(unittest.TestCase):
     """Evita que la deuda ciclomática demolidа en la Fase D vuelva a crecer."""
 
     def test_ningun_bloque_alcanza_rank_d(self):
-        try:
-            from radon.complexity import cc_visit
-            from radon.visitors import Function
-        except ImportError:  # pragma: no cover
-            self.skipTest("radon no instalado (dependencia de desarrollo)")
-
         peores, detalle = [], []
         raiz = Path(scrcpy_dock.__file__).parent
         for archivo in raiz.rglob("*.py"):
             rel = archivo.relative_to(raiz).as_posix()
-            for bloque in cc_visit(ast.parse(archivo.read_text(encoding="utf-8"))):
-                if not isinstance(bloque, Function) or bloque.complexity <= 10:
+            for bloque in _obtener_bloques_cc(archivo.read_text(encoding="utf-8")):
+                if bloque.complexity <= 10:
                     continue
                 peores.append(f"{rel} {bloque.name}")
                 detalle.append(f"{rel}:{bloque.lineno} {bloque.name} CC={bloque.complexity}")
 
         # Umbral de la Ley 7 (≤ 10): el rank D empieza en 21. Se exige el umbral
-        # duro (0 bloques > 10) para poder bajarlo a C más adelante.
+        # duro (0 bloques > 10) para garantizar Rank A/B en todo el proyecto.
         self.assertEqual(
             [d for d in detalle if int(d.rsplit("CC=", 1)[1]) > 20], [],
             f"bloques Rank D o peor: {detalle}",
         )
-        # Lista blanca, no un tope holgado: si aparece un bloque > 10 nuevo,
-        # esta prueba lo dice por su nombre en vez de esperar a que haya 15.
+        # La lista de bloques > 10 debe ser exactamente CERO (0) bloques.
         self.assertEqual(
             sorted(peores), sorted(BLOQUES_PENDIENTES),
             f"la lista de bloques > 10 cambió: {detalle}",
         )
 
     def test_los_tres_objetivos_de_la_fase_de_quedaron_planos(self):
-        try:
-            from radon.complexity import cc_visit
-        except ImportError:  # pragma: no cover
-            self.skipTest("radon no instalado")
-
         objetivos = {
             ("scrcpy_dock/services/profile_service.py", "sanitize_profile_dict"): 10,
             ("scrcpy_dock/main.py", "_exit"): 10,
@@ -112,7 +178,7 @@ class TestComplejidadSinBloquesD(unittest.TestCase):
         }
         for archivo in Path(scrcpy_dock.__file__).parent.rglob("*.py"):
             clave_rel = str(archivo.relative_to(Path(scrcpy_dock.__file__).parent.parent))
-            for bloque in cc_visit(ast.parse(archivo.read_text(encoding="utf-8"))):
+            for bloque in _obtener_bloques_cc(archivo.read_text(encoding="utf-8")):
                 tope = objetivos.get((clave_rel, bloque.name))
                 if tope is not None:
                     self.assertLessEqual(
@@ -1082,5 +1148,344 @@ class TestRedDeToggleScene(unittest.TestCase):
         self.assertIn("scrcpy no está", self.ctx.state_machine.message)
 
 
+# ─────────────────────────────────────────────────────────────────────────────
+# Caracterización (Pinning) de los 5 bloques finales de complejidad
+# ─────────────────────────────────────────────────────────────────────────────
+
+from scrcpy_dock.domain.models import Device, DeviceState, DeviceCapabilities, SessionConfig, Codec, ConnectionType
+from scrcpy_dock.managers import DeviceManager, SessionManager, DeviceEntry, _SessionInfo
+from scrcpy_dock.core.scrcpy_engine import ScrcpyEngine
+from tests.ui_harness import aislar_config
+
+
+class TestDeviceManagerScanPinning(unittest.TestCase):
+    """Caracterización completa de DeviceManager.scan_devices antes de refactor."""
+
+    def test_scan_devices_con_fallo_adb_y_callbacks(self):
+        fake_adb = MagicMock()
+        fake_adb.list_devices.return_value = OperationResult.fail(ErrorCode.ADB_NOT_FOUND, "adb ausente")
+        dm = DeviceManager(adb_engine=fake_adb)
+
+        logs = []
+        ui_updates = []
+        res = dm.scan_devices(
+            callback_update_ui=lambda d: ui_updates.append(d),
+            log_cb=lambda lvl, msg: logs.append((lvl, msg)),
+        )
+
+        self.assertFalse(res.success)
+        self.assertEqual(res.error_code, ErrorCode.ADB_NOT_FOUND)
+        self.assertEqual(ui_updates, [[]])
+        self.assertEqual(logs, [("ERROR", "Escaneo ADB falló: adb ausente")])
+
+    def test_scan_devices_con_fallo_adb_sin_callbacks(self):
+        fake_adb = MagicMock()
+        fake_adb.list_devices.return_value = OperationResult.fail(ErrorCode.ADB_SERVER_FAILED, "error server")
+        dm = DeviceManager(adb_engine=fake_adb)
+
+        res = dm.scan_devices(callback_update_ui=None, log_cb=None)
+        self.assertFalse(res.success)
+        self.assertEqual(res.error_code, ErrorCode.ADB_SERVER_FAILED)
+
+    def test_scan_devices_mapea_estados_device_unauth_offline_y_other(self):
+        fake_adb = MagicMock()
+        devices = [
+            Device(serial="DEV_OK", model="Pixel 7", android_sdk=33, state=DeviceState.DEVICE, connection_type=ConnectionType.USB),
+            Device(serial="DEV_UNAUTH", model="Galaxy", android_sdk=30, state=DeviceState.UNAUTHORIZED, connection_type=ConnectionType.USB),
+            Device(serial="DEV_OFFLINE", model="Moto", android_sdk=29, state=DeviceState.OFFLINE, connection_type=ConnectionType.WIFI),
+            Device(serial="DEV_RECOVERY", model="Xiaomi", android_sdk=28, state="recovery", connection_type=ConnectionType.USB),
+        ]
+        fake_adb.list_devices.return_value = OperationResult.ok(devices)
+        dm = DeviceManager(adb_engine=fake_adb)
+
+        ui_updates = []
+        res = dm.scan_devices(callback_update_ui=lambda d: ui_updates.append(d))
+
+        self.assertTrue(res.success)
+        self.assertEqual(len(ui_updates), 1)
+        found = ui_updates[0]
+        self.assertEqual(len(found), 4)
+
+        # 1. Device OK
+        self.assertEqual(found[0], ("DEV_OK", "Pixel 7", "ok"))
+        self.assertEqual(dm.device_entries[0].serial, "DEV_OK")
+        self.assertEqual(dm.device_entries[0].model, "Pixel 7")
+        self.assertEqual(dm.device_entries[0].state, "device")
+        self.assertEqual(dm.device_entries[0].android_version, 33)
+        self.assertEqual(dm.device_entries[0].connection_type, "usb")
+
+        # 2. Unauthorized
+        self.assertEqual(found[1], ("DEV_UNAUTH", "⚠  Acepta el permiso en el teléfono", "unauth"))
+        self.assertEqual(dm.device_entries[1].serial, "DEV_UNAUTH")
+        self.assertEqual(dm.device_entries[1].state, "unauthorized")
+
+        # 3. Offline
+        self.assertEqual(found[2], ("DEV_OFFLINE", "🔌  Dispositivo desconectado (offline)", "offline"))
+        self.assertEqual(dm.device_entries[2].serial, "DEV_OFFLINE")
+        self.assertEqual(dm.device_entries[2].state, "offline")
+
+        # 4. Other (ej. "recovery")
+        self.assertEqual(found[3], ("DEV_RECOVERY", "[recovery]", "other"))
+        self.assertEqual(dm.device_entries[3].serial, "DEV_RECOVERY")
+        self.assertEqual(dm.device_entries[3].state, "recovery")
+
+        self.assertEqual(dm.devices, found)
+
+
+class TestSessionManagerLaunchFallbackPinning(unittest.TestCase):
+    """Caracterización completa de SessionManager._launch_with_fallback antes de refactor."""
+
+    def setUp(self):
+        self.device = Device(serial="HWY9", model="STK-LX3", android_sdk=29)
+        self.caps = DeviceCapabilities(manufacturer="HUAWEI", platform="kirin710", model="STK-LX3", sdk_int=29)
+        self.config = SessionConfig(port=27183, codec=Codec.H264, resolution="1080", bit_rate=8_000_000)
+
+    def test_build_command_fail_releases_port(self):
+        fake_alloc = MagicMock()
+        fake_scrcpy = MagicMock()
+        fake_scrcpy.build_command.return_value = OperationResult.fail(ErrorCode.INVALID_INPUT, "argumento invalido")
+
+        sm = SessionManager(log_q_or_adb=MagicMock(), scrcpy_engine=fake_scrcpy, allocator=fake_alloc)
+        res = sm._launch_with_fallback(self.device, self.caps, self.config)
+
+        self.assertFalse(res.success)
+        self.assertEqual(res.error_code, ErrorCode.INVALID_INPUT)
+        fake_alloc.release.assert_called_once_with(27183)
+
+    def test_launch_fail_releases_port(self):
+        fake_alloc = MagicMock()
+        fake_scrcpy = MagicMock()
+        fake_scrcpy.build_command.return_value = OperationResult.ok(["scrcpy", "-s", "HWY9"])
+        fake_scrcpy.launch.return_value = OperationResult.fail(ErrorCode.PROCESS_SPAWN_ERROR, "error spawn")
+
+        sm = SessionManager(log_q_or_adb=MagicMock(), scrcpy_engine=fake_scrcpy, allocator=fake_alloc)
+        res = sm._launch_with_fallback(self.device, self.caps, self.config)
+
+        self.assertFalse(res.success)
+        self.assertEqual(res.error_code, ErrorCode.PROCESS_SPAWN_ERROR)
+        fake_alloc.release.assert_called_once_with(27183)
+
+    def test_handshake_alive_registers_session(self):
+        fake_alloc = MagicMock()
+        fake_scrcpy = MagicMock()
+        fake_scrcpy.build_command.return_value = OperationResult.ok(["scrcpy"])
+        mock_proc = MagicMock()
+        # En timeout de wait, levanta excepción (proceso sigue vivo)
+        mock_proc.wait.side_effect = TimeoutError("still running")
+        mock_proc.poll.return_value = None
+        fake_scrcpy.launch.return_value = OperationResult.ok(mock_proc)
+
+        sm = SessionManager(log_q_or_adb=MagicMock(), scrcpy_engine=fake_scrcpy, allocator=fake_alloc)
+        res = sm._launch_with_fallback(self.device, self.caps, self.config)
+
+        self.assertTrue(res.success)
+        self.assertEqual(res.data.port, 27183)
+        self.assertIn("HWY9", sm.sessions)
+        self.assertEqual(sm.sessions["HWY9"].assigned_port, 27183)
+        fake_alloc.release.assert_not_called()
+
+    def test_handshake_crash_h264_no_fallback(self):
+        fake_alloc = MagicMock()
+        fake_scrcpy = MagicMock()
+        fake_scrcpy.build_command.return_value = OperationResult.ok(["scrcpy"])
+        mock_proc = MagicMock()
+        # Proceso termina inmediatamente (wait retorna 1)
+        mock_proc.wait.return_value = 1
+        mock_proc.poll.return_value = 1
+        fake_scrcpy.launch.return_value = OperationResult.ok(mock_proc)
+
+        sm = SessionManager(log_q_or_adb=MagicMock(), scrcpy_engine=fake_scrcpy, allocator=fake_alloc)
+        res = sm._launch_with_fallback(self.device, self.caps, self.config)
+
+        self.assertFalse(res.success)
+        self.assertEqual(res.error_code, ErrorCode.PROCESS_CRASH)
+        fake_alloc.release.assert_called_once_with(27183)
+
+    def test_handshake_crash_with_h265_retries_with_h264(self):
+        fake_alloc = MagicMock()
+        fake_alloc.acquire.return_value = OperationResult.ok(27184)
+        fake_scrcpy = MagicMock()
+        fake_scrcpy.build_command.return_value = OperationResult.ok(["scrcpy"])
+        fake_scrcpy.is_codec_failure.return_value = True
+
+        proc_crash = MagicMock()
+        proc_crash.wait.return_value = 1
+        proc_crash.poll.return_value = 1
+
+        proc_alive = MagicMock()
+        proc_alive.wait.side_effect = TimeoutError("vivo")
+        proc_alive.poll.return_value = None
+
+        fake_scrcpy.launch.side_effect = [
+            OperationResult.ok(proc_crash),
+            OperationResult.ok(proc_alive),
+        ]
+
+        cfg_h265 = SessionConfig(port=27183, codec=Codec.H265, resolution="1080", bit_rate=8_000_000)
+        sm = SessionManager(log_q_or_adb=MagicMock(), scrcpy_engine=fake_scrcpy, allocator=fake_alloc)
+        res = sm._launch_with_fallback(self.device, self.caps, cfg_h265)
+
+        self.assertTrue(res.success)
+        self.assertEqual(res.data.port, 27184)
+        fake_alloc.release.assert_called_once_with(27183)
+        fake_alloc.acquire.assert_called_once()
+        self.assertEqual(sm.sessions["HWY9"].assigned_port, 27184)
+
+    def test_handshake_crash_fallback_port_exhausted(self):
+        fake_alloc = MagicMock()
+        fake_alloc.acquire.return_value = OperationResult.fail(ErrorCode.PORT_POOL_EXHAUSTED, "sin puertos")
+        fake_scrcpy = MagicMock()
+        fake_scrcpy.build_command.return_value = OperationResult.ok(["scrcpy"])
+        fake_scrcpy.is_codec_failure.return_value = True
+
+        proc_crash = MagicMock()
+        proc_crash.wait.return_value = 1
+        proc_crash.poll.return_value = 1
+        fake_scrcpy.launch.return_value = OperationResult.ok(proc_crash)
+
+        cfg_h265 = SessionConfig(port=27183, codec=Codec.H265, resolution="1080", bit_rate=8_000_000)
+        sm = SessionManager(log_q_or_adb=MagicMock(), scrcpy_engine=fake_scrcpy, allocator=fake_alloc)
+        res = sm._launch_with_fallback(self.device, self.caps, cfg_h265)
+
+        self.assertFalse(res.success)
+        self.assertEqual(res.error_code, ErrorCode.PORT_POOL_EXHAUSTED)
+
+
+class TestScrcpyEngineCodecsPinning(unittest.TestCase):
+    """Caracterización completa de ScrcpyEngine.get_compatible_codecs."""
+
+    def setUp(self):
+        self.engine = ScrcpyEngine("/usr/bin/scrcpy", "/usr/share/scrcpy/scrcpy-server")
+
+    def test_sdk_menor_a_29_retorna_solo_h264(self):
+        dev = Device(serial="D_OLD", model="OldDevice", android_sdk=26)
+        caps = DeviceCapabilities(manufacturer="Sony", platform="msm8996", model="Old", sdk_int=26)
+        res = self.engine.get_compatible_codecs(dev, caps)
+        self.assertTrue(res.success)
+        self.assertEqual(res.data, [Codec.H264])
+
+    def test_kirin_con_prefijo_en_plataforma_fuerza_h264(self):
+        dev = Device(serial="HW", model="Honor", android_sdk=31)
+        caps = DeviceCapabilities(manufacturer="Honor", platform="kirin710", model="Honor 20", sdk_int=31)
+        res = self.engine.get_compatible_codecs(dev, caps)
+        self.assertTrue(res.success)
+        self.assertEqual(res.data, [Codec.H264])
+
+    def test_kirin_fabricante_huawei_y_prefijo_kirin(self):
+        dev = Device(serial="HW2", model="Huawei Nova", android_sdk=30)
+        caps = DeviceCapabilities(manufacturer="HUAWEI", platform="kirin710f", model="Nova", sdk_int=30)
+        res = self.engine.get_compatible_codecs(dev, caps)
+        self.assertTrue(res.success)
+        self.assertEqual(res.data, [Codec.H264])
+
+    def test_no_kirin_sdk_34_retorna_todos(self):
+        dev = Device(serial="PIX", model="Pixel 8", android_sdk=34)
+        caps = DeviceCapabilities(manufacturer="Google", platform="zuma", model="Pixel 8", sdk_int=34)
+        res = self.engine.get_compatible_codecs(dev, caps)
+        self.assertTrue(res.success)
+        self.assertEqual(res.data, [Codec.AV1, Codec.H265, Codec.H264])
+
+
+class TestChangeThemePinning(unittest.TestCase):
+    """Caracterización de ScrcpyDockApp._change_theme con aislamiento de config."""
+
+    @classmethod
+    def setUpClass(cls):
+        try:
+            cls.root = tk.Tk()
+            cls.root.withdraw()
+        except Exception:
+            cls.root = None
+
+    @classmethod
+    def tearDownClass(cls):
+        if cls.root:
+            try:
+                cls.root.destroy()
+            except Exception:
+                pass
+
+    def setUp(self):
+        if not self.root:
+            self.skipTest("Tkinter sin display")
+        self.aislador = aislar_config()
+        self.aislador.__enter__()
+        self.sitio = app_en_prueba(self.root)
+        self.app = self.sitio.app
+
+    def tearDown(self):
+        if getattr(self, "sitio", None) is not None:
+            self.sitio.cerrar()
+        if getattr(self, "aislador", None) is not None:
+            self.aislador.__exit__(None, None, None)
+
+    def test_change_theme_con_reinicio_guarda_y_llama_restart(self):
+        with patch.object(main_mod.messagebox, "askyesno", return_value=True), \
+             patch.object(self.app, "_restart_app") as restart_mock:
+            self.app._change_theme("light")
+            self.assertEqual(self.app.ctx.cfg["theme"], "light")
+            restart_mock.assert_called_once()
+
+    def test_change_theme_sin_reinicio_reconstruye_pestanas(self):
+        with patch.object(main_mod.messagebox, "askyesno", return_value=False), \
+             patch.object(main_mod, "Toast"):
+            self.app._change_theme("dracula")
+            self.assertEqual(self.app.ctx.cfg["theme"], "dracula")
+            self.assertIn("dracula", self.app.ctx.cfg["theme"])
+
+
+class TestSelectTabPinning(unittest.TestCase):
+    """Caracterización de ScrcpyDockApp._select_tab."""
+
+    @classmethod
+    def setUpClass(cls):
+        try:
+            cls.root = tk.Tk()
+            cls.root.withdraw()
+        except Exception:
+            cls.root = None
+
+    @classmethod
+    def tearDownClass(cls):
+        if cls.root:
+            try:
+                cls.root.destroy()
+            except Exception:
+                pass
+
+    def setUp(self):
+        if not self.root:
+            self.skipTest("Tkinter sin display")
+        self.sitio = app_en_prueba(self.root)
+        self.app = self.sitio.app
+
+    def tearDown(self):
+        if getattr(self, "sitio", None) is not None:
+            self.sitio.cerrar()
+
+    def test_select_tab_por_indice_valido_e_invalido(self):
+        self.app._select_tab(1)  # "actions"
+        self.assertEqual(self.app.active_tab_id, "actions")
+
+        # Índice fuera de rango: no debe mutar la pestaña activa
+        self.app._select_tab(99)
+        self.assertEqual(self.app.active_tab_id, "actions")
+
+        self.app._select_tab(-1)
+        self.assertEqual(self.app.active_tab_id, "actions")
+
+    def test_select_tab_alias_simple(self):
+        self.app._select_tab("actions")
+        self.app._select_tab("simple")
+        self.assertEqual(self.app.active_tab_id, "quickcast")
+
+    def test_select_tab_profiles_sincroniza(self):
+        with patch.object(self.app, "_sync_profile_selection") as sync_mock:
+            self.app._select_tab("profiles")
+            self.assertEqual(self.app.active_tab_id, "profiles")
+            sync_mock.assert_called_once()
+
+
 if __name__ == "__main__":
     unittest.main()
+

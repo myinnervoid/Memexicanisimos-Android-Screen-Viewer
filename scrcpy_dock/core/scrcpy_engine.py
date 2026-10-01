@@ -160,6 +160,14 @@ class ScrcpyEngine:
 
         return OperationResult.ok(client_ver, f"Versión verificada: {client_ver}")
 
+    @staticmethod
+    def _base_codecs_for_sdk(sdk: int) -> list[Codec]:
+        """Selecciona los códecs soportados por nivel de SDK Android."""
+        for sdk_threshold, codecs in _CODECS_BY_SDK:
+            if sdk >= sdk_threshold:
+                return list(codecs)
+        return [Codec.H264]
+
     # ─── TODO-6 · get_compatible_codecs (ADR-010) ──────────────────
     def get_compatible_codecs(
         self,
@@ -167,23 +175,9 @@ class ScrcpyEngine:
         caps: DeviceCapabilities,
     ) -> OperationResult[list[Codec]]:
         """Lista ordenada de códecs soportados, mejor primero."""
-        for sdk_threshold, codecs in _CODECS_BY_SDK:
-            if device.android_sdk >= sdk_threshold:
-                base = list(codecs)
-                break
-        else:
-            base = [Codec.H264]
-
-        # Override Kirin 710 · ADR-010
-        platform_lower = (caps.platform or "").lower()
-        manufacturer_lower = (caps.manufacturer or "").lower()
-        is_kirin = any(p in platform_lower for p in _KIRIN_PLATFORM_PREFIXES) or (
-            manufacturer_lower == "huawei" and platform_lower.startswith("kirin")
-        )
-
-        if is_kirin:
+        base = self._base_codecs_for_sdk(device.android_sdk)
+        if self._is_kirin(caps):
             base = [c for c in base if c == Codec.H264]
-
         return OperationResult.ok(base)
 
     # ─── TODO-7 · build_command (ADR-010 + Hallazgos 1-3) ──────────

@@ -258,6 +258,28 @@ class ScrcpyDockApp:
         else:
             os.execl(exe, exe, *sys.argv)
 
+    _TAB_BUILDER_METHODS = {
+        "quickcast": "build_simple_view",
+        "actions": "build_tab_actions",
+        "device": "build_tab_device",
+        "controls": "build_tab_controls",
+        "profiles": "build_tab_profile",
+        "console": "build_tab_console",
+        "help": "build_tab_help",
+    }
+
+    def _reconstruir_pestanas_en_caliente(self):
+        """Reconstruye los frames de pestañas con la nueva paleta de colores."""
+        self._setup_styles()
+        self.root.config(bg=C["bg"])
+        tab_frames = getattr(self, '_tab_frames', {})
+        for tid, frame in tab_frames.items():
+            builder_name = self._TAB_BUILDER_METHODS.get(tid)
+            if builder_name and hasattr(self.ui, builder_name):
+                getattr(self.ui, builder_name)(frame)
+        active_tid = getattr(self, 'active_tab_id', 'quickcast') or "quickcast"
+        self._select_tab(active_tid)
+
     def _change_theme(self, theme_name: str):
         self.ctx.cfg["theme"] = theme_name
         save_config(self.ctx.cfg)
@@ -267,21 +289,9 @@ class ScrcpyDockApp:
             _("Tema guardado exitosamente.\n\n¿Deseas reiniciar MASV ahora para aplicar todos los contrastes a la perfección?")
         ):
             self._restart_app()
-        else:
-            self._setup_styles()
-            self.root.config(bg=C["bg"])
-            if hasattr(self, '_tab_frames'):
-                for tid, frame in self._tab_frames.items():
-                    if tid == "quickcast": self.ui.build_simple_view(frame)
-                    elif tid == "actions": self.ui.build_tab_actions(frame)
-                    elif tid == "device": self.ui.build_tab_device(frame)
-                    elif tid == "controls": self.ui.build_tab_controls(frame)
-                    elif tid == "profiles": self.ui.build_tab_profile(frame)
-                    elif tid == "console": self.ui.build_tab_console(frame)
-                    elif tid == "help": self.ui.build_tab_help(frame)
-            active_tid = getattr(self, 'active_tab_id', 'quickcast') or "quickcast"
-            self._select_tab(active_tid)
-            Toast(self.root, f"Tema aplicado: {theme_name}", "success")
+            return
+        self._reconstruir_pestanas_en_caliente()
+        Toast(self.root, f"Tema aplicado: {theme_name}", "success")
 
     def _install_to_system(self):
         from .services.installer_service import InstallerService
@@ -530,24 +540,31 @@ class ScrcpyDockApp:
             self.ui.refs['profile_listbox'].bind("<<ListboxSelect>>", self._on_profile_listbox_sel)
             self._refresh_profile_listbox()
 
-    def _select_tab(self, tab_id_or_idx):
-        tab_keys = ["quickcast", "actions", "device", "controls", "profiles", "console", "help"]
-        if isinstance(tab_id_or_idx, int):
-            idx = tab_id_or_idx
-            if 0 <= idx < len(tab_keys):
-                tab_id = tab_keys[idx]
-            else:
-                return
-        else:
-            tab_id = str(tab_id_or_idx)
-            if tab_id == "simple": tab_id = "quickcast"
-            idx = tab_keys.index(tab_id) if tab_id in tab_keys else 0
+    _TAB_KEYS = ("quickcast", "actions", "device", "controls", "profiles", "console", "help")
 
-        if hasattr(self, '_tab_frames'):
-            for f in self._tab_frames.values():
-                f.pack_forget()
-            if tab_id in self._tab_frames:
-                self._tab_frames[tab_id].pack(fill="both", expand=True)
+    def _resolver_tab_id(self, tab_id_or_idx: Any) -> Optional[str]:
+        """Resuelve un índice entero o alias a un tab_id canónico."""
+        if isinstance(tab_id_or_idx, int):
+            if 0 <= tab_id_or_idx < len(self._TAB_KEYS):
+                return self._TAB_KEYS[tab_id_or_idx]
+            return None
+        tid = str(tab_id_or_idx)
+        return "quickcast" if tid == "simple" else tid
+
+    def _mostrar_frame_de_tab(self, tab_id: str) -> None:
+        """Oculta los demás frames y empaqueta el frame de la pestaña activa."""
+        tab_frames = getattr(self, '_tab_frames', {})
+        for f in tab_frames.values():
+            f.pack_forget()
+        if tab_id in tab_frames:
+            tab_frames[tab_id].pack(fill="both", expand=True)
+
+    def _select_tab(self, tab_id_or_idx):
+        tab_id = self._resolver_tab_id(tab_id_or_idx)
+        if not tab_id:
+            return
+
+        self._mostrar_frame_de_tab(tab_id)
 
         if hasattr(self, 'sidebar') and self.sidebar.active_id != tab_id:
             self.sidebar.select(tab_id)
@@ -1339,6 +1356,48 @@ class ScrcpyDockApp:
             self.root.after(600, self._check_v4l2)
         threading.Thread(target=task, daemon=True).start()
 
+    def _abrir_camara_en_pantalla_directa(self, serial: str, camid: Any, profile: dict) -> None:
+        """Abre la cámara en una ventana directa de scrcpy si no hay v4l2."""
+        cam_cfg = dict(profile)
+        cam_cfg["video_source"] = "camera"
+        cam_cfg["camera_id"] = str(camid)
+        cam_cfg["max_size"] = "1920"
+        res = self.ctx.session_mgr.start_scene(
+            serial, f"Cámara: {serial}", cam_cfg,
+            lambda: Toast(self.root, _("Cámara activa en ventana."), "success")
+        )
+        if not res.success:
+            messagebox.showerror(_("Error"), res.message)
+        self._refresh_table()
+
+    def _lanzar_camara_v4l2(self, serial: str, camid: Any) -> None:
+        """Enruta la cámara hacia /dev/video9 vía v4l2sink."""
+        cmd = [self.ctx.scrcpy, "-s", serial, "--video-source=camera", "--camera-id", str(camid), "--max-size", "1920", "--v4l2-sink=/dev/video9", "--no-playback"]
+        self.ctx.log("INFO", f"[{serial}] Enrutando cámara:\n  {' '.join(cmd)}")
+        try:
+            kw = {}
+            if _PLAT != "win32":
+                kw["preexec_fn"] = os.setsid
+            proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, bufsize=1, **kw)
+            from .managers import ScrcpySession
+            sess = ScrcpySession(serial, "Webcam Loopback", proc)
+            self.ctx.session_mgr.sessions[serial + "_cam"] = sess
+            self._refresh_table()
+
+            def _read_stream(stream, sr):
+                try:
+                    for line in iter(stream.readline, ""):
+                        if not line: break
+                        s = line.strip()
+                        if s: self.ctx.log("INFO", f"[{sr}] {s}")
+                except Exception: pass
+
+            for stream in [proc.stdout, proc.stderr]:
+                threading.Thread(target=_read_stream, args=(stream, serial), daemon=True).start()
+            messagebox.showinfo(_("Cámara enrutada"), _("Feed en /dev/video9 activo.\n\nEn OBS Studio:\n  + Fuente → Dispositivo de captura de vídeo (V4L2)\n  → Selecciona 'Scrcpy Virtual Camera'"))
+        except Exception as e:
+            self.ctx.log("ERROR", f"Enrutar cámara: {e}")
+
     def _route_cam(self):
         serial = self.ctx.active_device_serial
         if not serial or not self.ctx.scrcpy:
@@ -1356,49 +1415,12 @@ class ScrcpyDockApp:
                   "¿Deseas abrir la cámara directamente en una ventana en pantalla?")
             )
             if ans:
-                cam_cfg = dict(p)
-                cam_cfg["video_source"] = "camera"
-                cam_cfg["camera_id"] = str(camid)
-                cam_cfg["max_size"] = "1920"
-                res = self.ctx.session_mgr.start_scene(
-                    serial, f"Cámara: {serial}", cam_cfg,
-                    lambda: Toast(self.root, _("Cámara activa en ventana."), "success")
-                )
-                if not res.success:
-                    messagebox.showerror(_("Error"), res.message)
-                self._refresh_table()
-                return
+                self._abrir_camara_en_pantalla_directa(serial, camid, p)
             else:
                 self._v4l2_help()
-                return
+            return
 
-        cmd = [self.ctx.scrcpy, "-s", serial, "--video-source=camera", "--camera-id", str(camid), "--max-size", "1920", "--v4l2-sink=/dev/video9", "--no-playback"]
-        self.ctx.log("INFO", f"[{serial}] Enrutando cámara:\n  {' '.join(cmd)}")
-        try:
-            kw = {}
-            if _PLAT != "win32":
-                kw["preexec_fn"] = os.setsid
-            proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, bufsize=1, **kw)
-            # Create a simple session wrapping logic directly, as this uses standard session management code:
-            from .managers import ScrcpySession
-            sess = ScrcpySession(serial, "Webcam Loopback", proc)
-            self.ctx.session_mgr.sessions[serial + "_cam"] = sess
-            self._refresh_table()
-            
-            # Simple stream reader since it's an ad-hoc process:
-            def _read_stream(stream, sr):
-                try:
-                    for line in iter(stream.readline, ""):
-                        if not line: break
-                        s = line.strip()
-                        if s: self.ctx.log("INFO", f"[{sr}] {s}")
-                except Exception: pass
-                
-            for stream in [proc.stdout, proc.stderr]:
-                threading.Thread(target=_read_stream, args=(stream, serial), daemon=True).start()
-            messagebox.showinfo(_("Cámara enrutada"), _("Feed en /dev/video9 activo.\n\nEn OBS Studio:\n  + Fuente → Dispositivo de captura de vídeo (V4L2)\n  → Selecciona 'Scrcpy Virtual Camera'"))
-        except Exception as e:
-            self.ctx.log("ERROR",f"Enrutar cámara: {e}")
+        self._lanzar_camara_v4l2(serial, camid)
 
     def _v4l2_help(self):
         messagebox.showinfo(_("Instrucciones v4l2loopback"), _("Instalación:\n\n  sudo apt install v4l2loopback-dkms v4l2loopback-utils\n\nCargar módulo manualmente:\n\n  sudo modprobe v4l2loopback devices=1 video_nr=9 \\\n    card_label='Scrcpy Virtual Camera' exclusive_caps=1\n\nPara cargar en cada arranque, crea:\n  /etc/modprobe.d/v4l2loopback.conf\nCon el contenido:\n  options v4l2loopback devices=1 video_nr=9 \\\n    card_label='Scrcpy Virtual Camera' exclusive_caps=1\n\nY añade 'v4l2loopback' a /etc/modules."))

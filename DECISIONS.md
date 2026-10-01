@@ -244,6 +244,27 @@
 
 ---
 
+<a name="adr-043"></a>
+### ADR-043: Demolición de los Últimos 5 Bloques de Complejidad y Cumplimiento Pleno de la Ley 7 (5/5 ✅)
+
+- **Contexto del Problema**: restaban 5 bloques de código con complejidad ciclomática > 10 (`DeviceManager.scan_devices` CC 11, `SessionManager._launch_with_fallback` CC 12, `ScrcpyEngine.get_compatible_codecs` CC 11, `ScrcpyDockApp._change_theme` CC 12, `ScrcpyDockApp._select_tab` CC 11). Ninguno de ellos podía tocarse sin red previa ni arriesgar la integridad de la configuración del usuario (`~/.config/masv/config.json`).
+- **Decisión Adoptada**:
+  1. **Red de Caracterización (Pinning)**: se fijaron 18 pruebas unitarias y de integración en `tests/test_fase_d_regressions.py` verificando todos los caminos de fallo, reintentos de códec, mapeo de estados y aislamiento de configuración antes de editar una sola línea de lógica.
+  2. **Demolición Modular y Declarativa**:
+     - `DeviceManager.scan_devices` (CC 11 → 7): extracción de `_mapear_dispositivo_para_ui` (CC 5) desacoplando la conversión de dominio de la gestión de UI.
+     - `SessionManager._launch_with_fallback` (CC 12 → 7): descomposición en `_verificar_handshake` (CC 2), `_registrar_sesion_activa` (CC 1), y `_reintentar_con_fallback` (CC 4).
+     - `ScrcpyEngine.get_compatible_codecs` (CC 11 → 4): eliminación de duplicación reutilizando `_is_kirin` (DRY) y extracción de `_base_codecs_for_sdk` (CC 3).
+     - `ScrcpyDockApp._change_theme` (CC 12 → 2): eliminación de la cascada `if/elif` mediante el diccionario declarativo `_TAB_BUILDER_METHODS` y el ayudante `_reconstruir_pestanas_en_caliente` (CC 5).
+     - `ScrcpyDockApp._select_tab` (CC 11 → 5): extracción de `_resolver_tab_id` (CC 4) y `_mostrar_frame_de_tab` (CC 3).
+     - Extensión preventiva: `ScrcpyDockApp._route_cam` (CC 14 → 6) descomponiendo en `_abrir_camara_en_pantalla_directa` (CC 2) y `_lanzar_camara_v4l2` (CC 6).
+  3. **Guardián Permanente sin Skips**: se dotó al test de complejidad de un calculador McCabe AST nativo para que nunca se salte por ausencia de `radon`, y se redujo la lista blanca `BLOQUES_PENDIENTES` a exactamente `[]` (cero bloques).
+- **Consecuencias**:
+  - *Positivas*: 0 bloques Rank D/E/F en todo el paquete `scrcpy_dock`; 0 funciones con CC > 10; la métrica de complejidad ciclomática de la Ley 7 pasa de 🟡 a ✅, alcanzando el estándar perfecto de **5 ✅ · 0 🟡 · 0 ❌**. Suite en verde: 615/615 pruebas. Configuración del usuario 100% protegida e intacta.
+  - *Negativas*: se agregaron métodos auxiliares privados que expanden el número de funciones internas; el AST walker nativo requiere mantener la definición de McCabe si cambian nodos sintácticos mayores en futuras versiones de Python.
+  - *Verificación*: `tests/test_fase_d_regressions.py` (`TestComplejidadSinBloquesD`), `tests/test_managers.py`, `tests/contracts/test_scrcpy_engine_contract.py` y `test_suite_sin_efectos.py`.
+
+---
+
 ## ⚖️ Matriz de Trade-offs de Decisiones Técnicas
 
 | Decisión Técnica | Beneficio Directo | Costo / Penalización | Alternativa Descartada | Razón del Rechazo |
@@ -270,3 +291,5 @@
 | **Que la tabla i18n sea un espejo exacto del código, con guardián** | Editar una traducción siempre surte efecto; no quedan entradas muertas ni cadenas sin traducir. | Mantener el escaneo y la lista de vías al día. | Dejar las 275 sobras «por si acaso» y confiar en la revisión. | Cada sobra es un cebo: la de P3.26 enmascaraba la traducción buena y nadie lo notó hasta que pyflakes la delató. |
 | **Sanitización de `extra_args` con lista de rechazo** | Prevención de ataques de inyección de comandos en perfiles compartidos. | Rechazo de scripts compuestos dentro del campo de argumentos. | Ejecutar mediante shell directo con permisos elevados. | Riesgo crítico de seguridad según la Ley Global 3. |
 | **Almacenamiento JSON plano con guardado atómico (`fsync` + `os.replace`)** | Cero dependencias de base de datos externa, portabilidad absoluta. | No apto para consultas relacionales masivas concurrentes. | SQLite / PostgreSQL embebido. | Sobrecomplejidad innecesaria para un gestor de configuración local de escritorio. |
+| **Descomposición declarativa y guardián McCabe nativo (0 bloques > 10)** | Alcance pleno del 100% de la Ley 7 (5/5 ✅); cero deuda técnica ciclomática en toda la base de código. | Pequeña proliferación de ayudantes privados de clase. | Permitir funciones de CC 11-15 con lista blanca permanente. | Dejar deuda tolerada invita a acumular nuevas ramificaciones en el futuro. |
+

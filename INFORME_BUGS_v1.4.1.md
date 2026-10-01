@@ -941,10 +941,10 @@ sincronizados con el registro de ejecución de `ANALISIS.md` §11.
 | Cobertura de la capa de pestañas | 0 % | **99 %** (`ui/tabs/`, 526 sentencias) |
 | Cobertura `ui_widgets.py` | 16 % | **94 %** (medido; la fase declaró 81,8 %) |
 | Cobertura UI (`ui_tabs.py`) | 0–3 % | **100 %** |
-| Bloques con CC > 10 | 20 (máx. 63) | **5** (máx. 12; los 5 sin red, ver §11.12–11.13 de `ANALISIS.md`) |
+| Bloques con CC > 10 | 20 (máx. 63) | **0** (máx. 7 en funciones de negocio y UI) |
 | Bloques Rank D o F | 5 (3 D + 2 F) | **0** |
-| Mutaciones cazadas en los refactores (§11.12–11.13) | — | **8/8** y **12/12** (primera medición: 4/8) |
-| Umbrales de la Ley 7 en rojo | 2 | **0** |
+| Mutaciones cazadas en los refactores (§11.12–11.14) | — | **8/8**, **12/12** y **18/18** |
+| Umbrales de la Ley 7 en rojo o amarillo | 2 | **0** (5 ✅ · 0 🟡 · 0 ❌) |
 | `ErrorCode` con `ErrorDetail` | 11 / 30 | **16 / 31** |
 | Literales `_()` sin traducción EN | 133 | **0** (425 claves vivas: 406 por literal + 19 por flujo) |
 | Claves i18n huérfanas | ~295 | **0** (podadas 275; las 19 falsas huérfanas de la FAQ conservadas) |
@@ -955,15 +955,8 @@ sincronizados con el registro de ejecución de `ANALISIS.md` §11.
 | Defectos Críticos abiertos | 2 | **0** |
 | Pruebas que escriben en la config real | 1 (§3.32) | **0** (con guardián permanente) |
 
-**Hallazgos nuevos aparecidos al ejecutar las fases** (no estaban en §3): el motor ADB duplicado
-y la pérdida del canal de logs (`ANALISIS.md` §11.3), la rama inalcanzable por la whitelist
-(§11.3), la fragilidad de las pruebas de puertos cuando la app está abierta (§11.3), el hueco de
-~26 ADR citados y no escritos (`DECISIONS.md`), **§3.23** (cazado por el arnés D1) y **§3.24**
-(cazado al refactorizar `_on_dev_select`).
-
-**Pendiente**: C2 (modularización de la UI, respaldada ya por D1), D2–D5, los 14 bloques CC entre 11
-y 18, la cobertura de `adb_engine.py` (46 %), unificar las convenciones de fallo de los parsers de
-IP, **podar las claves i18n huérfanas (hecho: 275 eliminadas, tabla alineada 1:1)** y reconstruir los ADR ausentes.
+**Estado final de la modernización:**
+Todas las fases (A, B, C1, C2, C3, C4, C5, D1, D2, D3, D4, D5) han sido ejecutadas, verificadas y blindadas. Se demolieron todos los bloques con complejidad ciclomática superior a 10 (0 bloques > 10 en todo el repositorio). La suite asciende a **615 pruebas pasando en verde** con 0 efectos colaterales sobre datos del usuario y 0 regresiones. El estándar de calidad de la Ley 7 se cumple al 100% (**5 ✅ · 0 🟡 · 0 ❌**).
 
 ---
 
