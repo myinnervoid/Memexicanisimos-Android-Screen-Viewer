@@ -392,6 +392,29 @@ p { color: red; }
 
 ---
 
+### 3.23 🔴 `AttributeError` al conectar por Wi-Fi con IP vacía o inválida *(encontrado por el arnés D1, 01-oct)*
+
+**Archivo**: `scrcpy_dock/main.py:875-882` (guarda) · `scrcpy_dock/utils.py:326` (causa) · `scrcpy_dock/security.py:180`
+
+`utils.parse_ip_port()` **nunca devuelve un valor falso**: ante cualquier entrada inválida retorna la tupla `(None, None)`, que es *verdadera*. La guarda del handler era `if not parsed:`, así que pasaba de largo con `ip = None` y reventaba en `SecurityManager.is_private_ip(None)`:
+
+```
+AttributeError: 'NoneType' object has no attribute 'strip'
+  security.py:182  clean = ip_str.strip()
+```
+
+**Reproducción**: con Modo Seguro activo, dejar el campo IP vacío (o escribir `999.999.1.1`) y pulsar "Conectar por Wi-Fi" → excepción no controlada en lugar del aviso "IP inválida".
+
+**Corrección aplicada**:
+1. `if not parsed or not parsed[0]:` en `_connect_wifi` — es el paso B.3 del runbook de la v3.2, que había quedado sin ejecutar.
+2. `is_private_ip()` pasa a ser **None-safe**: `(ip_str or "").strip()` → `False`. Dirección segura: una IP desconocida no es privada, así que el Modo Seguro la bloquea en vez de reventar.
+
+**Causa raíz** (por qué la guarda equivocada era fácil de escribir): dos parsers hermanos del mismo módulo tienen convenciones de fallo distintas — `parse_ip_port()` → `(None, None)`; `parse_pair_ip_port_code()` → `None`. Unificarlas es deuda pendiente.
+
+**Regresión**: `tests/test_ui_smoke.py::UISmokeTest.test_ip_vacia_avisa_en_vez_de_reventar` y `::DefectosCazadosPorD1`.
+
+---
+
 ## 4. Cobertura de pruebas — brechas concretas
 
 Lo que **no** cubre la suite actual (269 tests) y permitió que los bugs anteriores pasaran:
@@ -474,6 +497,36 @@ PY
 * `ErrorCode`: 30 definidos / 29 usados / **1 usado-inexistente** (`INTERNAL_ERROR`, corregido en Fase A) / 11 con `ErrorDetail` en catálogo / 3 definidos sin uso.
 * Claves i18n EN: 563; literales `_()` sin traducción: **133**; claves duplicadas: **6**.
 * Tests: 269 (`unittest`), 0 que importen `scrcpy_dock.main`.
+
+*(Las cifras de este anexo son la fotografía del 01-oct al inicio de la auditoría. Estado actual en el §8.)*
+
+---
+
+## 8. Actualización posterior — Fases A, B, C y D1 (01-oct-2026)
+
+Los tres documentos del sistema (`ANALISIS.md`, `AUDIT_REPORT.md` y este informe) se mantienen
+sincronizados con el registro de ejecución de `ANALISIS.md` §11.
+
+| Métrica | Al redactar este informe | Tras Fases A–D1 |
+| :--- | :---: | :---: |
+| Pruebas | 269 | **369** |
+| Cobertura total | 35 % | **70 %** |
+| Cobertura UI (`ui_tabs.py`) | 0–3 % | **98 %** |
+| Bloques con CC > 10 | 20 (máx. 63) | **17 (máx. 28)** |
+| `ErrorCode` con `ErrorDetail` | 11 / 30 | **16 / 31** |
+| Literales `_()` sin traducción EN | 133 | **0** (404/404) |
+| Invocaciones ADB directas desde la UI | 17 | **0** |
+| Implementaciones criptográficas | 2 (una muerta) | **1** (`SecurityService`) |
+| Bóveda de confianza | Texto plano | **Cifrada (`vault.enc`)** con migración verificada |
+| Defectos Críticos abiertos | 2 | **0** |
+
+**Hallazgos nuevos aparecidos al ejecutar las fases** (no estaban en §3): el motor ADB duplicado
+y la pérdida del canal de logs (`ANALISIS.md` §11.3), la rama inalcanzable por la whitelist
+(§11.3), la fragilidad de las pruebas de puertos cuando la app está abierta (§11.3), el hueco de
+~26 ADR citados y no escritos (`DECISIONS.md`), y **§3.23** de este informe (cazado por el arnés D1).
+
+**Pendiente**: C2 (modularización de la UI, respaldada ya por D1), D2–D5, unificar las convenciones
+de fallo de los parsers, deduplicar las 295 claves i18n huérfanas y reconstruir los ADR ausentes.
 
 ---
 

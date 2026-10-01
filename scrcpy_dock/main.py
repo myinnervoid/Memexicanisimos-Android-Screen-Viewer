@@ -873,7 +873,11 @@ class ScrcpyDockApp:
         ip_raw   = self.ui.refs['ip_entry'].get().strip()
         port_raw = self.ui.refs['port_entry'].get().strip() or "5555"
         parsed   = parse_ip_port(f"{ip_raw}:{port_raw}")
-        if not parsed:
+        # `parse_ip_port` NUNCA devuelve algo falso: ante una entrada inválida
+        # retorna la tupla `(None, None)`, que es *verdadera*. Comprobar sólo
+        # `if not parsed` dejaba pasar `ip = None` y reventaba en
+        # `is_private_ip(None)` con AttributeError (defecto reproducido por D1).
+        if not parsed or not parsed[0]:
             messagebox.showerror("IP inválida", f"'{ip_raw}:{port_raw}' no es válida.\nEjemplo: 192.168.1.25:5555")
             return
         ip, port = parsed

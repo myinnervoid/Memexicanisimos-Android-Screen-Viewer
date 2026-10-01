@@ -178,8 +178,13 @@ class SecurityManager:
 
     @staticmethod
     def is_private_ip(ip_str: str) -> bool:
-        """Verifica que la IP pertenezca estrictamente a rangos privados locales (RFC 1918 / Loopback / Link-Local)."""
-        clean = ip_str.strip()
+        """Verifica que la IP pertenezca a rangos privados locales (RFC 1918 / Loopback / Link-Local).
+
+        Contrato: entrada vacía, `None` o no parseable → **False** (nunca lanza).
+        Ojo al sentido del valor: False significa "no es privada", así que el
+        Modo Seguro **bloquea** ante un valor desconocido — dirección segura.
+        """
+        clean = (ip_str or "").strip()
         if not clean:
             return False
         try:

@@ -156,12 +156,12 @@ Concentrada en las invocaciones repetidas de `subprocess.run(...)` en `adb_engin
 | Métrica | Umbral | Medido | ¿Cumple? |
 | :--- | :---: | :---: | :---: |
 | Cobertura lógica de negocio | ≥ 80 % | 46 %–100 % (mixto; `adb_engine` 46 %) | 🟡 |
-| Cobertura UI | ≥ 60 % | 3 %–16 % | ❌ |
+| Cobertura UI | ≥ 60 % | 3 %–16 % → **49 %–98 %** tras D1 | 🟡 |
 | Complejidad ciclomática | ≤ 10 | **17** bloques > 10 (máx. 28; era 20 con máx. 63) | ❌ |
 | Duplicación | ≤ 5 % | 2,9 % | ✅ |
 | Vulnerabilidades | 0 altas/críticas | 0 | ✅ |
 
-**2 ✅ · 1 🟡 · 2 ❌** — la complejidad sigue en rojo (17 bloques > 10) pero la **severidad baja**: el peor caso pasó de CC 63 (`build_command`) a CC 28, y los 3 peores que quedan viven en `main.py` y `profile_service.py` (Fase C2/D3).
+**2 ✅ · 1 🟡 · 2 ❌** — la complejidad sigue en rojo (17 bloques > 10) pero la **severidad baja**: el peor caso pasó de CC 63 (`build_command`) a CC 28, y los 3 peores que quedan viven en `main.py` y `profile_service.py` (Fase C2/D3). La cobertura total pasó de **35 % a 70 %** con el arnés D1.
 
 ---
 
@@ -397,6 +397,15 @@ El síntoma clásico que la v3.2 quería eliminar —**«la capa de interfaz eje
 | C5 | Refactorizar `build_command` (CC 50) en un ensamblador por bloques | CC ≤ 10 por bloque; tests por bloque |
 
 ### Fase D — Ingeniería de guardia (prevención de regresiones)
+
+> **Estado: 🟡 EN EJECUCIÓN (2026-10-01). D1 ✅ HECHA y en verde.**
+> `tests/test_ui_smoke.py` (23 pruebas) instancia la aplicación REAL sobre un `Tk`
+> oculto y ejercita todos los flujos: construcción, 7 pestañas, clic en cada botón,
+> los 3 perfiles de fábrica, detener/copiar/pánico, consola y la ruta "faltan
+> dependencias". **369/369 pruebas OK.**
+> Efecto medido en la Ley 7: cobertura total **41 % → 70 %**; `ui_tabs.py` **3 % →
+> 98 %**; `ui_widgets.py` **16 % → 49 %**; `main.py` al 55 %.
+> La primera pasada cazó **2 defectos reales** (§11.4). D2–D5 pendientes.
 
 | # | Acción | Criterio de aceptación |
 | :--- | :--- | :--- |
@@ -692,6 +701,81 @@ real del pool — no por regresión (verificado: con el pool simulado libre pasa
 | Motores ADB vivos | 2 (estado divergente) | **1** |
 
 **Decisión de no ejecutar C2 (razonada).** Partir `ui_tabs.py` (1.034 líneas) y `main.py` (2.052) en 5 módulos es un refactor de ~3.000 líneas con **cero cobertura de UI** (3 %–16 %) y sin prueba de humo. La red de seguridad que lo hace verificable es **D1** (smoke test con Tk oculto), que ya está en la Fase D. Ejecutar C2 antes que D1 sería cambiar estructura sin poder demostrar equivalencia de comportamiento — justo el patrón que produjo los bugs de v1.4.1. Se pospone C2 hasta después de D1.
+
+### 11.4 Fase D — D1 · Arnés de humo de UI (2026-10-01)
+
+**369/369 pruebas en verde** (23 nuevas en `tests/test_ui_smoke.py`). El arnés instancia la
+aplicación **real** sobre un `Tk` oculto (`DISPLAY=:1`, Xorg disponible) y recorre los flujos
+que ninguna prueba unitaria tocaba.
+
+| Bloque | Qué ejercita |
+| :--- | :--- |
+| D1.1 Construcción | La ventana completa: menú, 7 pestañas, footer, los 37 callbacks del dashboard y las 25 claves de `ui.refs` |
+| D1.1b Rastreo estático | Todo `self.X` referenciado en `main.py` existe como método o atributo — caza la clase de P3.2/P3.3 sin ejecutar |
+| D1.2 Navegación | Las 7 pestañas por nombre y por índice, `_on_tab_changed`, alternar vista compacta/avanzada |
+| D1.3 Botones | **Clic en cada callback registrado** sin dispositivo ni sesión (salvo los de la lista de denegación) |
+| D1.4 Sesiones | Arranque de **los 3 perfiles de fábrica** por la UI, detener, copiar comando, matar forzado, pánico, refresco de tabla |
+| D1.5 Dependencias | Ruta "faltan adb/scrcpy": se muestra el instalador y la UI aguanta sin motor en vez de reventar |
+| D1.6 Validación de IP | El camino real de "Conectar por Wi-Fi" con IP vacía, octetos inválidos y IP privada válida |
+
+**Decisiones de diseño del arnés** (las que costaron iteraciones y no son obvias):
+
+1. **`wait_window` y `grab_set` hay que neutralizarlos.** `TrustPromptModal` llama a
+   `parent.wait_window(self.win)` **en su constructor**: sin ese parche, la prueba se congela.
+   Y un `grab_set` sin `mainloop` deja el grab global tomado entre pruebas.
+2. **Parchear `subprocess.Popen` rompe `subprocess.run`.** `run()` usa `Popen` internamente, así
+   que un `MagicMock` como reemplazo hace explotar cualquier `run()` real con
+   `ValueError: not enough values to unpack`. La solución es un `Popen` falso **bien
+   comportado** (`__enter__`/`__exit__`, `communicate`, `poll`) que devuelve salida vacía y
+   código 0: nada se ejecuta, pero `run()` sigue respondiendo.
+3. **El doble del motor debe implementar el contrato público completo.** `_copy_sess_cmd` usa
+   `build_command`, no sólo `launch`. El doble de scrcpy **valida el argv con el motor real**
+   (`ScrcpyEngine.build_command`) y sólo finge el arranque: así el arnés conserva el poder de
+   caza de P3.5 (un perfil de fábrica que el motor rechaza) sin abrir procesos.
+4. **Lista de denegación explícita.** `_auto_install_deps` (winget/pkexec), `_install_to_system`,
+   `_uninstall_from_system`, `_setup_v4l2`/`_route_cam` (modprobe/ffmpeg) y `_open_terminal_install`
+   mutan el sistema del usuario: se cubren por otras vías, nunca por clic.
+5. **El doble de `SecurityManager` es obligatorio.** `pair_device`/`lockdown_*` lanzan `adb` real
+   fuera del motor: sin doblarlos, el arnés tocaría el daemon del usuario.
+
+**Defectos que el arnés cazó en su primera pasada** (no estaban en el informe de v1.4.1):
+
+- **P3.23 — `AttributeError` al conectar por Wi-Fi con una IP vacía o inválida (Mayor).**
+  `utils.parse_ip_port()` **nunca devuelve un valor falso**: ante una entrada inválida retorna la
+  tupla `(None, None)`, que es *verdadera*. La guarda de `_connect_wifi` era `if not parsed:`, así
+  que pasaba de largo con `ip = None` y reventaba en `SecurityManager.is_private_ip(None)` con
+  `AttributeError: 'NoneType' object has no attribute 'strip'`. **Reproducido**: escribir cualquier
+  cosa inválida (o dejar el campo vacío) y pulsar "Conectar por Wi-Fi".
+  *Corregido en dos capas*: la guarda ahora es `if not parsed or not parsed[0]:` (el paso B.3 del
+  runbook de la v3.2, que había quedado sin ejecutar) y `is_private_ip()` es **None-safe**
+  (devuelve `False`, dirección segura: "desconocida" no es "privada").
+  *Causa raíz documentada*: dos parsers hermanos del mismo módulo con convenciones de fallo
+  distintas — `parse_ip_port()` devuelve `(None, None)` y `parse_pair_ip_port_code()` devuelve
+  `None`. La inconsistencia es la que hizo fácil escribir la guarda equivocada.
+- **Flujo de Modo Seguro verificado (no es defecto).** La primera pasada del arnés mostró que los
+  perfiles no arrancaban con el dispositivo sin confiar; al leer el código se confirmó que es el
+  diseño correcto (`_toggle_scene` abre `TrustPromptModal` y aborta si el usuario no aprueba). El
+  arnés se ajustó para recorrer el flujo real (confiar → arrancar) y se añadió la prueba de que
+  **sin aprobación no arranca**.
+
+**Métricas tras D1:**
+
+| Métrica | Antes de D1 | Después de D1 |
+| :--- | :---: | :---: |
+| Pruebas | 346 | **369** |
+| Cobertura total | 41 % | **70 %** |
+| `ui_tabs.py` | 3 % | **98 %** |
+| `ui_widgets.py` | 16 % | **49 %** |
+| `main.py` | ~25 % | **55 %** |
+| Umbral de la Ley 7 para UI (≥ 60 %) | ❌ | 🟡 (1 de 3 archivos ✅, 2 en camino) |
+
+**Límites declarados del arnés** (lo que D1 *no* cubre, para no confundir cobertura con garantía):
+- No abre procesos reales **a propósito**: la ejecución de `scrcpy`/`adb` y el consumo de sus
+  salidas siguen dependiendo de las pruebas de integración (`tests/integration/`) y del uso real.
+- La bandeja del sistema (`pystray`) y los handlers de instalación/desinstalación quedan fuera por
+  su efecto sobre el sistema del usuario.
+- Los *internals* de los modales (`ui_widgets.py`, 49 %) sólo se ejercitan en su construcción; sus
+  flujos de confirmación siguen sin cubrir (candidato natural para D4).
 
 ---
 
