@@ -157,11 +157,11 @@ Concentrada en las invocaciones repetidas de `subprocess.run(...)` en `adb_engin
 | :--- | :---: | :---: | :---: |
 | Cobertura lógica de negocio | ≥ 80 % | 46 %–100 % (mixto; `adb_engine` 46 %) | 🟡 |
 | Cobertura UI | ≥ 60 % | 3 %–16 % → **49 %–98 %** tras D1 | 🟡 |
-| Complejidad ciclomática | ≤ 10 | **17** bloques > 10 (máx. 28; era 20 con máx. 63) | ❌ |
+| Complejidad ciclomática | ≤ 10 | **14** bloques > 10 (máx. 18; era 20 con máx. 63) — **0 con rank D o F** | 🟡 |
 | Duplicación | ≤ 5 % | 2,9 % | ✅ |
 | Vulnerabilidades | 0 altas/críticas | 0 | ✅ |
 
-**2 ✅ · 1 🟡 · 2 ❌** — la complejidad sigue en rojo (17 bloques > 10) pero la **severidad baja**: el peor caso pasó de CC 63 (`build_command`) a CC 28, y los 3 peores que quedan viven en `main.py` y `profile_service.py` (Fase C2/D3). La cobertura total pasó de **35 % a 70 %** con el arnés D1.
+**2 ✅ · 2 🟡 · 1 ❌** — la complejidad pasó de ❌ a 🟡: ya no hay ni un bloque Rank D o F (el peor es CC 18, frente a 63), pero aún quedan 14 bloques entre 11 y 18 que hay que bajar del umbral. Cobertura total: **35 % → 72 %**.
 
 ---
 
@@ -406,6 +406,12 @@ El síntoma clásico que la v3.2 quería eliminar —**«la capa de interfaz eje
 > Efecto medido en la Ley 7: cobertura total **41 % → 70 %**; `ui_tabs.py` **3 % →
 > 98 %**; `ui_widgets.py` **16 % → 49 %**; `main.py` al 55 %.
 > La primera pasada cazó **2 defectos reales** (§11.4). D2–D5 pendientes.
+
+> **Estado: ✅ CERRADA la deuda ciclomática (01-oct, §11.5).** Con D1 como red se demolieron
+> los **tres últimos bloques Rank D** del repositorio: `sanitize_profile_dict` CC **28 → 2**,
+> `_exit` CC **23 → 1**, `_on_dev_select` CC **21 → 2**. El repositorio queda con **0 bloques
+> Rank D o F** y 14 bloques > 10 (todos Rank C, máximo 18). **399/399 pruebas OK.** La segunda
+> pasada cazó **P3.24** (§3.24 del informe de bugs), un defecto de producción real.
 
 | # | Acción | Criterio de aceptación |
 | :--- | :--- | :--- |
@@ -776,6 +782,75 @@ que ninguna prueba unitaria tocaba.
   su efecto sobre el sistema del usuario.
 - Los *internals* de los modales (`ui_widgets.py`, 49 %) sólo se ejercitan en su construcción; sus
   flujos de confirmación siguen sin cubrir (candidato natural para D4).
+
+### 11.5 Fase D (segunda parte) — Demolición de la deuda ciclomática (2026-10-01)
+
+Con D1 como red de seguridad se atacaron los **tres últimos bloques Rank D** del repositorio.
+**399/399 pruebas en verde** (30 nuevas en `tests/test_fase_d_regressions.py`).
+
+| Objetivo | Antes | Después | Descomposición |
+| :--- | :---: | :---: | :--- |
+| `ProfileService.sanitize_profile_dict` | **D · 28** | **A · 2** | Orquestador declarativo + 8 validadores atómicos (`_sanitize_codec/bitrate/resolution/video_source/fps/audio_source/flag/schema_version`), el peor en CC 7 |
+| `ScrcpyDockApp._exit` | **D · 23** | **A · 1** | `_shutdown_step` (aislamiento por paso) + 7 fases: trackers, lockdown, sesiones, geometría, tray, single-instance, root |
+| `ScrcpyDockApp._on_dev_select` | **D · 21** | **A · 2** | `_resolve_selected_device`, `_update_device_badges`, `_device_state`, `_set_device_info`, `_apply_device_state`, `_announce_online_device`, `_apply_device_profile_association` |
+
+**Resultado global:** el repositorio queda con **0 bloques Rank D o F** (antes 3 D y 2 F en la
+v1.4.1) y **14 bloques > 10**, todos Rank C y con máximo **18** (antes 20 bloques, máximo 63).
+Un guardián permanente en `test_fase_d_regressions.py::TestComplejidadSinBloquesD` impide que
+vuelva a aparecer un bloque Rank D y falla si el recuento supera 14.
+
+**Mejoras de diseño que trajo la descomposición** (no eran el objetivo, pero salieron):
+
+1. **El cierre ya no se aborta por un paso frágil.** Antes, un fallo en `device_mgr.stop_tracking()`
+   saltaba al `except` exterior y **dejaba las sesiones scrcpy vivas y la geometría sin guardar**.
+   Ahora cada fase se aísla con `_shutdown_step`: hay una prueba que hace fallar el tray y verifica
+   que las sesiones se cierran igual (`test_un_paso_que_falla_no_aborta_el_cierre`).
+2. **Los 3 indicadores de confianza se pintan desde un solo sitio.** Antes eran tres bloques
+   `if/else` idénticos copiados (deuda de duplicación) que podían divergir; ahora es un bucle sobre
+   las tres claves.
+3. **`True` ya no se cuela como resolución.** El validador antiguo aceptaba `bool` (que en Python
+   es `int`) y guardaba la resolución literal `"True"`. Corregido contra el propio contrato del
+   docstring, con prueba que lo fija.
+4. **`_set_device_info` usa `.get()`**, así un `refs` a medio construir ya no lanza `KeyError`.
+
+**Defecto cazado en esta pasada — P3.24 (Mayor, corregido)**
+
+Al escribir las pruebas de `_on_dev_select` con el **formato de fila real** (mi primer intento usó
+filas inventadas, y por eso no vio nada) apareció esto:
+
+- `_update_devs_ui` escribe filas con formatos distintos según el estado:
+  `"  🟢 🛡️  {alias}  ({serial})"` para `ok`, pero
+  `"  🟠 ⚠️  {serial}  (Sin autorizar en pantalla)"` para `unauth` y
+  `"  🔴 ⚠️  {serial}  (Desconectado / Offline)"` para `offline`.
+- `_extract_serial()` devuelve **el contenido del primer paréntesis**. Medido:
+  `_extract_serial("  🟠 ⚠️  HWY9  (Sin autorizar en pantalla)")` → `"Sin autorizar en pantalla"`.
+- Consecuencia doble: (a) las ramas `unauth`/`offline` de `_on_dev_select` buscaban el estado de un
+  serial inexistente, obtenían `"other"` y **nunca mostraban el aviso ni ponían la FSM en FAULT** —
+  el usuario jamás veía "Acepta el diálogo en el teléfono"; (b) `active_device_serial` quedaba con
+  basura, así que cualquier acción posterior apuntaba a un serial inválido.
+- **Corrección de raíz** (no en el call site): `_update_devs_ui` guarda `self._devices_shown` y la
+  selección se resuelve **por índice contra ese registro**, sin volver a interpretar el texto. El
+  parseo queda sólo como respaldo (`_parse_device_row`) para filas ajenas al registro.
+- **Regresión**: `TestOnDevSelectDescompuesto` (11 pruebas) reconstruye el formato exacto de las
+  cinco filas posibles y comprueba que el serial se resuelve y que los avisos llegan al panel.
+
+**Métricas de la Fase D (completa):**
+
+| Métrica | v1.4.1 | Tras Fase D |
+| :--- | :---: | :---: |
+| Pruebas | 269 | **399** |
+| Cobertura total | 35 % | **72 %** |
+| `main.py` | ~25 % | **61 %** |
+| `profile_service.py` | 90 % | **98 %** |
+| Bloques Rank D o F | 5 (3 D + 2 F) | **0** |
+| Peor complejidad | CC 63 (`build_command`, F) | **CC 18** (`_toggle_scene`, C) |
+| Bloques > 10 | 20 | **14** |
+
+**Lo que queda de la Fase D** (para no confundir un hito con el final): D2 (linter en CI), D3
+(cobertura de `adb_engine.py` 46 % → ≥ 80 %), D4 (exhaustividad de `ERROR_CATALOG` y contraste WCAG)
+y D5 (separar `requirements-dev.txt`, extraer la matriz de trade-offs). Y la deuda declarada en
+§11.3–11.4: C2 (modularización de la UI), unificar las convenciones de fallo de los dos parsers de
+IP, deduplicar las 295 claves i18n huérfanas y reconstruir los ~26 ADR citados y no escritos.
 
 ---
 

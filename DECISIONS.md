@@ -13,6 +13,7 @@
 5. [ADR-005: Bóveda de Confianza Local Cifrada con Permisos Restringidos](#adr-005)
 32. [ADR-032: Motor ADB Único y Canal Exclusivo para la UI](#adr-032)
 33. [ADR-033: Extracción de `StreamService` con Proveedores (no valores)](#adr-033)
+34. [ADR-034: Datos desde el Modelo, Nunca desde la Etiqueta del Widget](#adr-034)
 
 > ⚠️ **Hueco de trazabilidad detectado (2026-10-01):** el código cita **ADR-001 a ADR-031**
 > (`ADR-006/007/008/009` en `adb_engine`, `ADR-029` en `port_allocator`, `ADR-031` en
@@ -120,6 +121,19 @@
 
 ---
 
+<a name="adr-034"></a>
+### ADR-034: Datos desde el Modelo, Nunca desde la Etiqueta del Widget
+
+- **Contexto del Problema**: la UI mostraba la lista de dispositivos escribiendo **texto formateado** en un `Listbox` y, al seleccionar, **reconstruía el serial parseando ese texto** (`_extract_serial`). El formato de la fila variaba según el estado (`"… ({serial})"` para `ok`, pero `"… (Sin autorizar en pantalla)"` para `unauth` y `"… (Desconectado / Offline)"` para `offline`), así que el parser devolvía el mensaje en lugar del serial. Consecuencia: los avisos de "dispositivo no autorizado"/"offline" eran **código inalcanzable** y `active_device_serial` quedaba con basura (P3.24).
+- **Decisión Adoptada**: los handlers de UI **no vuelven a interpretar el texto de un widget para recuperar datos de dominio**. `_update_devs_ui` guarda el registro `self._devices_shown` y `_resolve_selected_device` resuelve la selección **por índice** contra ese registro. El parseo del texto queda como respaldo explícito (`_parse_device_row`) y sólo para filas que no provengan de ese registro.
+- **Consecuencias**:
+  - *Positivas*: los estados `unauth`/`offline` vuelven a avisar al usuario y a alarmar la FSM; el serial es siempre el correcto; el formato de la etiqueta pasa a ser un detalle puramente estético (se puede cambiar sin romper la lógica).
+  - *Negativas*: hay que mantener sincronizados el listbox y su registro (una fila insertada por fuera cae al respaldo por texto).
+  - *Verificación*: `tests/test_fase_d_regressions.py::TestOnDevSelectDescompuesto` reconstruye el formato exacto de las cinco filas posibles.
+  - *Regla derivada*: cuando un widget presenta datos, su contenido es **sólo presentación**; la fuente de verdad viaja en paralelo (índice, id, dataclass).
+
+---
+
 ## ⚖️ Matriz de Trade-offs de Decisiones Técnicas
 
 | Decisión Técnica | Beneficio Directo | Costo / Penalización | Alternativa Descartada | Razón del Rechazo |
@@ -132,5 +146,7 @@
 | **Bóveda cifrada con migración verificada (ida y vuelta antes de borrar el claro)** | Cierra el hallazgo crítico P3.14 sin riesgo de pérdida de datos: si el vault no se relee, no se retira nada. | Una escritura y una lectura extra en la primera migración; dependencia del `machine-id` para descifrar en otro host. | Cifrar y sobrescribir directamente (más simple). | Un error de derivación destruiría la bóveda del usuario sin remedio — inaceptable bajo la Ley 10 (pérdida de datos = Crítico). |
 | **Motor ADB único inyectado (en lugar de uno por manager)** | Un solo socket negociado y un solo registro de tcpip: `revert_tcpip` deja de ser no-op y se cierra el puerto 5555 de verdad. | `AppContext` debe construir el motor antes que los managers y propagarlo. | Dejar que cada manager cree su propio `AdbEngine` (estado inicial). | Es el defecto que causaba fuga del modo TCP/IP y duplicaba la negociación de socket. |
 | **Proveedores (callables) en vez de valores al extraer un servicio** | La extracción no rompe la sustitución tardía (`mgr._scrcpy = fake`), que usan tests y la re-detección de binarios. | Un nivel de indirección al leer `self._get_scrcpy()`. | Pasar el objeto y confiar en que nadie lo sustituya. | Ya rompió 3 pruebas al ejecutar C1: la sustitución es legítima y frecuente. |
+| **Registro paralelo al widget (`_devices_shown`) en vez de parsear la etiqueta** | El serial es siempre correcto y el formato de la fila se vuelve estético; recupera avisos que eran inalcanzables. | Hay que mantener el listbox y su registro sincronizados. | `_extract_serial()` sobre el texto de la fila. | P3.24: el paréntesis no siempre lleva el serial, así que el parser leía el mensaje de estado. |
+| **Descomponer en validadores puros (uno por campo) en lugar de un `if` gigante** | Un campo, una regla: añadir un campo no obliga a releer toda la sanitización y cada regla se prueba aislada. | Más métodos (8 en vez de ~40 líneas de `if`). El parseo del dict ya no se lee de un tirón. | Mantener la función monolítica y bajar su CC con `# noqa`/helpers anidados. | Es el patrón que dejó `sanitize_profile_dict` en CC 28 sin una sola prueba por campo. |
 | **Sanitización de `extra_args` con lista de rechazo** | Prevención de ataques de inyección de comandos en perfiles compartidos. | Rechazo de scripts compuestos dentro del campo de argumentos. | Ejecutar mediante shell directo con permisos elevados. | Riesgo crítico de seguridad según la Ley Global 3. |
 | **Almacenamiento JSON plano con guardado atómico (`fsync` + `os.replace`)** | Cero dependencias de base de datos externa, portabilidad absoluta. | No apto para consultas relacionales masivas concurrentes. | SQLite / PostgreSQL embebido. | Sobrecomplejidad innecesaria para un gestor de configuración local de escritorio. |

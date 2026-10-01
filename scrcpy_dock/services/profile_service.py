@@ -143,96 +143,101 @@ class ProfileService:
           - turn_screen_off / stay_awake: bool. Inválido → True.
           - schema_version: int ≥ 1. Inválido → 1.
           - NO incluye 'name' (eso lo maneja el dict padre).
+
+        Cada campo se delega en un validador puro (un campo, una regla). Así el
+        orden de las claves es explícito y auditable, y añadir un campo nuevo no
+        obliga a releer la sanitización entera.
         """
         if not isinstance(raw, dict):
             raw = {}
 
-        out: dict[str, Any] = {}
+        return {
+            "codec": ProfileService._sanitize_codec(raw.get("codec")),
+            "bit_rate": ProfileService._sanitize_bitrate(raw.get("bit_rate")),
+            "resolution": ProfileService._sanitize_resolution(raw.get("resolution")),
+            "video_source": ProfileService._sanitize_video_source(
+                raw.get("video_source"), raw.get("extra_args"),
+            ),
+            "max_fps": ProfileService._sanitize_fps(raw.get("max_fps")),
+            "audio_source": ProfileService._sanitize_audio_source(raw.get("audio_source")),
+            "turn_screen_off": ProfileService._sanitize_flag(raw.get("turn_screen_off")),
+            "stay_awake": ProfileService._sanitize_flag(raw.get("stay_awake")),
+            "schema_version": ProfileService._sanitize_schema_version(raw.get("schema_version")),
+        }
 
-        # 1. codec
-        codec_val = raw.get("codec")
-        if isinstance(codec_val, str) and codec_val.lower() in _VALID_CODECS:
-            out["codec"] = codec_val.lower()
-        elif isinstance(codec_val, Codec):
-            out["codec"] = codec_val.value
-        else:
-            out["codec"] = "h264"
+    # ─── Validadores atómicos (uno por campo · CC ≤ 3) ────────────────
 
-        # 2. bit_rate (ojo: bool es subclase de int)
-        br_val = raw.get("bit_rate")
-        if isinstance(br_val, bool):
-            out["bit_rate"] = _BITRATE_DEFAULT
-        else:
-            try:
-                br_int = int(br_val)
-                if _BITRATE_MIN <= br_int <= _BITRATE_MAX:
-                    out["bit_rate"] = br_int
-                else:
-                    out["bit_rate"] = _BITRATE_DEFAULT
-            except (TypeError, ValueError):
-                out["bit_rate"] = _BITRATE_DEFAULT
+    @staticmethod
+    def _sanitize_codec(value: Any) -> str:
+        if isinstance(value, Codec):
+            return value.value
+        if isinstance(value, str) and value.lower() in _VALID_CODECS:
+            return value.lower()
+        return "h264"
 
-        # 3. resolution
-        res_val = raw.get("resolution")
-        if isinstance(res_val, str) and res_val.strip() and len(res_val.strip()) <= _RESOLUTION_MAX_LEN:
-            out["resolution"] = res_val.strip()
-        elif isinstance(res_val, (int, float)) and len(str(res_val)) <= _RESOLUTION_MAX_LEN:
-            out["resolution"] = str(res_val)
-        else:
-            out["resolution"] = _RESOLUTION_DEFAULT
+    @staticmethod
+    def _sanitize_bitrate(value: Any) -> int:
+        """`bool` es subclase de `int`: se descarta antes de convertir."""
+        if isinstance(value, bool):
+            return _BITRATE_DEFAULT
+        try:
+            bit_rate = int(value)
+        except (TypeError, ValueError):
+            return _BITRATE_DEFAULT
+        return bit_rate if _BITRATE_MIN <= bit_rate <= _BITRATE_MAX else _BITRATE_DEFAULT
 
-        # 4. video_source
-        vs_val = raw.get("video_source")
-        if isinstance(vs_val, str) and vs_val.lower() in _VALID_VIDEO_SOURCES:
-            out["video_source"] = vs_val.lower()
-        elif "--video-source=camera" in str(raw.get("extra_args") or ""):
-            out["video_source"] = "camera"
-        else:
-            out["video_source"] = "display"
+    @staticmethod
+    def _sanitize_resolution(value: Any) -> str:
+        if isinstance(value, str):
+            clean = value.strip()
+            if clean and len(clean) <= _RESOLUTION_MAX_LEN:
+                return clean
+            return _RESOLUTION_DEFAULT
+        # `bool` también es `int`; sin esta guarda `True` se colaría como "True".
+        if isinstance(value, (int, float)) and not isinstance(value, bool):
+            text = str(value)
+            if len(text) <= _RESOLUTION_MAX_LEN:
+                return text
+        return _RESOLUTION_DEFAULT
 
-        # 5. max_fps
-        fps_val = raw.get("max_fps")
-        if fps_val is None:
-            out["max_fps"] = None
-        elif isinstance(fps_val, bool):
-            out["max_fps"] = None
-        else:
-            try:
-                fps_float = float(fps_val)
-                if _MAX_FPS_MIN <= fps_float <= _MAX_FPS_MAX:
-                    out["max_fps"] = fps_float
-                else:
-                    out["max_fps"] = None
-            except (TypeError, ValueError):
-                out["max_fps"] = None
+    @staticmethod
+    def _sanitize_video_source(value: Any, extra_args: Any) -> str:
+        if isinstance(value, str) and value.lower() in _VALID_VIDEO_SOURCES:
+            return value.lower()
+        if "--video-source=camera" in str(extra_args or ""):
+            return "camera"
+        return "display"
 
-        # 6. audio_source
-        as_val = raw.get("audio_source")
-        if isinstance(as_val, str) and as_val.lower() in _VALID_AUDIO_SOURCES:
-            out["audio_source"] = as_val.lower()
-        else:
-            out["audio_source"] = "playback"
+    @staticmethod
+    def _sanitize_fps(value: Any) -> Optional[float]:
+        if value is None or isinstance(value, bool):
+            return None
+        try:
+            fps = float(value)
+        except (TypeError, ValueError):
+            return None
+        return fps if _MAX_FPS_MIN <= fps <= _MAX_FPS_MAX else None
 
-        # 7. turn_screen_off & stay_awake
-        for flag in ("turn_screen_off", "stay_awake"):
-            val = raw.get(flag)
-            if val is None:
-                out[flag] = True
-            else:
-                out[flag] = bool(val)
+    @staticmethod
+    def _sanitize_audio_source(value: Any) -> str:
+        if isinstance(value, str) and value.lower() in _VALID_AUDIO_SOURCES:
+            return value.lower()
+        return "playback"
 
-        # 8. schema_version
-        sv_val = raw.get("schema_version")
-        if isinstance(sv_val, bool):
-            out["schema_version"] = 1
-        else:
-            try:
-                sv_int = int(sv_val)
-                out["schema_version"] = sv_int if sv_int >= 1 else 1
-            except (TypeError, ValueError):
-                out["schema_version"] = 1
+    @staticmethod
+    def _sanitize_flag(value: Any) -> bool:
+        """`turn_screen_off` / `stay_awake`: ausente o None → True (default)."""
+        return True if value is None else bool(value)
 
-        return out
+    @staticmethod
+    def _sanitize_schema_version(value: Any) -> int:
+        if isinstance(value, bool):
+            return 1
+        try:
+            version = int(value)
+        except (TypeError, ValueError):
+            return 1
+        return version if version >= 1 else 1
 
     # ─── TODO-P2 · migrate_v1_to_v2 ─────────────────────────────────
     @staticmethod

@@ -415,6 +415,52 @@ AttributeError: 'NoneType' object has no attribute 'strip'
 
 ---
 
+### 3.24 🟠 El serial se reconstruía parseando la etiqueta del listbox *(encontrado al refactorizar `_on_dev_select`, 01-oct)*
+
+**Archivo**: `scrcpy_dock/main.py:_update_devs_ui` (escritor) · `scrcpy_dock/main.py:_extract_serial` (lector) · `scrcpy_dock/utils.py:365`
+
+`_update_devs_ui` escribe la fila del listbox **con formato distinto según el estado**:
+
+```
+ok       →  "  🟢 🛡️  {alias}  ({serial})"
+unauth   →  "  🟠 ⚠️  {serial}  (Sin autorizar en pantalla)"
+offline  →  "  🔴 ⚠️  {serial}  (Desconectado / Offline)"
+otro     →  "  ⚫  {serial}  [{state}]"
+```
+
+y `_extract_serial()` devuelve **el contenido del primer paréntesis**. Medido:
+
+```
+_extract_serial("  🟢 🛡️  Mi Vivo  (HWY9)")                 → "HWY9"          ✅
+_extract_serial("  🟠 ⚠️  HWY9  (Sin autorizar en pantalla)") → "Sin autorizar en pantalla"  ❌
+_extract_serial("  🔴 ⚠️  HWY9  (Desconectado / Offline)")    → "Desconectado / Offline"     ❌
+_extract_serial("  ⚫  HWY9  [other]")                        → "⚫  HWY9  [other]"           ❌
+```
+
+**Impacto** (dos consecuencias, ambas visibles para el usuario):
+
+1. Las ramas `unauth` y `offline` de `_on_dev_select` buscaban el estado ADB de un serial
+   inexistente → recibían `"other"` → **nunca mostraban el aviso en el panel ni ponían la FSM en
+   FAULT**. El mensaje "⚠ Acepta el diálogo en el teléfono" era **código inalcanzable**: el usuario
+   conectaba un teléfono sin autorizar y la interfaz no le decía qué hacer.
+2. `ctx.active_device_serial` quedaba con un texto basura (`"Sin autorizar en pantalla"`), de modo
+   que cualquier acción posterior (transmitir, TCP/IP, keyevents) apuntaba a un serial inválido.
+
+**Corrección de raíz** (no parcheando el call site): `_update_devs_ui` guarda el registro
+`self._devices_shown` y la selección se resuelve **por índice contra ese registro**, sin volver a
+interpretar el texto de la fila. El parseo se conserva sólo como respaldo (`_parse_device_row`) para
+filas que no vengan de ese registro.
+
+**Causa raíz de fondo**: reconstruir datos de dominio leyendo la etiqueta *presentacional* de un
+widget. Es la misma clase de defecto que §3.23 (dos componentes con convenciones distintas) y queda
+como regla en ADR-034.
+
+**Regresión**: `tests/test_fase_d_regressions.py::TestOnDevSelectDescompuesto` (11 pruebas, con el
+formato exacto de las cinco filas) — la primera versión de esas pruebas usaba filas inventadas y no
+veía el problema; hubo que reproducir el formato real para destaparlo.
+
+---
+
 ## 4. Cobertura de pruebas — brechas concretas
 
 Lo que **no** cubre la suite actual (269 tests) y permitió que los bugs anteriores pasaran:
@@ -507,12 +553,13 @@ PY
 Los tres documentos del sistema (`ANALISIS.md`, `AUDIT_REPORT.md` y este informe) se mantienen
 sincronizados con el registro de ejecución de `ANALISIS.md` §11.
 
-| Métrica | Al redactar este informe | Tras Fases A–D1 |
+| Métrica | Al redactar este informe | Tras Fases A–D |
 | :--- | :---: | :---: |
-| Pruebas | 269 | **369** |
-| Cobertura total | 35 % | **70 %** |
+| Pruebas | 269 | **399** |
+| Cobertura total | 35 % | **72 %** |
 | Cobertura UI (`ui_tabs.py`) | 0–3 % | **98 %** |
-| Bloques con CC > 10 | 20 (máx. 63) | **17 (máx. 28)** |
+| Bloques con CC > 10 | 20 (máx. 63) | **14 (máx. 18)** |
+| Bloques Rank D o F | 5 (3 D + 2 F) | **0** |
 | `ErrorCode` con `ErrorDetail` | 11 / 30 | **16 / 31** |
 | Literales `_()` sin traducción EN | 133 | **0** (404/404) |
 | Invocaciones ADB directas desde la UI | 17 | **0** |
@@ -523,10 +570,12 @@ sincronizados con el registro de ejecución de `ANALISIS.md` §11.
 **Hallazgos nuevos aparecidos al ejecutar las fases** (no estaban en §3): el motor ADB duplicado
 y la pérdida del canal de logs (`ANALISIS.md` §11.3), la rama inalcanzable por la whitelist
 (§11.3), la fragilidad de las pruebas de puertos cuando la app está abierta (§11.3), el hueco de
-~26 ADR citados y no escritos (`DECISIONS.md`), y **§3.23** de este informe (cazado por el arnés D1).
+~26 ADR citados y no escritos (`DECISIONS.md`), **§3.23** (cazado por el arnés D1) y **§3.24**
+(cazado al refactorizar `_on_dev_select`).
 
-**Pendiente**: C2 (modularización de la UI, respaldada ya por D1), D2–D5, unificar las convenciones
-de fallo de los parsers, deduplicar las 295 claves i18n huérfanas y reconstruir los ADR ausentes.
+**Pendiente**: C2 (modularización de la UI, respaldada ya por D1), D2–D5, los 14 bloques CC entre 11
+y 18, la cobertura de `adb_engine.py` (46 %), unificar las convenciones de fallo de los parsers de
+IP, deduplicar las 295 claves i18n huérfanas y reconstruir los ADR ausentes.
 
 ---
 

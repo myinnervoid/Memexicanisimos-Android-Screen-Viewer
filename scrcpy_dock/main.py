@@ -770,6 +770,11 @@ class ScrcpyDockApp:
 
     def _update_devs_ui(self, found: list):
         listbox = self.ui.refs['dev_listbox']
+        # Fuente de verdad para la selección: el índice de la fila apunta a este
+        # registro. Antes se reconstruía el serial **parseando la etiqueta**, y
+        # las filas de "sin autorizar"/"offline"/"otro" no llevan el serial
+        # entre paréntesis, así que se leía basura (P3.24).
+        self._devices_shown = list(found)
         listbox.delete(0, tk.END)
         for serial, model, state in found:
             is_trusted = self.ctx.security_mgr.is_trusted_device(serial)
@@ -804,69 +809,133 @@ class ScrcpyDockApp:
             if simple_combo:
                 simple_combo.set("Sin dispositivo")
 
-    def _on_dev_select(self, event=None):
-        if event and event.widget == self.ui.refs.get('simple_dev_combo'):
-            raw = self.ui.refs['simple_dev_combo'].get()
-            if not raw or raw == "Sin dispositivo": return
-            serial = _extract_serial(raw)
-            model = raw.split(" (")[0].strip()
+    # ── Selección de dispositivo (descompuesta: resolver → pintar → estado) ──
+
+    @staticmethod
+    def _parse_device_row(raw: str):
+        """Respaldo: interpreta una fila del formato '… ({serial})'.
+
+        Sólo se usa si la lista se rellenó por una vía distinta a
+        `_update_devs_ui` (que es la que mantiene `_devices_shown`).
+        """
+        clean = raw.strip().lstrip("🟢🟠🔴⚫ 🛡️⚠️").split("  (")[0].strip()
+        return _extract_serial(raw), clean
+
+    def _resolve_selected_device(self, event):
+        """Devuelve `(serial, modelo)` del combo simple o del listbox, o None.
+
+        El listbox se resuelve por **índice contra `_devices_shown`**, no
+        leyendo su texto: el formato de la fila cambia según el estado y no
+        siempre contiene el serial.
+        """
+        combo = self.ui.refs.get('simple_dev_combo')
+        if event and combo and event.widget == combo:
+            raw = combo.get()
+            if not raw or raw == "Sin dispositivo":
+                return None
+            return _extract_serial(raw), raw.split(" (")[0].strip()
+
+        listbox = self.ui.refs['dev_listbox']
+        selection = listbox.curselection()
+        if not selection:
+            return None
+
+        index = selection[0]
+        shown = getattr(self, "_devices_shown", [])
+        if 0 <= index < len(shown):
+            serial, model, _state = shown[index]
+            return serial, model
+        return self._parse_device_row(listbox.get(index))
+
+    def _update_device_badges(self, is_trusted: bool) -> None:
+        """Pinta los tres indicadores de confianza (Acciones, Controles, Simple)."""
+        text, color = (
+            ("[🛡️ Confiable]", C["green"]) if is_trusted
+            else ("[⚠️ No Verificado]", C["orange"])
+        )
+        for key in ("action_trust_lbl", "ctrl_trust_lbl", "simple_trust_lbl"):
+            label = self.ui.refs.get(key)
+            if label:
+                label.config(text=text, fg=color)
+
+    def _device_state(self, serial: str) -> str:
+        """Estado ADB del serial según el último escaneo."""
+        return next(
+            (state for sr, _model, state in self.ctx.device_mgr.devices if sr == serial),
+            "other",
+        )
+
+    def _set_device_info(self, text: str, color: str) -> None:
+        label = self.ui.refs.get('dev_info_lbl')
+        if label:
+            label.config(text=text, fg=color)
+
+    def _apply_device_state(self, state: str, serial: str, model: str,
+                            alias: str, is_trusted: bool) -> None:
+        """Traduce el estado ADB a mensaje de panel + estado del autómata."""
+        if state == "unauth":
+            self._set_device_info(
+                f"🟠 ⚠️  {serial}  —  ¡Acepta el permiso de depuración en la pantalla del teléfono!",
+                C["orange"],
+            )
+            self.ctx.state_machine.set_fault(
+                _("⚠  Dispositivo no autorizado. Acepta el diálogo en el teléfono."),
+                ErrorCode.DEVICE_UNAUTHORIZED,
+            )
+        elif state == "offline":
+            self._set_device_info(
+                f"🔴  {serial}  —  El dispositivo está desconectado (offline). Reinicia ADB.",
+                C["red"],
+            )
+            self.ctx.state_machine.set_fault(
+                _("⚠  Dispositivo offline. Desconecta y vuelve a conectar."),
+                ErrorCode.DEVICE_OFFLINE,
+            )
+        elif state == "ok":
+            self._announce_online_device(serial, model, alias, is_trusted)
+
+    def _announce_online_device(self, serial: str, model: str, alias: str,
+                                is_trusted: bool) -> None:
+        if is_trusted:
+            self._set_device_info(
+                f"🟢 🛡️  {alias}  ({serial})  —  Conectado y Autorizado.", C["green"],
+            )
+            self._hint(f"✔  {alias}  —  {serial}", C["green"])
         else:
-            listbox = self.ui.refs['dev_listbox']
-            sel = listbox.curselection()
-            if not sel:
-                return
-            raw = listbox.get(sel[0])
-            serial = _extract_serial(raw)
-            model = raw.strip().lstrip("🟢🟠🔴⚫ 🛡️⚠️").split("  (")[0].strip()
+            self._set_device_info(
+                f"🟢 ⚠️  {model}  ({serial})  —  Dispositivo no verificado en la bóveda.",
+                C["orange"],
+            )
+            self._hint(f"⚠️  {model}  —  {serial} (No verificado)", C["orange"])
+
+        self._apply_device_profile_association(serial)
+
+    def _apply_device_profile_association(self, serial: str) -> None:
+        """Carga el perfil asociado al dispositivo, si todavía existe."""
+        associated = self.ctx.cfg.get("device_associations", {}).get(serial)
+        if not associated or associated not in self.ctx.profile_mgr.get_profiles():
+            return
+        self.ctx.active_profile.set(associated)
+        label = self.ui.refs.get('assoc_lbl')
+        if label:
+            label.config(
+                text=f"↳  Perfil '{associated}' cargado automáticamente para este dispositivo.",
+                fg=C["muted"],
+            )
+
+    def _on_dev_select(self, event=None):
+        selected = self._resolve_selected_device(event)
+        if selected is None:
+            return
+        serial, model = selected
 
         is_trusted = self.ctx.security_mgr.is_trusted_device(serial)
         alias = self.ctx.security_mgr.get_device_alias(serial, model)
 
         self.ctx.select_device(serial, f"{alias} ({serial})")
+        self._update_device_badges(is_trusted)
+        self._apply_device_state(self._device_state(serial), serial, model, alias, is_trusted)
 
-        # Actualizar indicadores de confianza en pestañas
-        action_trust = self.ui.refs.get('action_trust_lbl')
-        if action_trust:
-            if is_trusted:
-                action_trust.config(text="[🛡️ Confiable]", fg=C["green"])
-            else:
-                action_trust.config(text="[⚠️ No Verificado]", fg=C["orange"])
-
-        ctrl_trust = self.ui.refs.get('ctrl_trust_lbl')
-        if ctrl_trust:
-            if is_trusted:
-                ctrl_trust.config(text="[🛡️ Confiable]", fg=C["green"])
-            else:
-                ctrl_trust.config(text="[⚠️ No Verificado]", fg=C["orange"])
-
-        simple_trust = self.ui.refs.get('simple_trust_lbl')
-        if simple_trust:
-            if is_trusted:
-                simple_trust.config(text="[🛡️ Confiable]", fg=C["green"])
-            else:
-                simple_trust.config(text="[⚠️ No Verificado]", fg=C["orange"])
-
-        state = next((s for sr, mo, s in self.ctx.device_mgr.devices if sr == serial), "other")
-        if state == "unauth":
-            self.ui.refs['dev_info_lbl'].config(text=f"🟠 ⚠️  {serial}  —  ¡Acepta el permiso de depuración en la pantalla del teléfono!", fg=C["orange"])
-            self.ctx.state_machine.set_fault(_("⚠  Dispositivo no autorizado. Acepta el diálogo en el teléfono."), ErrorCode.DEVICE_UNAUTHORIZED)
-        elif state == "offline":
-            self.ui.refs['dev_info_lbl'].config(text=f"🔴  {serial}  —  El dispositivo está desconectado (offline). Reinicia ADB.", fg=C["red"])
-            self.ctx.state_machine.set_fault(_("⚠  Dispositivo offline. Desconecta y vuelve a conectar."), ErrorCode.DEVICE_OFFLINE)
-        elif state == "ok":
-            if is_trusted:
-                self.ui.refs['dev_info_lbl'].config(text=f"🟢 🛡️  {alias}  ({serial})  —  Conectado y Autorizado.", fg=C["green"])
-                self._hint(f"✔  {alias}  —  {serial}", C["green"])
-            else:
-                self.ui.refs['dev_info_lbl'].config(text=f"🟢 ⚠️  {model}  ({serial})  —  Dispositivo no verificado en la bóveda.", fg=C["orange"])
-                self._hint(f"⚠️  {model}  —  {serial} (No verificado)", C["orange"])
-
-            assoc = self.ctx.cfg.get("device_associations", {}).get(serial)
-            if assoc and assoc in self.ctx.profile_mgr.get_profiles():
-                self.ctx.active_profile.set(assoc)
-                if 'assoc_lbl' in self.ui.refs:
-                    self.ui.refs['assoc_lbl'].config(text=f"↳  Perfil '{assoc}' cargado automáticamente para este dispositivo.", fg=C["muted"])
-        
         self._on_tab_changed()
 
     def _connect_wifi(self):
@@ -1916,48 +1985,86 @@ class ScrcpyDockApp:
             APP_SHORT, menu)
         threading.Thread(target=self.tray_icon.run, daemon=True).start()
 
+    # ── Cierre ordenado (descompuesto: un paso, una responsabilidad) ──
+
+    @staticmethod
+    def _shutdown_step(label: str, action) -> bool:
+        """Ejecuta un paso del cierre sin que su fallo aborte los siguientes.
+
+        Un cierre "determinista absoluto" no puede depender de que todos los
+        pasos salgan bien: si el tracker revienta, las sesiones deben cerrarse
+        igual, y la ventana guardarse igual.
+        """
+        try:
+            action()
+            return True
+        except Exception as exc:  # noqa: BLE001 - el cierre nunca debe abortar
+            print(f"Error durante el cierre ({label}): {exc}")
+            return False
+
+    def _stop_device_tracking(self) -> None:
+        """Detiene el tracker del motor ADB (si existe)."""
+        ctx = getattr(self, "ctx", None)
+        if ctx is None or not getattr(ctx, "device_mgr", None):
+            return
+        ctx.device_mgr.stop_tracking()
+
+    def _apply_security_lockdown(self) -> None:
+        """Revoca los puertos TCP/IP abiertos si el auto-bloqueo está activo."""
+        ctx = getattr(self, "ctx", None)
+        if ctx is None or not getattr(ctx, "device_mgr", None):
+            return
+        if not (ctx.security_mgr and ctx.security_mgr.is_auto_lockdown_enabled and ctx.adb):
+            return
+        serials = [serial for serial, _model, _st in ctx.device_mgr.devices]
+        if serials:
+            SecurityManager.lockdown_all_devices(ctx.adb, serials)
+
+    def _terminate_active_sessions(self) -> None:
+        """Cierra todas las sesiones scrcpy activas."""
+        ctx = getattr(self, "ctx", None)
+        if ctx is None or not getattr(ctx, "session_mgr", None):
+            return
+        ctx.session_mgr.stop_all()
+
+    def _persist_window_state(self) -> None:
+        """Guarda la geometría actual antes de destruir la ventana."""
+        ctx = getattr(self, "ctx", None)
+        root = getattr(self, "root", None)
+        if ctx is None or root is None:
+            return
+        ctx.cfg["window_geometry"] = root.geometry()
+        ctx.save_current_config()
+
+    def _release_tray(self) -> None:
+        tray = getattr(self, "tray_icon", None)
+        if tray:
+            tray.stop()
+
+    def _release_single_instance(self) -> None:
+        lock = getattr(self, "single_instance", None)
+        if lock:
+            lock.release()
+
+    def _destroy_root(self) -> None:
+        root = getattr(self, "root", None)
+        if root is not None:
+            root.destroy()
+
     def _exit(self):
-        """Cierre determinista absoluto: detiene trackers, sesiones, tray y procesos residuales."""
-        try:
-            if hasattr(self, 'ctx') and self.ctx:
-                if hasattr(self.ctx, 'device_mgr') and self.ctx.device_mgr:
-                    try:
-                        self.ctx.device_mgr.stop_tracking()
-                    except Exception:
-                        pass
-                if self.ctx.security_mgr and self.ctx.security_mgr.is_auto_lockdown_enabled and self.ctx.adb:
-                    serials = [s for s, m, st in self.ctx.device_mgr.devices]
-                    if serials:
-                        SecurityManager.lockdown_all_devices(self.ctx.adb, serials)
-                if self.ctx.session_mgr:
-                    self.ctx.session_mgr.stop_all()
-                if hasattr(self, 'root') and self.root:
-                    try:
-                        self.ctx.cfg["window_geometry"] = self.root.geometry()
-                        self.ctx.save_current_config()
-                    except Exception:
-                        pass
-        except Exception as e:
-            print(f"Error durante el cierre: {e}")
+        """Cierre determinista absoluto: trackers, sesiones, tray y procesos residuales.
 
-        if hasattr(self, 'tray_icon') and self.tray_icon:
-            try:
-                self.tray_icon.stop()
-            except Exception:
-                pass
+        Cada fase va aislada (`_shutdown_step`), así que un fallo puntual no
+        deja sesiones scrcpy vivas ni la geometría sin guardar.
+        """
+        self._shutdown_step("trackers", self._stop_device_tracking)
+        self._shutdown_step("lockdown", self._apply_security_lockdown)
+        self._shutdown_step("sesiones", self._terminate_active_sessions)
+        self._shutdown_step("geometría", self._persist_window_state)
+        self._shutdown_step("tray", self._release_tray)
+        self._shutdown_step("single-instance", self._release_single_instance)
+        self._shutdown_step("root", self._destroy_root)
 
-        if hasattr(self, 'single_instance') and self.single_instance:
-            try:
-                self.single_instance.release()
-            except Exception:
-                pass
-
-        try:
-            self.root.destroy()
-        except Exception:
-            pass
-
-        import os
         os._exit(0)
 
 def _make_tray_icon(size: int = 64):
