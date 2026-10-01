@@ -41,35 +41,36 @@ class UIBuilder:
         inner.bind("<Configure>", _scroll)
         bind_mousewheel(inner, canvas)
 
-        container = tk.Frame(inner, bg=C["bg"], padx=20, pady=16)
+        container = tk.Frame(inner, bg=C["bg"], padx=12, pady=10)
         container.pack(fill="both", expand=True)
 
         # ── 1. Tarjeta: Dispositivo Activo ───────────────────────────
-        dev_card = _section(container, _("📱  Dispositivo Android Activo"), pady=(0, 10), padx=0)
+        dev_card = _section(container, _("📱  Dispositivo Android Activo"), pady=(0, 8), padx=0)
         
         dev_row = tk.Frame(dev_card, bg=C["card"])
         dev_row.pack(fill="x", pady=4)
 
-        tk.Label(dev_row, text=_("Dispositivo:"), bg=C["card"], fg=C["muted"], font=FONT_UI_B, width=12, anchor="w").pack(side="left")
-        self.refs['simple_dev_combo'] = ttk.Combobox(dev_row, textvariable=self.ctx.active_device, state="readonly", width=34, font=FONT_UI)
-        self.refs['simple_dev_combo'].pack(side="left", padx=(0, 8))
-        self.refs['simple_dev_combo'].bind("<<ComboboxSelected>>", self.cb.get('on_dev_select'))
-
-        btn_refresh = tk.Button(dev_row, text=_("🔄 Refrescar"), bg=C["card2"], fg=C["text"],
-                                font=FONT_SM, relief="flat", bd=0, padx=10, pady=4, cursor="hand2",
+        tk.Label(dev_row, text=_("Dispositivo:"), bg=C["card"], fg=C["muted"], font=FONT_UI_B, width=10, anchor="w").pack(side="left")
+        
+        btn_refresh = tk.Button(dev_row, text=_("🔄 Buscar"), bg=C["card2"], fg=C["text"],
+                                font=FONT_SM, relief="flat", bd=0, padx=8, pady=3, cursor="hand2",
                                 command=self.cb.get('refresh_devices'))
-        btn_refresh.pack(side="left", padx=4)
+        btn_refresh.pack(side="right", padx=(4, 0))
         Tooltip(btn_refresh, _("Buscar dispositivos conectados (USB o Wi-Fi)"))
 
+        self.refs['simple_dev_combo'] = ttk.Combobox(dev_row, textvariable=self.ctx.active_device, state="readonly", font=FONT_UI)
+        self.refs['simple_dev_combo'].pack(side="left", fill="x", expand=True, padx=(0, 4))
+        self.refs['simple_dev_combo'].bind("<<ComboboxSelected>>", self.cb.get('on_dev_select'))
+
         self.refs['simple_trust_lbl'] = tk.Label(dev_row, text="", bg=C["card"], fg=C["green"], font=FONT_SM)
-        self.refs['simple_trust_lbl'].pack(side="left", padx=8)
+        self.refs['simple_trust_lbl'].pack(side="right", padx=4)
 
         # ── 2. Tarjeta: Perfil Rápido de Transmisión ─────────────────
-        prof_card = _section(container, _("🎮  Perfil de Transmisión"), pady=(0, 10), padx=0)
+        prof_card = _section(container, _("🎮  Perfil de Transmisión"), pady=(0, 8), padx=0)
 
         # Botones rápidos de 1-clic para perfiles estándar
         presets_row = tk.Frame(prof_card, bg=C["card"])
-        presets_row.pack(fill="x", pady=(2, 8))
+        presets_row.pack(fill="x", pady=(2, 6))
 
         def _select_preset(name):
             profiles = self.ctx.profile_mgr.get_profiles()
@@ -80,36 +81,37 @@ class UIBuilder:
                     self.cb.get('on_active_profile_change')()
 
         for icon, title, prof_name in [
-            ("🎮", _("Juego Rápido"), "Juego Rápido"),
-            ("🎙️", _("Stream / OBS"), "Stream OBS"),
-            ("📷", _("Webcam HD"), "Webcam HD")
+            ("🎮", _("Juego"), "Juego Rápido"),
+            ("🎙️", _("Stream"), "Stream OBS"),
+            ("📷", _("Webcam"), "Webcam HD")
         ]:
             pb = tk.Button(presets_row, text=f"{icon} {title}", bg=C["card2"], fg=C["text"],
-                           font=FONT_SM, relief="flat", bd=0, padx=12, pady=6, cursor="hand2",
+                           font=FONT_SM, relief="flat", bd=0, padx=8, pady=5, cursor="hand2",
                            command=lambda p=prof_name: _select_preset(p))
-            pb.pack(side="left", padx=4, fill="x", expand=True)
+            pb.pack(side="left", padx=2, fill="x", expand=True)
 
         prof_row = tk.Frame(prof_card, bg=C["card"])
         prof_row.pack(fill="x", pady=4)
 
-        tk.Label(prof_row, text=_("Todos los perfiles:"), bg=C["card"], fg=C["muted"], font=FONT_SM, width=15, anchor="w").pack(side="left")
-        self.refs['simple_prof_combo'] = ttk.Combobox(prof_row, textvariable=self.ctx.active_profile, state="readonly", width=28, font=FONT_UI)
-        self.refs['simple_prof_combo'].pack(side="left", padx=(0, 8))
-        self.refs['simple_prof_combo'].bind("<<ComboboxSelected>>", self.cb.get('on_active_profile_change'))
+        tk.Label(prof_row, text=_("Perfil:"), bg=C["card"], fg=C["muted"], font=FONT_SM, width=10, anchor="w").pack(side="left")
 
-        btn_new_prof = tk.Button(prof_row, text=_("✨ Asistente"), bg=C["card2"], fg=C["indigo"],
-                                 font=FONT_SM, relief="flat", bd=0, padx=8, pady=4, cursor="hand2",
+        btn_new_prof = tk.Button(prof_row, text=_("✨ Nuevo"), bg=C["card2"], fg=C["indigo"],
+                                 font=FONT_SM, relief="flat", bd=0, padx=8, pady=3, cursor="hand2",
                                  command=self.cb.get('open_wizard'))
-        btn_new_prof.pack(side="left")
-        Tooltip(btn_new_prof, _("Crear un nuevo perfil personalizado paso a paso."))
+        btn_new_prof.pack(side="right", padx=(4, 0))
+        Tooltip(btn_new_prof, _("Crear un nuevo perfil personalizado con el asistente."))
+
+        self.refs['simple_prof_combo'] = ttk.Combobox(prof_row, textvariable=self.ctx.active_profile, state="readonly", font=FONT_UI)
+        self.refs['simple_prof_combo'].pack(side="left", fill="x", expand=True, padx=(0, 4))
+        self.refs['simple_prof_combo'].bind("<<ComboboxSelected>>", self.cb.get('on_active_profile_change'))
 
         # Argumentos adicionales opcionales
         cmd_frame = tk.Frame(prof_card, bg=C["card"])
-        cmd_frame.pack(fill="x", pady=(6, 2))
-        tk.Label(cmd_frame, text=_("Comandos extra:"), bg=C["card"], fg=C["muted"], font=FONT_SM, width=15, anchor="w").pack(side="left")
+        cmd_frame.pack(fill="x", pady=(4, 2))
+        tk.Label(cmd_frame, text=_("Args extra:"), bg=C["card"], fg=C["muted"], font=FONT_SM, width=10, anchor="w").pack(side="left")
         self.refs['simple_extra_cmd_var'] = tk.StringVar(value="")
-        e_extra = ttk.Entry(cmd_frame, textvariable=self.refs['simple_extra_cmd_var'], width=34)
-        e_extra.pack(side="left", padx=(0, 8))
+        e_extra = ttk.Entry(cmd_frame, textvariable=self.refs['simple_extra_cmd_var'])
+        e_extra.pack(side="left", fill="x", expand=True)
         Tooltip(e_extra, _("Argumentos adicionales para scrcpy (ej: --always-on-top --fullscreen)"))
 
         # ── 3. Tarjeta Hero: Control de Transmisión Principal ────────

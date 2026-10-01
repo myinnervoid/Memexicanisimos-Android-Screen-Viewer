@@ -326,8 +326,9 @@ class ScrcpyDockApp:
         brand.pack(side="left", padx=(14, 10), pady=6)
         tk.Label(brand, text=_("MASV"), bg=C["card"], fg=C["indigo"],
                  font=(FONT_FAMILY, 16, "bold")).pack(side="left")
-        tk.Label(brand, text=_("  Memexicanisimos Android Screen Viewer"),
-                 bg=C["card"], fg=C["muted"], font=FONT_SM).pack(side="left", pady=(2, 0))
+        self._brand_sub = tk.Label(brand, text=_("  Memexicanisimos Android Screen Viewer"),
+                                   bg=C["card"], fg=C["muted"], font=FONT_SM)
+        self._brand_sub.pack(side="left", pady=(2, 0))
 
         # Lado derecho del Header
         right_hdr = tk.Frame(hdr, bg=C["card"])
@@ -431,8 +432,9 @@ class ScrcpyDockApp:
                                     fg=C["muted"], font=FONT_SM, anchor="w")
         self._status_lbl.pack(side="left", padx=12, fill="x", expand=True)
 
-        tk.Label(bar, text="Ctrl+I Iniciar · Ctrl+R Refrescar · Ctrl+M Compacto · Ctrl+B Menú · Ctrl+H Ayuda",
-                 bg=C["card2"], fg=C["muted"], font=FONT_SM).pack(side="left", padx=6)
+        self._footer_shortcuts_lbl = tk.Label(bar, text="Ctrl+I Iniciar · Ctrl+R Refrescar · Ctrl+M Compacto · Ctrl+B Menú · Ctrl+H Ayuda",
+                                              bg=C["card2"], fg=C["muted"], font=FONT_SM)
+        self._footer_shortcuts_lbl.pack(side="left", padx=6)
 
         # Language switcher
         from .i18n import get_language, set_language
@@ -483,7 +485,7 @@ class ScrcpyDockApp:
         self._on_tab_changed()
 
     def _toggle_view(self):
-        """Alterna entre Vista Avanzada Completa (con Sidebar y 880x680) y Modo Compacto (Mini-Dock 450x580)."""
+        """Alterna entre Vista Avanzada Completa (con Sidebar y 880x680) y Modo Compacto (Mini-Dock 500x620)."""
         if self.is_advanced_view:
             # Pasar a Modo Compacto (Mini-Dock)
             self.is_advanced_view = False
@@ -495,12 +497,20 @@ class ScrcpyDockApp:
             if hasattr(self, '_sidebar_sep'):
                 self._sidebar_sep.pack_forget()
 
+            # Simplificar cabecera y pie para evitar recortes
+            if hasattr(self, '_brand_sub'):
+                self._brand_sub.pack_forget()
+            if hasattr(self, '_btn_panic_lockdown'):
+                self._btn_panic_lockdown.pack_forget()
+            if hasattr(self, '_footer_shortcuts_lbl'):
+                self._footer_shortcuts_lbl.config(text="Ctrl+M Completo · Ctrl+I Iniciar")
+
             # Cambiar a Quick Cast
             self._select_tab("quickcast")
 
-            # Redimensionar a tamaño compacto
-            self.root.minsize(420, 500)
-            self.root.geometry("450x580")
+            # Redimensionar a tamaño compacto perfectamente calibrado
+            self.root.minsize(460, 560)
+            self.root.geometry("500x620")
 
             if hasattr(self, '_btn_mode_toggle'):
                 self._btn_mode_toggle.config(text="🗖 " + _("Vista Completa"), fg=C["blue"])
@@ -508,6 +518,14 @@ class ScrcpyDockApp:
         else:
             # Restaurar Vista Avanzada Completa
             self.is_advanced_view = True
+
+            # Restaurar cabecera y pie completos
+            if hasattr(self, '_brand_sub'):
+                self._brand_sub.pack(side="left", pady=(2, 0))
+            if hasattr(self, '_btn_panic_lockdown') and hasattr(self, '_btn_safe_mode'):
+                self._btn_panic_lockdown.pack(side="right", padx=(6, 0), before=self._btn_safe_mode)
+            if hasattr(self, '_footer_shortcuts_lbl'):
+                self._footer_shortcuts_lbl.config(text="Ctrl+I Iniciar · Ctrl+R Refrescar · Ctrl+M Compacto · Ctrl+B Menú · Ctrl+H Ayuda")
 
             # Restaurar barra lateral y separador antes del contenido principal
             if hasattr(self, 'sidebar') and hasattr(self, 'main_content'):
