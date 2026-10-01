@@ -7,26 +7,45 @@ El formato sigue los lineamientos de [Keep a Changelog](https://keepachangelog.c
 
 ## [1.4.1] — 2026-10-01
 
+### 🚀 Novedades y Mejoras (Features & Improvements)
+- **Terminación Asíncrona de Sesiones (`block=False`):**
+  - La detención de sesiones scrcpy ahora se ejecuta de forma asíncrona en un hilo demonio desacoplado, eliminando completamente el congelamiento de 3 segundos de la interfaz gráfica.
+- **Catálogo de Errores Integral (31/31 Códigos bilingües ES/EN):**
+  - Cobertura del 100% de `ErrorCode` con `ErrorDetail` asistido: mensajes contextuales, explicaciones técnicas y pasos de remediación paso a paso para el usuario en Español e Inglés.
+- **Accesibilidad y Contraste WCAG 2.1 AA:**
+  - Calibración de colorimetría en píldoras de estado y componentes activos para los temas `Warm Stone`, `Cyber Obsidian` y `Nordic Slate`, garantizando ratios de contraste de luminancia superiores a 4.5:1.
+- **Gobernanza Dinámica de Hardware (Android 10 / EMUI 10 / Kirin 710):**
+  - Detección automática de terminales con `android_sdk <= 29` (como el Huawei Y9), inyectando de forma transparente `--no-audio` y forzando códec H.264 para evitar fallos de conexión por incompatibilidad de captura nativa.
+- **Bóveda de Dispositivos Confiables Cifrada con PBKDF2/Fernet:**
+  - Almacenamiento seguro de dispositivos autorizados (`vault.enc`) con clave derivada de hardware local y fallback de lectura transparente y no destructivo hacia rutas legacy (`~/.MASV/config/vault.enc`).
+- **Perfil Canónico de Cámara Frontal:**
+  - Registro oficial del perfil `"📷 Cámara Frontal"` en la plantilla `DEFAULT_CONFIG["profiles"]`, permitiendo alternancia inmediata entre sensores de cámara frontal y principal.
+- **Reactividad de Interfaz y Prevención de Bucles Cíclicos:**
+  - Conexión reactiva en tiempo real de las etiquetas `action_device_lbl` y `ctrl_device_lbl` con el dispositivo activo en `AppContext`.
+  - Supresión de eventos redundantes en `DashboardSidebar.select(notify=False)` para erradicar re-entrancias y refrescos parásitos.
+- **Instancia Única Resiliente (`SingleInstance`):**
+  - Configuración con `SO_REUSEADDR` + `bind` + `listen(1)` discriminando exclusivamente `EADDRINUSE`, permitiendo reaperturas inmediatas tras reinicios sin falsos positivos de bloqueo.
+
 ### 🛠️ Corregido (Fixed)
 - **Desbordamiento de MediaCodec en Modo Cámara (Sensores 48MP/12MP):**
-  - Se eliminó la inyección incondicional de `--no-downsize-on-error` en transmisiones de cámara (`video_source == "camera"`). En teléfonos modernos (ej. vivo V2314 con Android 15), los sensores físicos de 48 MP (`4608x3456`) hacían colapsar el codificador de hardware MediaCodec al no permitírsele auto-ajuste.
-  - Clampeo seguro de resolución nativa: cuando la resolución de la cámara es nativa o no está especificada, MASV inyecta automáticamente `--max-size 1920`, garantizando inicio instantáneo en Full HD sin caídas.
-- **Normalización Automática de Argumentos de Perfiles:**
-  - `start_scene_legacy`, `_start_scene_hexagonal` y `ProfileService.sanitize_profile_dict` ahora extraen de forma transparente tokens heredados como `--video-source=camera`, `--camera-id` y `--otg` dentro de cadenas `extra_args`, promoviéndolos a atributos nativos de `SessionConfig` y limpiando la cadena para no disparar alertas en la lista blanca de seguridad.
+  - Eliminación de `--no-downsize-on-error` en sesiones de cámara con auto-clampeo a 1920 px cuando no se especifica resolución.
+- **Normalización de Argumentos y Whitelist Segura:**
+  - Admisión formal de flags de tamaño (`--max-size`, `--camera-size`, `-m`) en el validador estricto de `ScrcpyEngine`.
 - **Detección Asistida de `v4l2loopback` en Linux:**
-  - El botón "📷 Webcam / Enrutar cámara" ahora verifica proactivamente si el nodo virtual `/dev/video9` existe en el sistema. Si el módulo de kernel no está cargado, ofrece al usuario abrir la cámara de inmediato en una ventana de escritorio en pantalla o consultar la guía de instalación para OBS Studio.
-- **Limpieza de flags en Modo OTG:**
-  - Se omite `--no-downsize-on-error` en sesiones OTG donde no existe flujo de video.
+  - Comprobación proactiva de `/dev/video9` con fallback a previsualización en ventana o asistente de instalación para OBS Studio.
+- **Unificación de Diálogos "Sin dispositivo":**
+  - Estandarización de las 8 advertencias de ausencia de dispositivo sobre `messagebox.showwarning` con navegación directa a la pestaña de Dispositivos.
+- **Prevención de Mutabilidad en Configuración:**
+  - Aislamiento profundo (`deepcopy`) en carga y fusión de diccionarios de configuración en `utils.py`.
 
-### 🧪 Añadido (Added)
-- **Suite de Pruebas de Modos de Conexión (`tests/test_connection_modes.py`):**
-  - 12 pruebas unitarias automatizadas que validan:
-    1. Duplicación USB en dispositivos modernos (SDK 35 Qualcomm) vs legacy (SDK 29 Kirin 710 con forzado H.264, 8M y `--no-audio`).
-    2. Modo Cámara con auto-downsizing, ID de sensor frontal/trasero y rechazo preventivo en Android < 12 (SDK < 31).
-    3. Modo OTG (inyección limpia de `--otg` sin flags de video).
-    4. Conectividad inalámbrica TCP/IP y asignación de puertos en pool multi-dispositivo.
-    5. Normalización segura de perfiles legacy.
-- **Total de pruebas del proyecto:** 269 pruebas automatizadas (100% pasando).
+### 🧪 Calidad e Infraestructura (Quality & Tests)
+- **Suite de Pruebas Automatizadas Expandida a 668 Pruebas (100% Pasando):**
+  - 668 pruebas unitarias y de integración verdes con 0 fallos, 0 errores y cobertura > 85% a nivel global (100% en adaptadores críticos como `AdbEngine` y lógica de negocio).
+- **Cero Deuda Ciclomática (Ley 7):**
+  - Todos los métodos del proyecto reducidos a Complejidad Ciclomática ≤ 10 (0 bloques con Rank D/F).
+- **Guardián de Aislamiento de Suite:**
+  - Protección estricta que impide que las pruebas toquen la configuración real del usuario en `~/.config/masv/config.json`.
+
 
 ---
 

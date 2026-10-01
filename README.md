@@ -1,45 +1,37 @@
-# 📱 MASV — Memexicanisimos Android Screen Viewer (v1.4)
+# 📱 MASV — Memexicanisimos Android Screen Viewer (v1.4.1)
 
 ![Open Source · Python · scrcpy](https://img.shields.io/badge/Open%20Source-Python%20%7C%20scrcpy-F59E0B?style=for-the-badge&logo=python&logoColor=white)
-![Version v1.4](https://img.shields.io/badge/Version-v1.4-EA580C?style=for-the-badge)
+![Version v1.4.1](https://img.shields.io/badge/Version-v1.4.1-EA580C?style=for-the-badge)
 ![MIT License](https://img.shields.io/badge/License-MIT-10B981?style=for-the-badge)
+![Tests 668 Passed](https://img.shields.io/badge/Tests-668%20Passed-10B981?style=for-the-badge)
 ![Platforms](https://img.shields.io/badge/Platforms-Linux%20%7C%20Windows%20%7C%20macOS-D97706?style=for-the-badge)
 
 [English Version 🇺🇸](README.en.md) | [Portal Oficial 🌐](https://memexicanisimos.com)
 
 ---
 
-**MASV** (Memexicanisimos Android Screen Viewer) es una interfaz gráfica (GUI) avanzada, moderna, ligera y de alto rendimiento para controlar, transmitir y gestionar dispositivos Android en PC utilizando el núcleo de [`scrcpy`](https://github.com/Genymobile/scrcpy) y `ADB`.
+**MASV** (Memexicanisimos Android Screen Viewer) es una estación de trabajo gráfica (GUI) nativa, ultraligera y de alto rendimiento para controlar, transmitir y gestionar dispositivos Android en PC utilizando el núcleo de [`scrcpy`](https://github.com/Genymobile/scrcpy) y `ADB`.
 
-Diseñada especialmente para **creadores de contenido, streamers, fotógrafos, gamers y desarrolladores** que requieren una estación de trabajo completa: control físico OTG/UHID, cámara limpia para OBS Studio con `v4l2loopback`, blindaje de red y gestión multi-dispositivo sin dependencias pesadas de Electron ni navegadores embebidos (< 40 MB RAM, < 1% CPU).
+Diseñada especialmente para **creadores de contenido, streamers, fotógrafos, gamers y desarrolladores** que requieren una suite completa: control físico OTG/UHID, cámara limpia para OBS Studio con `v4l2loopback`, blindaje de red y gestión multi-dispositivo sin dependencias pesadas de Electron ni navegadores embebidos (< 40 MB RAM, < 1% CPU).
 
 ---
 
-### 🚀 Novedades de la Versión 1.4
+### 🚀 Novedades de la Versión 1.4.1
 
-- 🛡️ **Bóveda de Dispositivos Confiables sin Fricción:**
-  - Nuevo modal interactivo "Confiar y Recordar" que registra dispositivos en la Bóveda en un solo clic, eliminando las advertencias repetitivas al iniciar sesión en Modo Seguro.
-- ⌨️ **Modo OTG Integrado (Control Físico USB sin Pantalla):**
-  - Controla tu teléfono con el teclado y ratón de la PC mediante emulación USB HID (`--otg`).
-  - No abre ventana de video en la computadora, reduciendo el consumo de CPU a prácticamente 0% mientras escribes o navegas en el teléfono. Botón directo en el dashboard principal y menú `Dispositivo`.
-- 🌐 **Compartir Internet por USB (Reverse Tethering con `gnirehtet`):**
-  - Provee conectividad a internet de alta velocidad de tu PC hacia el teléfono Android por el cable USB cuando no hay Wi-Fi ni señal de datos. Botón integrado en la pestaña Dispositivo.
-- 📱 **Soporte Multidispositivo Robusto (Hasta 16 teléfonos):**
-  - Gestor dinámico de puertos `PortPoolAllocator` (puertos 27183 a 27199) que permite transmitir múltiples teléfonos en simultáneo con ventanas individuales e identificadas.
-- 🌐 **Internacionalización Total (Español 🇲🇽 / English 🇺🇸):**
-  - Cambio de idioma dinámico desde el menú `Ver` $\rightarrow$ `Idioma / Language` o botón en barra inferior con opción de reinicio asistido en 1 clic.
-- ❓ **Centro de Ayuda y FAQ Interactivo Perfeccionado (19 Secciones):**
-  - Desplazamiento fluido con rueda de ratón (mousewheel) completamente sincronizado en todos los elementos.
-  - Corrección de apertura/cierre de acordeones y documentación 100% bilingüe.
-- 🎨 **Temas Visuales y Contrastes Calibrados:**
-  - `Warm Stone` (por defecto), `Cyber Obsidian` y `Nordic Slate` con refresco dinámico que preserva la legibilidad perfecta de tarjetas, textos y botones.
-- 📷 **Modo Cámara Inteligente & Protección de Sensores Modernos (48MP / 12MP):**
-  - Soporte garantizado para cámaras de Android 12+ (SDK 31+) con sensores físicos de alta resolución (vivo, Samsung, Motorola, Xiaomi).
-  - Límite automático preventivo a 1920 px y omisión de `--no-downsize-on-error`, evitando que MediaCodec colapse al recibir dimensiones masivas (ej. 4608x3456 en sensores de 48MP).
-  - Detección asistida de `v4l2loopback`: si `/dev/video9` no está cargado en Linux, permite alternar con un clic hacia una ventana de previsualización en pantalla o revisar la guía de instalación para OBS Studio.
-  - Normalización automática de perfiles: extrae flags de cámara y OTG desde `extra_args` sin disparar errores de lista blanca.
-- 🧪 **Suite Exhaustiva de Pruebas de Conexión (269 Tests):**
-  - Verificación automatizada de duplicación USB, modo cámara, modo OTG, conectividad inalámbrica TCP/IP y gobernanza de hardware (Kirin vs Qualcomm).
+- ⚡ **Terminación Asíncrona sin Bloqueo de UI:**
+  - Desconexión y detención de sesiones scrcpy en segundo plano (hilo demonio); elimina por completo los congelamientos de 3 segundos al parar streams o cerrar la app.
+- 🩺 **Catálogo Integral de Remediación Asistida (31/31 Códigos bilingües):**
+  - Diagnóstico guiado con explicaciones claras y soluciones paso a paso en Español e Inglés para cada situación de error (`ErrorCode`).
+- 🎨 **Accesibilidad Visual WCAG 2.1 AA:**
+  - Paletas de contraste calibradas en píldoras activas y textos para todos los temas (`Warm Stone`, `Cyber Obsidian` y `Nordic Slate`), garantizando legibilidad óptima (> 4.5:1).
+- 📱 **Gobernanza Dinámica de Hardware (Android 10 / EMUI 10 / Kirin 710):**
+  - Detección inteligente de terminales con `android_sdk <= 29` (como el Huawei Y9), inyectando automáticamente `--no-audio` y forzando códec H.264 para prevenir caídas de conexión por falta de captura nativa en el SO.
+- 📷 **Perfiles de Cámara Frontal y Trasera de Fábrica:**
+  - Integración inmediata de perfiles dedicados `"📷 Cámara HD"` (trasera) y `"📷 Cámara Frontal"` para streaming, fotografía y monitoreo en vivo con OBS Studio.
+- 🛡️ **Bóveda Cifrada PBKDF2/Fernet con Fallback Seguro:**
+  - Almacenamiento seguro de dispositivos autorizados (`vault.enc`) con clave derivada del host y fallback no destructivo a rutas previas.
+- 🧪 **Suite Automatizada de 668 Pruebas (100% Verdes):**
+  - Arquitectura hexagonal blindada con cobertura integral (> 85% global, 100% en adaptadores de red y procesos), 0 bloques de complejidad ciclomática > 10 y guardián estricto de no invasión de datos locales del usuario.
 - 🔀 **Atajos Rápidos de Productividad:**
   - `Ctrl + M`: Alternar Modo Compacto (500x620) y Avanzado.
   - `Ctrl + B`: Colapsar / Expandir barra lateral (Dashboard).

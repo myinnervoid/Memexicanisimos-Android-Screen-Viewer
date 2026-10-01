@@ -1,45 +1,37 @@
-# 📱 MASV — Memexicanisimos Android Screen Viewer (v1.4)
+# 📱 MASV — Memexicanisimos Android Screen Viewer (v1.4.1)
 
 ![Open Source · Python · scrcpy](https://img.shields.io/badge/Open%20Source-Python%20%7C%20scrcpy-F59E0B?style=for-the-badge&logo=python&logoColor=white)
-![Version v1.4](https://img.shields.io/badge/Version-v1.4-EA580C?style=for-the-badge)
+![Version v1.4.1](https://img.shields.io/badge/Version-v1.4.1-EA580C?style=for-the-badge)
 ![MIT License](https://img.shields.io/badge/License-MIT-10B981?style=for-the-badge)
+![Tests 668 Passed](https://img.shields.io/badge/Tests-668%20Passed-10B981?style=for-the-badge)
 ![Platforms](https://img.shields.io/badge/Platforms-Linux%20%7C%20Windows%20%7C%20macOS-D97706?style=for-the-badge)
 
 [Versión en Español 🇲🇽](README.md) | [Official Website 🌐](https://memexicanisimos.com)
 
 ---
 
-**MASV** (Memexicanisimos Android Screen Viewer) is an advanced, modern, lightweight, and high-performance graphical user interface (GUI) designed to control, mirror, and stream Android devices on PC using [`scrcpy`](https://github.com/Genymobile/scrcpy) and `ADB`.
+**MASV** (Memexicanisimos Android Screen Viewer) is a native, ultra-lightweight, high-performance graphical workstation (GUI) to control, mirror, and stream Android devices on PC using [`scrcpy`](https://github.com/Genymobile/scrcpy) and `ADB`.
 
 Tailored for **content creators, streamers, photographers, gamers, and developers** who need a comprehensive workstation: native OTG/UHID physical control, clean camera feed for OBS Studio via `v4l2loopback`, network hardening, and multi-device management without bloated Electron or embedded browser dependencies (< 40 MB RAM, < 1% CPU).
 
 ---
 
-### 🚀 What's New in Version 1.4
+### 🚀 What's New in Version 1.4.1
 
-- 🛡️ **Frictionless Trusted Devices Vault:**
-  - Interactive "Trust and Remember" prompt that registers devices in the Vault with one click, eliminating repetitive Safe Mode warnings.
-- ⌨️ **Integrated OTG Mode (USB Hardware Control without Video):**
-  - Control your phone using your PC's keyboard and mouse via USB HID emulation (`--otg`).
-  - Does not open a video window, reducing host CPU usage to practically 0% while typing or navigating on your phone. Accessible directly from the main Quick-Cast Dashboard and `Device` menu.
-- 🌐 **USB Internet Sharing (Reverse Tethering via `gnirehtet`):**
-  - Share your PC's high-speed internet connection with your Android phone over USB when Wi-Fi or cellular data are unavailable. Integrated button in the Device tab.
-- 📱 **Robust Multi-Device Support (Up to 16 Phones):**
-  - Dynamic `PortPoolAllocator` (ports 27183 to 27199) supporting multiple concurrent Android devices in independent, labeled windows.
-- 🌐 **Full Internationalization (Español 🇲🇽 / English 🇺🇸):**
-  - Live language switcher under `View` $\rightarrow$ `Language / Idioma` and in the footer with 1-click assisted app restart. 100% bilingual documentation and FAQ.
-- ❓ **Refined Interactive FAQ & Help Center (19 Sections):**
-  - Fully synchronized mousewheel smooth scrolling across all elements.
-  - Fixed accordion expand/collapse toggling and complete bilingual parity.
-- 🎨 **Calibrated Themes & Contrast:**
-  - `Warm Stone` (Default), `Cyber Obsidian`, and `Nordic Slate` with dynamic redraws ensuring perfect contrast and readability.
-- 📷 **Smart Camera Mode & Modern Sensor Protection (48MP / 12MP):**
-  - Guaranteed compatibility for Android 12+ (SDK 31+) phones with high-resolution physical camera sensors (vivo, Samsung, Motorola, Xiaomi).
-  - Automatic preventive max-size clamping to 1920 px and omission of `--no-downsize-on-error`, preventing hardware MediaCodec crashes on ultra-high resolutions (e.g. 4608x3456 on 48MP sensors).
-  - Assisted `v4l2loopback` detection: if `/dev/video9` is not loaded in Linux, seamlessly offers a 1-click on-screen desktop preview window or guidance for OBS Studio setup.
-  - Transparent profile normalization: extracts camera and OTG flags from `extra_args` without triggering security whitelist errors.
-- 🧪 **Exhaustive Connection Test Suite (269 Tests):**
-  - Automated test coverage for USB screen mirroring, camera mode, OTG mode, TCP/IP wireless networking, and chipset governance (Kirin vs Qualcomm).
+- ⚡ **Asynchronous Non-Blocking Session Lifecycle:**
+  - Session termination now runs in a detached daemon background thread; eliminates 3-second UI hangs when stopping streams or exiting the application.
+- 🩺 **Full Assisted Remediation Catalog (31/31 Bilingual Codes):**
+  - Step-by-step diagnostic guidance, detailed technical causes, and resolution steps in English and Spanish for every `ErrorCode`.
+- 🎨 **WCAG 2.1 AA Visual Accessibility:**
+  - Calibrated luminance contrast ratios for active status pills and buttons across all themes (`Warm Stone`, `Cyber Obsidian`, and `Nordic Slate`), ensuring readability above 4.5:1.
+- 📱 **Dynamic Hardware Governance (Android 10 / EMUI 10 / Kirin 710):**
+  - Automatic detection of `android_sdk <= 29` devices (e.g. Huawei Y9), auto-injecting `--no-audio` and forcing H.264 video codec to prevent crashes due to lack of OS-level audio playback capture.
+- 📷 **Built-in Front and Rear Clean Camera Profiles:**
+  - Factory-calibrated profiles for `"📷 Cámara HD"` (rear) and `"📷 Cámara Frontal"` (front) for clean studio feeds into OBS Studio.
+- 🛡️ **Encrypted PBKDF2/Fernet Vault with Safe Fallback:**
+  - Local host-derived encryption for trusted device records (`vault.enc`) with transparent non-destructive fallback to legacy paths.
+- 🧪 **Automated Test Suite of 668 Tests (100% Passing):**
+  - Armored hexagonal architecture with > 85% global coverage (100% on network adapters and business logic), zero cyclomatic complexity hotspots (CC <= 10), and strict user data isolation guards.
 - 🔀 **Productivity Shortcuts:**
   - `Ctrl + M`: Toggle Compact Mode (500x620) and Advanced Dashboard.
   - `Ctrl + B`: Collapse / Expand sidebar (Dashboard).

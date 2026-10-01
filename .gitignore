@@ -68,6 +68,19 @@ scrcpy-dock.log
 *.enc
 backups/
 
+# Restos de pruebas de concurrencia en la raíz (no son de la app; ver §3.17)
+/index.html
+/style.css
+
+# Internal audit and development analysis docs (kept local only)
+/ANALISIS.md
+/AUDIT_REPORT.md
+/INFORME_BUGS_v1.4.1.md
+/TRADEOFFS_MATRIX.md
+/DECISIONS.md
+/docs/adr/
+
+
 # Binaries inside bin/ (except .gitkeep)
 bin/*
 !bin/.gitkeep
