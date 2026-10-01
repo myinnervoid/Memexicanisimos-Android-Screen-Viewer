@@ -21,7 +21,7 @@ import time
 from scrcpy_dock.errors import ErrorCode, ERROR_CATALOG, get_error_detail
 from scrcpy_dock.utils import THEMES, DEFAULT_CONFIG
 from scrcpy_dock.managers import ScrcpySession
-from tests.ui_harness import aislar_config
+# CONFIG_DIR aislado en directorios temporales (test_suite_sin_efectos)
 from scrcpy_dock.security import SecurityManager
 from scrcpy_dock.services.security_service import SecurityService
 from scrcpy_dock.ui_widgets import DashboardSidebar
