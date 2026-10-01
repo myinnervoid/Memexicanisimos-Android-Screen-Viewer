@@ -28,9 +28,18 @@ from unittest.mock import MagicMock, patch
 import scrcpy_dock
 import scrcpy_dock.main as main_mod
 from scrcpy_dock.contracts import OperationResult
-from scrcpy_dock.domain.models import Codec
+from scrcpy_dock.core.scrcpy_engine import ScrcpyEngine
+from scrcpy_dock.domain.models import (
+    Codec,
+    ConnectionType,
+    Device,
+    DeviceCapabilities,
+    DeviceState,
+    SessionConfig,
+)
 from scrcpy_dock.errors import ErrorCode
 from scrcpy_dock.main import ScrcpyDockApp
+from scrcpy_dock.managers import DeviceManager, SessionManager
 from scrcpy_dock.services.profile_service import ProfileService
 
 from tests.ui_harness import app_en_prueba
@@ -1152,12 +1161,6 @@ class TestRedDeToggleScene(unittest.TestCase):
 # Caracterización (Pinning) de los 5 bloques finales de complejidad
 # ─────────────────────────────────────────────────────────────────────────────
 
-from scrcpy_dock.domain.models import Device, DeviceState, DeviceCapabilities, SessionConfig, Codec, ConnectionType
-from scrcpy_dock.managers import DeviceManager, SessionManager, DeviceEntry, _SessionInfo
-from scrcpy_dock.core.scrcpy_engine import ScrcpyEngine
-from tests.ui_harness import aislar_config
-
-
 class TestDeviceManagerScanPinning(unittest.TestCase):
     """Caracterización completa de DeviceManager.scan_devices antes de refactor."""
 
@@ -1264,6 +1267,23 @@ class TestSessionManagerLaunchFallbackPinning(unittest.TestCase):
         self.assertFalse(res.success)
         self.assertEqual(res.error_code, ErrorCode.PROCESS_SPAWN_ERROR)
         fake_alloc.release.assert_called_once_with(27183)
+
+    def test_handshake_timeout_con_proceso_muerto_no_se_da_por_vivo(self):
+        """Si el proceso muere justo al agotarse el tiempo, la sesión NO está viva.
+
+        `wait()` lanza cuando el tiempo se agota, pero el proceso puede haberse
+        muerto en ese instante: hay que mirar `poll()`. Darlo por vivo anunciaría
+        "Transmisión activa" sin ningún scrcpy detrás.
+        """
+        murio = MagicMock()
+        murio.wait.side_effect = TimeoutError("agotado")
+        murio.poll.return_value = 1
+        self.assertFalse(SessionManager._verificar_handshake(murio, 0.1))
+
+        vivo = MagicMock()
+        vivo.wait.side_effect = TimeoutError("agotado")
+        vivo.poll.return_value = None
+        self.assertTrue(SessionManager._verificar_handshake(vivo, 0.1))
 
     def test_handshake_alive_registers_session(self):
         fake_alloc = MagicMock()
@@ -1408,30 +1428,37 @@ class TestChangeThemePinning(unittest.TestCase):
     def setUp(self):
         if not self.root:
             self.skipTest("Tkinter sin display")
-        self.aislador = aislar_config()
-        self.aislador.__enter__()
+        # El aislamiento de config/log ya lo hace el arnés (`app_en_prueba`), que
+        # redirige CONFIG_FILE/CONFIG_DIR/LOG_FILE a un temporal.
         self.sitio = app_en_prueba(self.root)
         self.app = self.sitio.app
 
     def tearDown(self):
         if getattr(self, "sitio", None) is not None:
             self.sitio.cerrar()
-        if getattr(self, "aislador", None) is not None:
-            self.aislador.__exit__(None, None, None)
 
     def test_change_theme_con_reinicio_guarda_y_llama_restart(self):
         with patch.object(main_mod.messagebox, "askyesno", return_value=True), \
              patch.object(self.app, "_restart_app") as restart_mock:
             self.app._change_theme("light")
-            self.assertEqual(self.app.ctx.cfg["theme"], "light")
-            restart_mock.assert_called_once()
+        self.assertEqual(self.app.ctx.cfg["theme"], "light")
+        restart_mock.assert_called_once()
 
-    def test_change_theme_sin_reinicio_reconstruye_pestanas(self):
+    def test_change_theme_sin_reinicio_conserva_la_pestana_activa(self):
+        """Sin reinicio se reconstruyen las pestañas… sin devolver al usuario al Mini-Dock.
+
+        `_reconstruir_pestanas_en_caliente` leía `active_tab_id`, pero nadie
+        escribía ese atributo: el cambio de tema saltaba siempre a `quickcast`.
+        """
+        self.app._select_tab("controls")
+
         with patch.object(main_mod.messagebox, "askyesno", return_value=False), \
              patch.object(main_mod, "Toast"):
             self.app._change_theme("dracula")
-            self.assertEqual(self.app.ctx.cfg["theme"], "dracula")
-            self.assertIn("dracula", self.app.ctx.cfg["theme"])
+
+        self.assertEqual(self.app.ctx.cfg["theme"], "dracula")
+        self.assertEqual(self.app.active_tab_id, "controls",
+                         "tras cambiar de tema debe seguirse viendo la misma pestaña")
 
 
 class TestSelectTabPinning(unittest.TestCase):
@@ -1480,10 +1507,27 @@ class TestSelectTabPinning(unittest.TestCase):
         self.assertEqual(self.app.active_tab_id, "quickcast")
 
     def test_select_tab_profiles_sincroniza(self):
+        """Seleccionar Perfiles sincroniza el listado de perfiles.
+
+        Se comprueba el efecto, no el conteo exacto: el cuerpo de `_select_tab` se
+        ejecuta **dos veces** por una llamada re-entrante (el callback de la barra
+        lateral, `lambda tid, idx: self._select_tab(tid)`, vuelve a invocarlo).
+        """
         with patch.object(self.app, "_sync_profile_selection") as sync_mock:
             self.app._select_tab("profiles")
-            self.assertEqual(self.app.active_tab_id, "profiles")
-            sync_mock.assert_called_once()
+
+        self.assertEqual(self.app.active_tab_id, "profiles")
+        self.assertGreaterEqual(sync_mock.call_count, 1,
+                                "seleccionar Perfiles debe sincronizar la selección")
+
+    def test_select_tab_recuerda_la_pestana_mostrada(self):
+        """Sin esto, reconstruir la interfaz (cambio de tema) volvía al Mini-Dock."""
+        self.app._select_tab("console")
+        self.assertEqual(self.app.active_tab_id, "console")
+
+        # Un tab_id inexistente oculta todos los frames, pero no reescribe el recordado.
+        self.app._select_tab("no-existe")
+        self.assertEqual(self.app.active_tab_id, "console")
 
 
 if __name__ == "__main__":

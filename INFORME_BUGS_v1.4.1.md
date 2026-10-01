@@ -840,6 +840,39 @@ Efecto colateral medido: `_start_otg_mode` baja de CC 10 a **3** sin buscarlo.
 
 ---
 
+### 3.36 🟡 Cambiar de tema devolvía siempre a la pestaña Mini-Dock *(encontrado al verificar la fase, 01-oct · ✅ CORREGIDO)*
+
+**Archivo**: `scrcpy_dock/main.py` (`_mostrar_frame_de_tab`, `_reconstruir_pestanas_en_caliente`)
+
+Al cambiar de tema sin reiniciar, la app reconstruye las 7 pestañas y después vuelve a seleccionar
+"la que estaba activa"… leyendo un atributo que **nadie escribía nunca**:
+
+```python
+        active_tid = getattr(self, 'active_tab_id', 'quickcast') or "quickcast"
+        self._select_tab(active_tid)
+```
+
+`active_tab_id` no se asignaba en ningún sitio del paquete, así que `getattr` devolvía siempre el valor
+por defecto: **si estabas en Consola (leyendo el log) o en Ayuda y cambiabas de tema, la interfaz te
+devolvía al Mini-Dock**. Es un defecto de la v1.4 anterior al refactor (el código viejo tenía exactamente
+la misma línea), que la descomposición **heredó tal cual** en lugar de arreglarlo.
+
+Apareció al verificar la fase: dos de las pruebas de *pinning* nuevas afirmaban `app.active_tab_id`, que
+no existía — es decir, el test señalaba un contrato que el código sólo aparentaba cumplir.
+
+**Corrección**: `_mostrar_frame_de_tab` recuerda la pestaña que acaba de mostrar (`self.active_tab_id =
+tab_id`); el lector existía, le faltaba el escritor. Queda fijado con dos pruebas nuevas: una comprueba
+que seleccionar pestaña la recuerda (y que un `tab_id` inexistente no la reescribe) y otra que cambiar
+de tema **conserva** la pestaña activa.
+
+**Observación relacionada (no corregida)**: el cuerpo de `_select_tab` se ejecuta **dos veces** por
+selección, porque el callback de la barra lateral es `lambda tid, idx: self._select_tab(tid)` y
+`_select_tab` llama a `sidebar.select(...)`. Es re-entrante e idempotente (la segunda vuelta ya encuentra
+el `active_id` correcto y no vuelve a propagar), así que no tiene efecto visible; se deja documentado en
+la prueba correspondiente en vez de tocar el flujo de navegación.
+
+---
+
 ## 4. Cobertura de pruebas — brechas concretas
 
 Lo que **no** cubre la suite actual (269 tests) y permitió que los bugs anteriores pasaran:
@@ -934,16 +967,16 @@ sincronizados con el registro de ejecución de `ANALISIS.md` §11.
 
 | Métrica | Al redactar este informe | Tras Fases A–D (verificado) |
 | :--- | :---: | :---: |
-| Pruebas | 269 | **597** (597 OK con display · 62 skips y 0 errores sin display) |
+| Pruebas | 269 | **617** (617 OK con display · 68 skips y 0 errores sin display) |
 | Cobertura total | 35 % | **85 %** |
 | Cobertura `core/adb_engine.py` | 46 % | **100 %** |
 | Módulos de negocio bajo el 80 % | 4 | **0** (mínimo 81 %) |
 | Cobertura de la capa de pestañas | 0 % | **99 %** (`ui/tabs/`, 526 sentencias) |
 | Cobertura `ui_widgets.py` | 16 % | **94 %** (medido; la fase declaró 81,8 %) |
 | Cobertura UI (`ui_tabs.py`) | 0–3 % | **100 %** |
-| Bloques con CC > 10 | 20 (máx. 63) | **0** (máx. 7 en funciones de negocio y UI) |
+| Bloques con CC > 10 | 20 (máx. 63) | **0** (máximo del paquete: 10; 0 Rank D/F) |
 | Bloques Rank D o F | 5 (3 D + 2 F) | **0** |
-| Mutaciones cazadas en los refactores (§11.12–11.14) | — | **8/8**, **12/12** y **18/18** |
+| Mutaciones cazadas en los refactores (§11.12–11.14) | — | **8/8**, **12/12**, **18/18** (fase) · **10/10** (verificación independiente, §11.14) |
 | Umbrales de la Ley 7 en rojo o amarillo | 2 | **0** (5 ✅ · 0 🟡 · 0 ❌) |
 | `ErrorCode` con `ErrorDetail` | 11 / 30 | **16 / 31** |
 | Literales `_()` sin traducción EN | 133 | **0** (425 claves vivas: 406 por literal + 19 por flujo) |

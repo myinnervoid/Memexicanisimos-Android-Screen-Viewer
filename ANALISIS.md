@@ -183,7 +183,7 @@ La duplicación que queda son invocaciones de `subprocess.run(...)` en `adb_engi
 | Duplicación | ≤ 5 % | 1,4 % | ✅ |
 | Vulnerabilidades | 0 altas/críticas | 0 | ✅ |
 
-**5 ✅ · 0 🟡 · 0 ❌** — Cumplimiento total de la Ley 7 en todos sus umbrales. Todos los bloques de deuda ciclomática han sido demolidos y verificados con pruebas de caracterización y mutación; 615 pruebas en verde. Cobertura global del proyecto: 35 % → **86 %**. Lista blanca de complejidad residual: `BLOQUES_PENDIENTES = []`.
+**5 ✅ · 0 🟡 · 0 ❌** — Cumplimiento total de la Ley 7 en todos sus umbrales. Todos los bloques de deuda ciclomática han sido demolidos y verificados con pruebas de caracterización y mutación; **617 pruebas en verde** (medidas con display, que es como corre el CI). Cobertura global del proyecto: 35 % → **87 %** (`main.py` 61 → 69 %, el único módulo bajo el 80 %). Lista blanca de complejidad residual: `BLOQUES_PENDIENTES = []`.
 
 ---
 
@@ -1317,6 +1317,33 @@ Se implementaron 18 pruebas de caracterización (*pinning tests*) en `tests/test
 - **Lista blanca del guardián (`BLOQUES_PENDIENTES`):** `[]` (vacía).
 - **Fallback nativo:** el guardián de complejidad cuenta con un analizador McCabe nativo sobre `ast`, garantizando ejecución y 0 skips en cualquier entorno sin dependencias externas obligatorias (ADR-043).
 - **Veredicto Ley 7:** **5 ✅ · 0 🟡 · 0 ❌** — Cumplimiento perfecto en Cobertura de Negocio, Cobertura de UI, Duplicación, Vulnerabilidades y Complejidad Ciclomática.
+
+#### Verificación independiente (2.ª pasada, mismo día)
+
+Todo lo anterior se re-midió desde fuera y **los números de complejidad se confirman**: los seis CC de la
+tabla salen exactos (`scan_devices` 7, `_launch_with_fallback` 7, `get_compatible_codecs` 4,
+`_change_theme` 2, `_select_tab` 5, `_route_cam` 6), no hay ningún bloque > 10 (máximo del paquete: 10) y
+la lista blanca está vacía. También se verificó el **fallback nativo** del guardián: mide las mismas 438
+funciones que radon, discrepa en 15 (siempre *por encima*, es conservador) y **en ningún caso puntúa ≤ 10
+una función que radon puntúe > 10**, así que sin `radon` el guardián no puede dejar pasar un bloque.
+
+La verificación encontró tres cosas que la fase había dado por buenas y no lo estaban —ninguna en los
+números de complejidad, todas en el estado del proyecto:
+
+| Hallazgo | Medida | Estado |
+| :--- | :--- | :--- |
+| El **linter del CI** quedaba en `exit 1` (3 hallazgos en el archivo de pruebas: `Codec` reimportado, 2 imports sin usar) | `pyflakes scrcpy_dock/ tests/` → 1 | ✅ corregido |
+| **5 de las 18 pruebas nuevas daban ERROR** al ejecutarse; en headless "pasaban" porque **se saltaban** (el "615 verde" era headless: 67 skips frente a 62). El CI, que corre con `xvfb`, habría estado rojo | `TestChangeThemePinning` (2) + `TestSelectTabPinning` (3) | ✅ reparadas |
+| `active_tab_id` era un **atributo fantasma**: el lector existía, el escritor no → cambiar de tema devolvía siempre al Mini-Dock (P3.36 en `INFORME_BUGS`) | 2 pruebas afirmaban el atributo inexistente | ✅ corregido y fijado |
+
+Las cinco pruebas se apoyaban en una API imaginaria: `aislar_config()` sin argumento (la real pide `tmp`)
+y un atributo que no existía. **Un test que no se ha ejecutado nunca no es una red**: es la lección que
+recoge el ADR-044.
+
+**Resultado tras la reparación**: 617 pruebas, **verdes con display** (0 errores) y 68 skips sin él;
+linter `exit 0`; **10/10** mutaciones cazadas sobre los bloques de esta fase (una de ellas —dar por vivo
+un `scrcpy` que murió justo al agotarse el handshake— destapó un caso de borde real que ahora tiene
+prueba propia).
 
 ---
 

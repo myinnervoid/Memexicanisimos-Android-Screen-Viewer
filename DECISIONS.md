@@ -22,6 +22,8 @@
 40. [ADR-040: La Tabla de Traducciones es un Espejo del Código — y se Cuenta por Dos Vías](#adr-040)
 41. [ADR-041: La Cobertura no es la Red — los Refactores de Complejidad se Verifican Mutando](#adr-041)
 42. [ADR-042: Los Guardianes de Regresión Siguen la Cadena de Ayudantes, no el Texto del Método](#adr-042)
+43. [ADR-043: Demolición de los Últimos 5 Bloques de Complejidad y Cumplimiento Pleno de la Ley 7](#adr-043)
+44. [ADR-044: Una Fase no Está Cerrada hasta que su Red Corre Donde Corre el CI](#adr-044)
 
 > ⚠️ **Hueco de trazabilidad detectado (2026-10-01):** el código cita **ADR-001 a ADR-031**
 > (`ADR-006/007/008/009` en `adb_engine`, `ADR-029` en `port_allocator`, `ADR-031` en
@@ -259,9 +261,21 @@
      - Extensión preventiva: `ScrcpyDockApp._route_cam` (CC 14 → 6) descomponiendo en `_abrir_camara_en_pantalla_directa` (CC 2) y `_lanzar_camara_v4l2` (CC 6).
   3. **Guardián Permanente sin Skips**: se dotó al test de complejidad de un calculador McCabe AST nativo para que nunca se salte por ausencia de `radon`, y se redujo la lista blanca `BLOQUES_PENDIENTES` a exactamente `[]` (cero bloques).
 - **Consecuencias**:
-  - *Positivas*: 0 bloques Rank D/E/F en todo el paquete `scrcpy_dock`; 0 funciones con CC > 10; la métrica de complejidad ciclomática de la Ley 7 pasa de 🟡 a ✅, alcanzando el estándar perfecto de **5 ✅ · 0 🟡 · 0 ❌**. Suite en verde: 615/615 pruebas. Configuración del usuario 100% protegida e intacta.
+  - *Positivas*: 0 bloques Rank D/E/F en todo el paquete `scrcpy_dock`; 0 funciones con CC > 10; la métrica de complejidad ciclomática de la Ley 7 pasa de 🟡 a ✅, alcanzando el estándar perfecto de **5 ✅ · 0 🟡 · 0 ❌**. Configuración del usuario 100% protegida e intacta. *(La medición de cierre fue headless: 615 contaba 5 pruebas que se saltaban y 3 hallazgos de linter. Cifra definitiva y verificada: **617 pruebas verdes con display**, linter `exit 0` — ver ADR-044.)*
   - *Negativas*: se agregaron métodos auxiliares privados que expanden el número de funciones internas; el AST walker nativo requiere mantener la definición de McCabe si cambian nodos sintácticos mayores en futuras versiones de Python.
   - *Verificación*: `tests/test_fase_d_regressions.py` (`TestComplejidadSinBloquesD`), `tests/test_managers.py`, `tests/contracts/test_scrcpy_engine_contract.py` y `test_suite_sin_efectos.py`.
+
+---
+
+<a name="adr-044"></a>
+### ADR-044: Una Fase no Está Cerrada hasta que su Red Corre Donde Corre el CI
+
+- **Contexto del Problema**: al cerrar la demolición de los últimos 5 bloques se reportó la suite en verde (615 pruebas, 1,8 s) y todo el tablero de la Ley 7 en ✅. La verificación independiente encontró que **5 de las 18 pruebas nuevas daban ERROR al ejecutarse**: se apoyaban en una API imaginaria (`aislar_config()` sin argumento, un atributo `active_tab_id` que nadie escribía). En headless "pasaban" porque el arnés **se las saltaba** (67 skips frente a 62), y el linter del CI quedaba en `exit 1` por tres imports que nadie había mirado. El CI real, que corre con `xvfb-run`, habría estado rojo por ambos motivos. El "615 verde" era, literalmente, 615 − 5.
+- **Decisión Adoptada**: (a) el cierre de una fase exige la suite **completa y ejecutada**, no una pasada donde algo se salta: los skips se cuentan y se justifican, y una prueba nueva que no puede ejecutarse no cuenta como red; (b) antes de dar una fase por buena se ejecutan los mismos comandos que el pipeline (linter incluido) **con display**, no una aproximación cómoda; (c) una prueba que afirma un atributo debe comprobar que el código lo escribe (si el lector existe y el escritor no, lo que falta es código, no prueba — así apareció P3.36).
+- **Consecuencias**:
+  - *Positivas*: la fase cerró de verdad a **617 pruebas verdes con display** y linter `exit 0`; el defecto del cambio de tema (devolvía al Mini-Dock) se corrigió porque una prueba rota lo señaló; el caso de borde del handshake (proceso muerto al agotarse el tiempo) quedó cubierto.
+  - *Negativas*: cerrar exige dos corridas de suite (con y sin display) y leer el número de skips en vez de la palabra `OK`; cuesta minutos y disciplina.
+  - *Verificación*: `617 tests, OK` con `DISPLAY=:1`; `617 tests, OK (skipped=68)` sin display; `pyflakes scrcpy_dock/ tests/` → `exit 0`; 10/10 mutaciones cazadas en los bloques de la fase.
 
 ---
 

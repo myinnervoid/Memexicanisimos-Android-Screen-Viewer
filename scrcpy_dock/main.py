@@ -269,7 +269,7 @@ class ScrcpyDockApp:
     }
 
     def _reconstruir_pestanas_en_caliente(self):
-        """Reconstruye los frames de pestañas con la nueva paleta de colores."""
+        """Reconstruye los frames de pestañas con la nueva paleta, sin perder la pestaña activa."""
         self._setup_styles()
         self.root.config(bg=C["bg"])
         tab_frames = getattr(self, '_tab_frames', {})
@@ -277,7 +277,7 @@ class ScrcpyDockApp:
             builder_name = self._TAB_BUILDER_METHODS.get(tid)
             if builder_name and hasattr(self.ui, builder_name):
                 getattr(self.ui, builder_name)(frame)
-        active_tid = getattr(self, 'active_tab_id', 'quickcast') or "quickcast"
+        active_tid = getattr(self, 'active_tab_id', None) or "quickcast"
         self._select_tab(active_tid)
 
     def _change_theme(self, theme_name: str):
@@ -552,12 +552,19 @@ class ScrcpyDockApp:
         return "quickcast" if tid == "simple" else tid
 
     def _mostrar_frame_de_tab(self, tab_id: str) -> None:
-        """Oculta los demás frames y empaqueta el frame de la pestaña activa."""
+        """Oculta los demás frames, empaqueta el de la pestaña activa y la recuerda.
+
+        Recordar la pestaña mostrada es lo que permite reconstruir la interfaz al
+        cambiar de tema sin devolver al usuario al Mini-Dock (el lector
+        `active_tab_id` existía, pero nadie lo escribía).
+        """
         tab_frames = getattr(self, '_tab_frames', {})
         for f in tab_frames.values():
             f.pack_forget()
-        if tab_id in tab_frames:
-            tab_frames[tab_id].pack(fill="both", expand=True)
+        if tab_id not in tab_frames:
+            return
+        tab_frames[tab_id].pack(fill="both", expand=True)
+        self.active_tab_id = tab_id
 
     def _select_tab(self, tab_id_or_idx):
         tab_id = self._resolver_tab_id(tab_id_or_idx)
