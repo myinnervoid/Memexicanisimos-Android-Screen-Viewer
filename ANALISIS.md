@@ -105,6 +105,8 @@ Desglose de la capa de negocio (17 módulos):
 
 **Lectura:** el dominio y los contratos están excelentemente cubiertos (100 %), pero **el adaptador más crítico para la estabilidad operativa —`adb_engine.py`— está al 46 %**: sin cubrir las líneas 379-402 (`revert_tcpip` y sus marcadores de transición de transporte) ni 597-655 (todo el bucle de reconexión de `_TrackerThread._run_once`). La cobertura cae a cero justo donde vive la lógica de reconexión y lock-down.
 
+> **✅ CERRADO en D3 (§11.6).** Este párrafo señalaba exactamente las dos zonas que quedaron sin cubrir, y fueron las que se atacaron: `revert_tcpip` completo (incluidos los falsos negativos de ADR-009) y el `_TrackerThread` entero. `adb_engine.py` está hoy al **100 %**.
+
 ### 3.2 Complejidad ciclomática (umbral Ley 7: ≤ 10)
 
 `radon cc`: **20 bloques por encima del umbral** de 362 analizados (18 métodos, 1 función, 1 clase): 15 de rank C, 3 D y 2 F.
@@ -155,13 +157,13 @@ Concentrada en las invocaciones repetidas de `subprocess.run(...)` en `adb_engin
 
 | Métrica | Umbral | Medido | ¿Cumple? |
 | :--- | :---: | :---: | :---: |
-| Cobertura lógica de negocio | ≥ 80 % | 46 %–100 % (mixto; `adb_engine` 46 %) | 🟡 |
-| Cobertura UI | ≥ 60 % | 3 %–16 % → **49 %–98 %** tras D1 | 🟡 |
+| Cobertura lógica de negocio | ≥ 80 % | **72 %–100 %** (era 46 %–100 %): 3 módulos del núcleo por debajo — `utils` 72 %, `security` 74 %, `tether_engine` 77 % | 🟡 |
+| Cobertura UI | ≥ 60 % | 49 %–98 % (tras D1) | 🟡 |
 | Complejidad ciclomática | ≤ 10 | **14** bloques > 10 (máx. 18; era 20 con máx. 63) — **0 con rank D o F** | 🟡 |
 | Duplicación | ≤ 5 % | 2,9 % | ✅ |
 | Vulnerabilidades | 0 altas/críticas | 0 | ✅ |
 
-**2 ✅ · 2 🟡 · 1 ❌** — la complejidad pasó de ❌ a 🟡: ya no hay ni un bloque Rank D o F (el peor es CC 18, frente a 63), pero aún quedan 14 bloques entre 11 y 18 que hay que bajar del umbral. Cobertura total: **35 % → 72 %**.
+**2 ✅ · 3 🟡 · 0 ❌** — ningún umbral queda en rojo. La cobertura total pasó de 35 % a **75 %**; el peor caso de negocio (`adb_engine.py`, 46 %) está ahora al **100 %** y quedan tres módulos del núcleo entre 72 % y 77 % para alcanzar el 80 %.
 
 ---
 
@@ -407,11 +409,12 @@ El síntoma clásico que la v3.2 quería eliminar —**«la capa de interfaz eje
 > 98 %**; `ui_widgets.py` **16 % → 49 %**; `main.py` al 55 %.
 > La primera pasada cazó **2 defectos reales** (§11.4). D2–D5 pendientes.
 
-> **Estado: ✅ CERRADA la deuda ciclomática (01-oct, §11.5).** Con D1 como red se demolieron
+> **Estado: ✅ CERRADA la deuda ciclomática (01-oct, §11.5) y ✅ D3 (01-oct, §11.6).** Con D1 como red se demolieron
 > los **tres últimos bloques Rank D** del repositorio: `sanitize_profile_dict` CC **28 → 2**,
 > `_exit` CC **23 → 1**, `_on_dev_select` CC **21 → 2**. El repositorio queda con **0 bloques
-> Rank D o F** y 14 bloques > 10 (todos Rank C, máximo 18). **399/399 pruebas OK.** La segunda
+> Rank D o F** y 14 bloques > 10 (todos Rank C, máximo 18). La segunda
 > pasada cazó **P3.24** (§3.24 del informe de bugs), un defecto de producción real.
+> **D3**: `adb_engine.py` pasó de **46 % a 100 %** de cobertura (63 pruebas nuevas). **462/462 OK.**
 
 | # | Acción | Criterio de aceptación |
 | :--- | :--- | :--- |
@@ -851,6 +854,40 @@ filas inventadas, y por eso no vio nada) apareció esto:
 y D5 (separar `requirements-dev.txt`, extraer la matriz de trade-offs). Y la deuda declarada en
 §11.3–11.4: C2 (modularización de la UI), unificar las convenciones de fallo de los dos parsers de
 IP, deduplicar las 295 claves i18n huérfanas y reconstruir los ~26 ADR citados y no escritos.
+
+### 11.6 Fase D — D3 · Endurecimiento de `AdbEngine` (2026-10-01)
+
+**462/462 pruebas en verde** (63 nuevas en `tests/test_adb_engine_hardening.py`).
+`scrcpy_dock/core/adb_engine.py`: **46 % → 100 %** (0 líneas sin cubrir de 336).
+
+| Zona cubierta | Qué se verificó |
+| :--- | :--- |
+| Ramas de error de los 8 métodos | `FileNotFoundError` → `ADB_NOT_FOUND`, `TimeoutExpired` → `ADB_SERVER_FAILED`/`CONNECTION_REFUSED`/`LOCKDOWN_FAILED`, `OSError` → `ADB_SERVER_FAILED`, y `returncode != 0` con el mensaje del stderr propagado |
+| Propagación sin reintento | Un binario ausente **no** dispara los 4 intentos del pool: `start_daemon` propaga `ADB_NOT_FOUND` con una sola llamada |
+| `revert_tcpip` completo | Los **falsos negativos de ADR-009** (`error: closed`, `connection reset`, `device not found` tras `adb usb`) se tratan como éxito funcional; un error real (permiso denegado) sí falla; y el serial **se descarta del registro pase lo que pase** (si no, MASV creería que sigue controlando el puerto) |
+| Trampas de `adb` | `connect` puede devolver **código 0 sin haber conectado** (`unable to connect` en stdout) → se detecta; `install` devuelve 0 con `Failure [...]` → ya cubierto en C3 |
+| `_TrackerThread` entero | Protocolo de cabecera hex de 4 dígitos: `0000` (sin dispositivos), cabecera incompleta (`"00"`), cabecera no hexadecimal (`"ZZZZ"`), payload ilegible, líneas no parseables filtradas, y `model` ausente en `track-devices` (usa el serial) |
+| Resiliencia del hilo | `on_change` que revienta **no mata el hilo**; `on_daemon_dead` que revienta **no propaga**; el proceso vivo se `terminate()` y, si ignora la señal, se `kill()` |
+| Reintentos y parada | Agota `max_attempts` → `ADB_DAEMON_DEAD`; un EOF limpio inicial **no penaliza** el backoff; un stop durante la espera **no** se confunde con daemon muerto; `stop()` es idempotente |
+
+**Cómo se hace sin abrir procesos ni dormir** (para que sirva de precedente):
+- `subprocess.run` mockeado con `fake_completed_process` (el helper que ya usaba el repo).
+- El tracker recibe un `Popen` falso con un **guion de lecturas** (`_ChunkReader`): se le dice exactamente qué devuelve cada `read(n)`, así se recorren todas las ramas del protocolo de forma determinista.
+- El `Event` de parada se sustituye por uno que **no espera de verdad**: el backoff de 1/2/4/8/16 s no cuesta ni un milisegundo. La suite completa sigue en ~17 s.
+
+**Hallazgos de D3**: **ninguno**. A diferencia de D1 y de la demolición de complejidad, esta pasada no destapó defectos: las 63 pruebas pasaron a la primera. El motor cumplía lo que su contrato declaraba — lo que faltaba era demostrarlo. Lo que **sí** quedó fijado son tres comportamientos sutiles que antes sólo existían en la cabeza de quien los escribió: los falsos negativos de ADR-009, la trampa del `connect` con código 0 y la invalidación del socket en `kill_server`.
+
+**Métricas tras D3:**
+
+| Métrica | Antes de D3 | Después de D3 |
+| :--- | :---: | :---: |
+| Pruebas | 399 | **462** |
+| Cobertura total | 72 % | **75 %** |
+| `core/adb_engine.py` | 53 % | **100 %** |
+| Módulos de negocio por debajo del 80 % | 4 | **3** (`utils` 72 %, `security` 74 %, `tether_engine` 77 %) |
+| Umbrales de la Ley 7 en rojo | 1 (complejidad) | **0** |
+
+**Lo que queda de la Fase D**: D2 (linter en CI), D4 (exhaustividad de `ERROR_CATALOG` y contraste WCAG) y D5 (`requirements-dev.txt`, matriz de trade-offs). Y de las fases anteriores: C2 (modularización de la UI, ya con doble blindaje D1+D3), los 3 módulos del núcleo entre 72 % y 77 %, los 14 bloques CC entre 11 y 18, unificar las convenciones de fallo de los parsers de IP, deduplicar las 295 claves i18n huérfanas y reconstruir los ~26 ADR citados y no escritos.
 
 ---
 

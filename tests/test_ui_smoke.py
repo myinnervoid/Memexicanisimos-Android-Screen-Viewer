@@ -28,7 +28,6 @@ Ejecutable con el runner del CI:
 from __future__ import annotations
 
 import copy
-import os
 import tempfile
 import tkinter as tk
 import unittest
@@ -40,7 +39,6 @@ import scrcpy_dock.main as main_mod
 import scrcpy_dock.utils as utils
 from scrcpy_dock.contracts import OperationResult
 from scrcpy_dock.core.scrcpy_engine import ScrcpyEngine
-from scrcpy_dock.domain.models import Codec, Device, DeviceCapabilities
 from scrcpy_dock.errors import ErrorCode
 from scrcpy_dock.main import ScrcpyDockApp
 from scrcpy_dock.security import SecurityManager

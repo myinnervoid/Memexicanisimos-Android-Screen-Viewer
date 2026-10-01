@@ -553,13 +553,15 @@ PY
 Los tres documentos del sistema (`ANALISIS.md`, `AUDIT_REPORT.md` y este informe) se mantienen
 sincronizados con el registro de ejecución de `ANALISIS.md` §11.
 
-| Métrica | Al redactar este informe | Tras Fases A–D |
+| Métrica | Al redactar este informe | Tras Fases A–D3 |
 | :--- | :---: | :---: |
-| Pruebas | 269 | **399** |
-| Cobertura total | 35 % | **72 %** |
+| Pruebas | 269 | **462** |
+| Cobertura total | 35 % | **75 %** |
+| Cobertura `core/adb_engine.py` | 46 % | **100 %** |
 | Cobertura UI (`ui_tabs.py`) | 0–3 % | **98 %** |
 | Bloques con CC > 10 | 20 (máx. 63) | **14 (máx. 18)** |
 | Bloques Rank D o F | 5 (3 D + 2 F) | **0** |
+| Umbrales de la Ley 7 en rojo | 2 | **0** |
 | `ErrorCode` con `ErrorDetail` | 11 / 30 | **16 / 31** |
 | Literales `_()` sin traducción EN | 133 | **0** (404/404) |
 | Invocaciones ADB directas desde la UI | 17 | **0** |

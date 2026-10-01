@@ -18,7 +18,7 @@ import tkinter as tk
 import types
 import unittest
 from pathlib import Path
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 import scrcpy_dock
 import scrcpy_dock.context as context_mod
