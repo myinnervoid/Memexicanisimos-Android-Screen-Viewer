@@ -1,7 +1,7 @@
-# 📱 MASV — Memexicanisimos Android Screen Viewer (v1.3)
+# 📱 MASV — Memexicanisimos Android Screen Viewer (v1.4)
 
 ![Open Source · Python · scrcpy](https://img.shields.io/badge/Open%20Source-Python%20%7C%20scrcpy-F59E0B?style=for-the-badge&logo=python&logoColor=white)
-![Version v1.3](https://img.shields.io/badge/Version-v1.3-EA580C?style=for-the-badge)
+![Version v1.4](https://img.shields.io/badge/Version-v1.4-EA580C?style=for-the-badge)
 ![MIT License](https://img.shields.io/badge/License-MIT-10B981?style=for-the-badge)
 ![Platforms](https://img.shields.io/badge/Platforms-Linux%20%7C%20Windows%20%7C%20macOS-D97706?style=for-the-badge)
 
@@ -15,27 +15,31 @@ Diseñada especialmente para **creadores de contenido, streamers, fotógrafos, g
 
 ---
 
-### 🚀 Novedades de la Versión 1.3
+### 🚀 Novedades de la Versión 1.4
 
-- 🎨 **Selector Dinámico de Temas Visuales:**
-  - `Warm Stone` (por defecto): Tonos cálidos y oscuros confortables para largas jornadas.
-  - `Cyber Obsidian`: Estilo Gamer/OBS con acentos Cyan Neón (`#00F0FF`) y bordes profundos.
-  - `Nordic Slate`: Minimalismo técnico en tonos Azul Hielo y grafito.
-  - Conmutables en caliente desde el menú `Ver` $\rightarrow$ `Tema Visual`.
-- ⌨️ **Modo Físico OTG y Emulación UHID:**
-  - Control de teclado y ratón nativos mediante emulación USB HID (`--keyboard=uhid`, `--mouse=uhid`, `--otg`).
-  - Permite controlar el teléfono como teclado/ratón físico incluso sin streaming de video o con la pantalla apagada.
-- 🌐 **Módulo de Reverse Tethering (`gnirehtet`):**
-  - Comparte el internet de tu PC hacia el teléfono Android por el cable USB de manera desacoplada y estable.
-- 📦 **Instalador y Desinstalador Universal (1-Clic):**
-  - Nuevo comando universal con `curl` para instalar en segundos sin compilar.
-  - Instalación persistente en `~/.MASV/bin/` (puedes borrar la carpeta de descargas sin romper nada).
-  - Opciones gráficas en el menú `Archivo` $\rightarrow$ `📥 Instalar en Sistema` y `🗑️ Desinstalar`.
-- ❓ **Centro de Ayuda y FAQ Interactivo:**
-  - Acordeones interactivos desplegables integrados en la pestaña Ayuda (`Ctrl + H`).
-  - Soluciones documentadas para estado Offline, restricciones de Android 10/EMUI, Bóveda de Red y Modo Estudio OBS.
-- 🛡️ **Bóveda de Dispositivos Confiables y Blindaje TCP/IP:**
-  - Whitelist de seguridad contra intromisiones en redes Wi-Fi públicas y auto-cierre con `adb usb` al pulsar `Ctrl + Q`.
+- 🛡️ **Bóveda de Dispositivos Confiables sin Fricción:**
+  - Nuevo modal interactivo "Confiar y Recordar" que registra dispositivos en la Bóveda en un solo clic, eliminando las advertencias repetitivas al iniciar sesión en Modo Seguro.
+- ⌨️ **Modo OTG Integrado (Control Físico USB sin Pantalla):**
+  - Controla tu teléfono con el teclado y ratón de la PC mediante emulación USB HID (`--otg`).
+  - No abre ventana de video en la computadora, reduciendo el consumo de CPU a prácticamente 0% mientras escribes o navegas en el teléfono. Botón directo en el dashboard principal y menú `Dispositivo`.
+- 🌐 **Compartir Internet por USB (Reverse Tethering con `gnirehtet`):**
+  - Provee conectividad a internet de alta velocidad de tu PC hacia el teléfono Android por el cable USB cuando no hay Wi-Fi ni señal de datos. Botón integrado en la pestaña Dispositivo.
+- 📱 **Soporte Multidispositivo Robusto (Hasta 16 teléfonos):**
+  - Gestor dinámico de puertos `PortPoolAllocator` (puertos 27183 a 27199) que permite transmitir múltiples teléfonos en simultáneo con ventanas individuales e identificadas.
+- 🌐 **Internacionalización Total (Español 🇲🇽 / English 🇺🇸):**
+  - Cambio de idioma dinámico desde el menú `Ver` $\rightarrow$ `Idioma / Language` o botón en barra inferior con opción de reinicio asistido en 1 clic.
+- ❓ **Centro de Ayuda y FAQ Interactivo Perfeccionado (19 Secciones):**
+  - Desplazamiento fluido con rueda de ratón (mousewheel) completamente sincronizado en todos los elementos.
+  - Corrección de apertura/cierre de acordeones y documentación 100% bilingüe.
+- 🎨 **Temas Visuales y Contrastes Calibrados:**
+  - `Warm Stone` (por defecto), `Cyber Obsidian` y `Nordic Slate` con refresco dinámico que preserva la legibilidad perfecta de tarjetas, textos y botones.
+- 🔀 **Atajos Rápidos de Productividad:**
+  - `Ctrl + M`: Alternar Modo Compacto (500x620) y Avanzado.
+  - `Ctrl + B`: Colapsar / Expandir barra lateral (Dashboard).
+  - `Ctrl + I`: Iniciar / Alternar transmisión.
+  - `Ctrl + R`: Refrescar dispositivos.
+  - `Ctrl + H`: Abrir Centro de Ayuda.
+  - `Ctrl + Q`: Salir con blindaje automático (`adb usb`).
 
 ---
 

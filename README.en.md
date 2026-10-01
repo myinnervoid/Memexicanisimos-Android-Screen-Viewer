@@ -1,7 +1,7 @@
-# 📱 MASV — Memexicanisimos Android Screen Viewer (v1.3)
+# 📱 MASV — Memexicanisimos Android Screen Viewer (v1.4)
 
 ![Open Source · Python · scrcpy](https://img.shields.io/badge/Open%20Source-Python%20%7C%20scrcpy-F59E0B?style=for-the-badge&logo=python&logoColor=white)
-![Version v1.3](https://img.shields.io/badge/Version-v1.3-EA580C?style=for-the-badge)
+![Version v1.4](https://img.shields.io/badge/Version-v1.4-EA580C?style=for-the-badge)
 ![MIT License](https://img.shields.io/badge/License-MIT-10B981?style=for-the-badge)
 ![Platforms](https://img.shields.io/badge/Platforms-Linux%20%7C%20Windows%20%7C%20macOS-D97706?style=for-the-badge)
 
@@ -15,27 +15,31 @@ Tailored for **content creators, streamers, photographers, gamers, and developer
 
 ---
 
-### 🚀 What's New in Version 1.3
+### 🚀 What's New in Version 1.4
 
-- 🎨 **Dynamic Color Theme Switcher:**
-  - `Warm Stone` (Default): Warm, comfortable dark tones engineered for long streaming and editing sessions.
-  - `Cyber Obsidian`: Gamer/OBS dark aesthetic with Neon Cyan accents (`#00F0FF`) and high contrast.
-  - `Nordic Slate`: Clean technical minimalism in Ice Blue and graphite.
-  - Hot-swappable live from the menu bar: `View` $\rightarrow$ `Color Theme`.
-- ⌨️ **Physical OTG Mode & UHID Emulation:**
-  - Native keyboard and mouse input forwarding using USB HID emulation (`--keyboard=uhid`, `--mouse=uhid`, `--otg`).
-  - Allows full physical keyboard/mouse control on the device even without video mirroring or with the display turned off.
-- 🌐 **Autonomous Reverse Tethering (`gnirehtet`):**
-  - Share your PC's internet connection with your Android phone over USB cable cleanly and stably.
-- 📦 **Universal 1-Click Installer & Uninstaller:**
-  - Fast 1-liner install command using `curl` with zero manual compilation.
-  - Persistent deployment to `~/.MASV/bin/` (you can delete the downloaded folder without breaking anything).
-  - GUI options under `File` $\rightarrow$ `📥 Install to System` and `🗑️ Uninstall`.
-- ❓ **Interactive Help Center & FAQ:**
-  - Built-in collapsible accordion guides in the Help tab (`Ctrl + H`).
-  - Documented troubleshooting for Offline devices, Android 10/EMUI restrictions, Trust Vault, and OBS Studio camera mode.
-- 🛡️ **Trusted Devices Vault & TCP/IP Lockdown:**
-  - Network whitelist to prevent unauthorized connections on public Wi-Fi networks and auto-shield with `adb usb` upon exit (`Ctrl + Q`).
+- 🛡️ **Frictionless Trusted Devices Vault:**
+  - Interactive "Trust and Remember" prompt that registers devices in the Vault with one click, eliminating repetitive Safe Mode warnings.
+- ⌨️ **Integrated OTG Mode (USB Hardware Control without Video):**
+  - Control your phone using your PC's keyboard and mouse via USB HID emulation (`--otg`).
+  - Does not open a video window, reducing host CPU usage to practically 0% while typing or navigating on your phone. Accessible directly from the main Quick-Cast Dashboard and `Device` menu.
+- 🌐 **USB Internet Sharing (Reverse Tethering via `gnirehtet`):**
+  - Share your PC's high-speed internet connection with your Android phone over USB when Wi-Fi or cellular data are unavailable. Integrated button in the Device tab.
+- 📱 **Robust Multi-Device Support (Up to 16 Phones):**
+  - Dynamic `PortPoolAllocator` (ports 27183 to 27199) supporting multiple concurrent Android devices in independent, labeled windows.
+- 🌐 **Full Internationalization (Español 🇲🇽 / English 🇺🇸):**
+  - Live language switcher under `View` $\rightarrow$ `Language / Idioma` and in the footer with 1-click assisted app restart. 100% bilingual documentation and FAQ.
+- ❓ **Refined Interactive FAQ & Help Center (19 Sections):**
+  - Fully synchronized mousewheel smooth scrolling across all elements.
+  - Fixed accordion expand/collapse toggling and complete bilingual parity.
+- 🎨 **Calibrated Themes & Contrast:**
+  - `Warm Stone` (Default), `Cyber Obsidian`, and `Nordic Slate` with dynamic redraws ensuring perfect contrast and readability.
+- 🔀 **Productivity Shortcuts:**
+  - `Ctrl + M`: Toggle Compact Mode (500x620) and Advanced Dashboard.
+  - `Ctrl + B`: Collapse / Expand sidebar (Dashboard).
+  - `Ctrl + I`: Start / Toggle streaming.
+  - `Ctrl + R`: Refresh devices.
+  - `Ctrl + H`: Open Help Center.
+  - `Ctrl + Q`: Exit with automatic lockdown (`adb usb`).
 
 ---
 

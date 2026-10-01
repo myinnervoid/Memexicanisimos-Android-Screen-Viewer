@@ -83,7 +83,8 @@ class UIBuilder:
         for icon, title, prof_name in [
             ("🎮", _("Juego"), "Juego Rápido"),
             ("🎙️", _("Stream"), "Stream OBS"),
-            ("📷", _("Webcam"), "Webcam HD")
+            ("📷", _("Webcam"), "Webcam HD"),
+            ("⌨️", _("OTG"), "Modo OTG (Teclado y Ratón USB)"),
         ]:
             pb = tk.Button(presets_row, text=f"{icon} {title}", bg=C["card2"], fg=C["text"],
                            font=FONT_SM, relief="flat", bd=0, padx=8, pady=5, cursor="hand2",
@@ -124,14 +125,21 @@ class UIBuilder:
 
         btn_start = tk.Button(hero_btn_row, text=_("▶  INICIAR TRANSMISIÓN"),
                               bg=C["blue"], fg="#FFFFFF", font=(FONT_FAMILY, 12, "bold"),
-                              relief="flat", bd=0, padx=24, pady=10, cursor="hand2",
+                              relief="flat", bd=0, padx=20, pady=10, cursor="hand2",
                               command=self.cb.get('toggle_scene'))
-        btn_start.pack(side="left", fill="x", expand=True, padx=(0, 10))
+        btn_start.pack(side="left", fill="x", expand=True, padx=(0, 8))
         Tooltip(btn_start, _("Lanzar transmisión con scrcpy (Ctrl+I)"))
+
+        btn_otg = tk.Button(hero_btn_row, text=_("⌨️  Modo OTG"),
+                            bg=C["card3"], fg=C["cyan"], font=(FONT_FAMILY, 10, "bold"),
+                            relief="flat", bd=0, padx=12, pady=10, cursor="hand2",
+                            command=self.cb.get('start_otg_mode'))
+        btn_otg.pack(side="left", padx=(0, 8))
+        Tooltip(btn_otg, _("Controlar teléfono con teclado y ratón sin abrir ventana de video (cero consumo CPU)."))
 
         btn_stop = tk.Button(hero_btn_row, text=_("■  Detener"),
                              bg=C["red"], fg="#FFFFFF", font=(FONT_FAMILY, 11, "bold"),
-                             relief="flat", bd=0, padx=18, pady=10, cursor="hand2",
+                             relief="flat", bd=0, padx=16, pady=10, cursor="hand2",
                              command=self.cb.get('stop_current'))
         btn_stop.pack(side="right")
         Tooltip(btn_stop, _("Detener la transmisión activa del dispositivo seleccionado."))
@@ -541,6 +549,15 @@ class UIBuilder:
         btn_lockdown.pack(side="right")
         Tooltip(btn_lockdown, "Revoca el puerto 5555 en el teléfono y lo devuelve a modo USB seguro.")
 
+        # Reverse Tethering (Compartir Internet de PC a Android por USB)
+        tether_r = tk.Frame(tcp_box, bg=C["card2"])
+        tether_r.pack(fill="x", pady=(6, 2))
+        btn_tether = tk.Button(tether_r, text=_("🌐 Compartir Internet (USB / Reverse Tethering)"), bg=C["card3"], fg=C["cyan"],
+                               font=FONT_SM, relief="flat", bd=0, padx=10, pady=4, cursor="hand2",
+                               command=self.cb.get('toggle_tethering'))
+        btn_tether.pack(side="left")
+        Tooltip(btn_tether, _("Comparte la conexión de internet de tu PC al teléfono mediante el cable USB (gnirehtet)."))
+
         # 3. v4l2loopback
         vf = _section(self.refs['dep_frame'], "📷  Webcam Virtual (v4l2loopback)", pady=(4, 12), padx=14)
         self.refs['v4l2_lbl'] = tk.Label(vf, text=_("Verificando módulo…"), bg=C["card"], fg=C["orange"], font=FONT_SM)
@@ -700,22 +717,21 @@ class UIBuilder:
         def _scroll(e): canvas.configure(scrollregion=canvas.bbox("all"))
         canvas.bind("<Configure>", _resize)
         inner.bind("<Configure>", _scroll)
-        bind_mousewheel(inner, canvas)
 
         def _add(title, build_fn):
-            item = AccordionItem(inner, title, build_fn)
+            item = AccordionItem(inner, _(title), build_fn, canvas_ref=canvas)
             item.pack(fill="x", padx=12, pady=3)
             self._faq_items.append(item)
 
         # ── 1. Inicio rápido ─────────────────────────────────────────
         def _faq_quickstart(f):
             steps = [
-                "1. Conecta tu teléfono Android a tu computadora con un cable USB de datos de buena calidad.",
-                "2. Activa la Depuración USB en tu Android (ver sección 2 abajo).",
-                "3. En la pantalla del teléfono, acepta la ventana emergente '¿Permitir depuración USB?'.",
-                "4. Ve a la sección 📱 Dispositivos y pulsa  🔄 Buscar dispositivos.",
-                "5. Selecciona tu teléfono de la lista detectada.",
-                "6. Ve a 🚀 Quick Cast (o Acciones) y pulsa  ▶ INICIAR TRANSMISIÓN."
+                _("1. Conecta tu teléfono Android a tu computadora con un cable USB de datos de buena calidad."),
+                _("2. Activa la Depuración USB en tu Android (ver sección 2 abajo)."),
+                _("3. En la pantalla del teléfono, acepta la ventana emergente '¿Permitir depuración USB?'."),
+                _("4. Ve a la sección 📱 Dispositivos y pulsa  🔄 Buscar dispositivos."),
+                _("5. Selecciona tu teléfono de la lista detectada."),
+                _("6. Ve a 🚀 Quick Cast (o Acciones) y pulsa  ▶ INICIAR TRANSMISIÓN.")
             ]
             for s in steps:
                 tk.Label(f, text=s, bg=C["bg"], fg=C["text2"], font=FONT_UI,
@@ -728,19 +744,19 @@ class UIBuilder:
             tk.Label(f, text=_("Paso 1 — Activa las Opciones de desarrollador:"),
                      bg=C["bg"], fg=C["indigo"], font=FONT_UI_B, anchor="w").pack(fill="x", padx=16, pady=(4, 2))
             for line in [
-                "   a. Abre Ajustes en tu teléfono.",
-                "   b. Ve a 'Acerca del teléfono' → 'Información de software'.",
-                "   c. Toca 7 veces seguidas sobre 'Número de compilación' (Build number).",
-                "   d. Aparecerá el mensaje: ¡Ahora eres desarrollador!"
+                _("   a. Abre Ajustes en tu teléfono."),
+                _("   b. Ve a 'Acerca del teléfono' → 'Información de software'."),
+                _("   c. Toca 7 veces seguidas sobre 'Número de compilación' (Build number)."),
+                _("   d. Aparecerá el mensaje: ¡Ahora eres desarrollador!")
             ]:
                 tk.Label(f, text=line, bg=C["bg"], fg=C["text2"], font=FONT_UI, anchor="w").pack(fill="x", padx=16, pady=1)
 
             tk.Label(f, text=_("Paso 2 — Activa la Depuración USB:"),
                      bg=C["bg"], fg=C["indigo"], font=FONT_UI_B, anchor="w").pack(fill="x", padx=16, pady=(8, 2))
             for line in [
-                "   a. Regresa a Ajustes → Sistema → Opciones para desarrolladores.",
-                "   b. Activa el interruptor 'Depuración USB'.",
-                "   c. Conecta el cable USB a tu PC y marca 'Permitir siempre desde esta computadora'."
+                _("   a. Regresa a Ajustes → Sistema → Opciones para desarrolladores."),
+                _("   b. Activa el interruptor 'Depuración USB'."),
+                _("   c. Conecta el cable USB a tu PC y marca 'Permitir siempre desde esta computadora'.")
             ]:
                 tk.Label(f, text=line, bg=C["bg"], fg=C["text2"], font=FONT_UI, anchor="w").pack(fill="x", padx=16, pady=1)
 
@@ -761,10 +777,10 @@ class UIBuilder:
         # ── 4. Dependencias ───────────────────────────────────────────
         def _faq_deps(f):
             for os_name, cmds in [
-                ("🐧 Linux (Debian / Ubuntu / Mint):", ["sudo apt update", "sudo apt install adb scrcpy"]),
-                ("🐧 Linux (Arch / Manjaro):", ["sudo pacman -S scrcpy android-tools"]),
-                ("🪟 Windows (winget):", ["winget install Genymobile.scrcpy"]),
-                ("🍎 macOS (Homebrew):", ["brew install scrcpy android-platform-tools"]),
+                (_("🐧 Linux (Debian / Ubuntu / Mint):"), ["sudo apt update", "sudo apt install adb scrcpy"]),
+                (_("🐧 Linux (Arch / Manjaro):"), ["sudo pacman -S scrcpy android-tools"]),
+                (_("🪟 Windows (winget):"), ["winget install Genymobile.scrcpy"]),
+                (_("🍎 macOS (Homebrew):"), ["brew install scrcpy android-platform-tools"]),
             ]:
                 tk.Label(f, text=os_name, bg=C["bg"], fg=C["indigo"], font=FONT_UI_B).pack(anchor="w", padx=16, pady=(6, 2))
                 for c in cmds: _cmd_chip(f, c, root_ref)
@@ -774,11 +790,12 @@ class UIBuilder:
         # ── 5. WiFi TCP/IP ────────────────────────────────────────────
         def _faq_wifi(f):
             steps = [
-                "1. Conecta el teléfono por USB una primera vez para autorizar.",
-                "2. Asegúrate de que el teléfono y la PC estén conectados a la MISMA red Wi-Fi local.",
-                "3. En la sección 📱 Dispositivos → pulsa 'Habilitar TCP/IP (USB→WiFi)'.",
-                "4. Pulsa '📡 Obtener IP' y a continuación pulsa 'Conectar'.",
-                "5. ¡Ya puedes desconectar el cable USB y transmitir de forma inalámbrica!"
+                _("1. Conecta el teléfono por USB una primera vez para autorizar la huella ADB."),
+                _("2. Asegúrate de que el teléfono y la PC estén conectados a la MISMA red Wi-Fi local."),
+                _("3. En la sección 📱 Dispositivos → pulsa 'Habilitar TCP/IP (USB→WiFi)'."),
+                _("4. Pulsa '📡 Obtener IP' y a continuación pulsa 'Conectar'."),
+                _("5. ¡Ya puedes desconectar el cable USB y transmitir de forma inalámbrica!"),
+                _("6. Importante: Al iniciar sesión por primera vez, pulsa '🛡️ Confiar y Recordar' para guardarlo en la Bóveda de Confianza y evitar que vuelva a aparecer la advertencia de seguridad en cada inicio.")
             ]
             for s in steps:
                 tk.Label(f, text=s, bg=C["bg"], fg=C["text2"], font=FONT_UI,
@@ -789,12 +806,12 @@ class UIBuilder:
         # ── 6. Emparejamiento Seguro Android 11+ ──────────────────────
         def _faq_pair(f):
             steps = [
-                "En Android 11 y versiones superiores no necesitas conectar ningún cable para iniciar Wi-Fi:",
-                "1. En el teléfono: Ajustes → Opciones de desarrollador → 'Depuración inalámbrica' (activar).",
-                "2. Toca sobre 'Vincular dispositivo con código de vinculación'.",
-                "3. El teléfono mostrará una IP con un puerto efímero (ej. 192.168.1.50:38291) y un código PIN de 6 dígitos.",
-                "4. En MASV, ingresa esa IP:Puerto y el código de 6 dígitos en la sección 'Emparejamiento Seguro'.",
-                "5. Pulsa '🔒 Emparejar (`adb pair`)' y la conexión quedará autenticada con cifrado TLS."
+                _("En Android 11 y versiones superiores no necesitas conectar ningún cable para iniciar Wi-Fi:"),
+                _("1. En el teléfono: Ajustes → Opciones de desarrollador → 'Depuración inalámbrica' (activar)."),
+                _("2. Toca sobre 'Vincular dispositivo con código de vinculación'."),
+                _("3. El teléfono mostrará una IP con un puerto efímero (ej. 192.168.1.50:38291) y un código PIN de 6 dígitos."),
+                _("4. En MASV, ingresa esa IP:Puerto y el código de 6 dígitos en la sección 'Emparejamiento Seguro'."),
+                _("5. Pulsa '🔒 Emparejar (`adb pair`)' y la conexión quedará autenticada con cifrado TLS.")
             ]
             for s in steps:
                 tk.Label(f, text=s, bg=C["bg"], fg=C["text2"], font=FONT_UI,
@@ -805,11 +822,11 @@ class UIBuilder:
         # ── 7. Webcam en OBS ──────────────────────────────────────────
         def _faq_obs(f):
             steps = [
-                "1. En MASV, selecciona el perfil preestablecido 'Webcam HD' o 'Cámara Trasera'.",
-                "2. En Linux: pulsa 'Cargar módulo' en la sección Webcam Virtual para activar v4l2loopback.",
-                "3. Pulsa 'Enrutar cámara → /dev/video9'.",
-                "4. Abre OBS Studio → Fuentes → Añadir '+' → 'Dispositivo de captura de video (V4L2)'.",
-                "5. Selecciona el dispositivo '/dev/video9' y disfruta de tu cámara de celular en 1080p con cero latencia."
+                _("1. En MASV, selecciona el perfil preestablecido 'Webcam HD' o 'Cámara Trasera'."),
+                _("2. En Linux: pulsa 'Cargar módulo' en la sección Webcam Virtual para activar v4l2loopback."),
+                _("3. Pulsa 'Enrutar cámara → /dev/video9'."),
+                _("4. Abre OBS Studio → Fuentes → Añadir '+' → 'Dispositivo de captura de video (V4L2)'."),
+                _("5. Selecciona el dispositivo '/dev/video9' y disfruta de tu cámara de celular en 1080p con cero latencia.")
             ]
             for s in steps:
                 tk.Label(f, text=s, bg=C["bg"], fg=C["text2"], font=FONT_UI,
@@ -820,11 +837,11 @@ class UIBuilder:
         # ── 8. Pantalla apagada ───────────────────────────────────────
         def _faq_screen_off(f):
             steps = [
-                "• scrcpy permite transmitir la pantalla manteniendo el display físico del teléfono totalmente apagado:",
-                "  - Ahorra hasta un 80% de batería en sesiones largas de streaming.",
-                "  - Evita que el dispositivo se caliente.",
-                "• Puedes activar esta opción creando o editando un perfil en ⚙️ Perfiles marcando 'Apagar pantalla del dispositivo (--turn-screen-off)'.",
-                "• Para teléfonos Huawei / Honor / EMUI donde scrcpy no apaga la pantalla directamente, activa la casilla de compatibilidad EMUI (Keyevent 26)."
+                _("• scrcpy permite transmitir la pantalla manteniendo el display físico del teléfono totalmente apagado:"),
+                _("  - Ahorra hasta un 80% de batería en sesiones largas de streaming."),
+                _("  - Evita que el dispositivo se caliente."),
+                _("• Puedes activar esta opción creando o editando un perfil en ⚙️ Perfiles marcando 'Apagar pantalla del dispositivo (--turn-screen-off)'."),
+                _("• Para teléfonos Huawei / Honor / EMUI donde scrcpy no apaga la pantalla directamente, activa la casilla de compatibilidad EMUI (Keyevent 26).")
             ]
             for s in steps:
                 tk.Label(f, text=s, bg=C["bg"], fg=C["text2"], font=FONT_UI,
@@ -836,14 +853,14 @@ class UIBuilder:
         def _faq_shortcuts(f):
             tk.Label(f, text=_("Atajos en la ventana de scrcpy:"), bg=C["bg"], fg=C["indigo"], font=FONT_UI_B).pack(anchor="w", padx=16, pady=(4, 2))
             shortcuts_scrcpy = [
-                ("Alt + f", "Pantalla completa"),
-                ("Alt + g", "Ajustar ventana al tamaño original (1:1)"),
-                ("Alt + h", "Botón Inicio (Home)"),
-                ("Alt + b", "Botón Atrás (Back)"),
-                ("Alt + s", "Selector de aplicaciones recientes"),
-                ("Alt + p", "Encender / Apagar pantalla del dispositivo"),
-                ("Alt + r", "Rotar orientación de pantalla"),
-                ("Alt + ↑ / ↓", "Subir / Bajar volumen"),
+                ("Alt + f", _("Pantalla completa")),
+                ("Alt + g", _("Ajustar ventana al tamaño original (1:1)")),
+                ("Alt + h", _("Botón Inicio (Home)")),
+                ("Alt + b", _("Botón Atrás (Back)")),
+                ("Alt + s", _("Selector de aplicaciones recientes")),
+                ("Alt + p", _("Encender / Apagar pantalla del dispositivo")),
+                ("Alt + r", _("Rotar orientación de pantalla")),
+                ("Alt + ↑ / ↓", _("Subir / Bajar volumen")),
             ]
             for sc, desc in shortcuts_scrcpy:
                 row = tk.Frame(f, bg=C["bg"])
@@ -853,11 +870,12 @@ class UIBuilder:
 
             tk.Label(f, text=_("Atajos en MASV:"), bg=C["bg"], fg=C["indigo"], font=FONT_UI_B).pack(anchor="w", padx=16, pady=(8, 2))
             shortcuts_masv = [
-                ("Ctrl + I", "Iniciar o alternar transmisión de pantalla"),
-                ("Ctrl + R", "Refrescar y escanear dispositivos"),
-                ("Ctrl + H", "Abrir este Centro de Ayuda"),
-                ("Ctrl + B", "Colapsar / Expandir barra lateral (Dashboard)"),
-                ("Ctrl + Q", "Salir con blindaje automático"),
+                ("Ctrl + I", _("Iniciar o alternar transmisión de pantalla")),
+                ("Ctrl + R", _("Refrescar y escanear dispositivos")),
+                ("Ctrl + H", _("Abrir este Centro de Ayuda")),
+                ("Ctrl + B", _("Colapsar / Expandir barra lateral (Dashboard)")),
+                ("Ctrl + M", _("Alternar Modo Compacto y Avanzado")),
+                ("Ctrl + Q", _("Salir con blindaje automático")),
             ]
             for sc, desc in shortcuts_masv:
                 row = tk.Frame(f, bg=C["bg"])
@@ -870,14 +888,14 @@ class UIBuilder:
         # ── 10. Solución de problemas ─────────────────────────────────
         def _faq_troubleshooting(f):
             tips = [
-                ("Pantalla en negro o scrcpy se cierra de inmediato:",
-                 "Prueba cambiar el códec de video en ⚙️ Perfiles a H.264 o baja la resolución a 1080p o 720p."),
-                ("Audio no se escucha en PC:",
-                 "La transmisión nativa de audio de scrcpy requiere Android 11 o superior. En Android 10 o inferior selecciona 'mic' como fuente de audio."),
-                ("Lag o retraso en Wi-Fi:",
-                 "Conecta tu PC por cable Ethernet al router y usa la banda Wi-Fi de 5 GHz en el teléfono con bitrate a 8M."),
-                ("El puerto 5555 sigue abierto en el teléfono:",
-                 "Pulsa el botón '🛡️ Blindar TCP/IP' o '🔒 Blindar Red' en MASV para ejecutar `adb usb` y cerrar el puerto inmediatamente.")
+                (_("Pantalla en negro o scrcpy se cierra de inmediato:"),
+                 _("Prueba cambiar el códec de video en ⚙️ Perfiles a H.264 o baja la resolución a 1080p o 720p.")),
+                (_("Audio no se escucha en PC:"),
+                 _("La transmisión nativa de audio de scrcpy requiere Android 11 o superior. En Android 10 o inferior selecciona 'mic' como fuente de audio.")),
+                (_("Lag o retraso en Wi-Fi:"),
+                 _("Conecta tu PC por cable Ethernet al router y usa la banda Wi-Fi de 5 GHz en el teléfono con bitrate a 8M.")),
+                (_("El puerto 5555 sigue abierto en el teléfono:"),
+                 _("Pulsa el botón '🛡️ Blindar TCP/IP' o '🔒 Blindar Red' en MASV para ejecutar `adb usb` y cerrar el puerto inmediatamente."))
             ]
             for title, desc in tips:
                 tk.Label(f, text=f"• {title}", bg=C["bg"], fg=C["orange"], font=FONT_UI_B, anchor="w").pack(fill="x", padx=16, pady=(4, 1))
@@ -894,7 +912,7 @@ class UIBuilder:
             for desc in tips:
                 tk.Label(f, text=f"• {desc}", bg=C["bg"], fg=C["text2"], font=FONT_UI, anchor="w", wraplength=680, justify="left").pack(fill="x", padx=16, pady=2)
 
-        _add(_("🔴 Dispositivo en estado Offline"), _faq_offline)
+        _add("🔴  11. Dispositivo en estado Offline", _faq_offline)
 
         # ── 12. Huawei Y9 y Android 10 ───────────────────────────────
         def _faq_huawei(f):
@@ -905,18 +923,25 @@ class UIBuilder:
             for desc in tips:
                 tk.Label(f, text=f"• {desc}", bg=C["bg"], fg=C["text2"], font=FONT_UI, anchor="w", wraplength=680, justify="left").pack(fill="x", padx=16, pady=2)
 
-        _add(_("📱 Huawei Y9 y Android 10 (Restricciones y Optimización)"), _faq_huawei)
+        _add("📱  12. Huawei Y9 y Android 10 (Restricciones y Optimización)", _faq_huawei)
 
         # ── 13. Bóveda y Modo Seguro ─────────────────────────────────
         def _faq_vault(f):
             tips = [
-                _("Registrar dispositivos confiables previene conexiones no autorizadas o accidentales en redes públicas Wi-Fi."),
-                _("Usa el blindaje de red (Modo Seguro) para revocar el puerto 5555 (adb usb), cerrando así el acceso remoto al teléfono.")
+                (_("¿Por qué aparece la advertencia de seguridad al iniciar sesión?"),
+                 _("En redes Wi-Fi locales o públicas compartidas, cualquier dispositivo podría escanear puertos e intentar conectarse al puerto ADB 5555 abierto de tu teléfono. El Modo Seguro de MASV verifica la huella y serial del dispositivo antes de iniciar la transmisión para garantizar que solo tú tengas acceso a tu teléfono.")),
+                (_("¿Cómo desaparecer la advertencia de forma definitiva?"),
+                 _("Al iniciar la sesión, cuando aparezca el diálogo de seguridad, pulsa '🛡️ Confiar y Recordar'. MASV guardará la identidad del dispositivo en tu Bóveda local (~/.config/masv/config.json). Una vez registrado como Confiable, MASV iniciará todas las transmisiones futuras de forma instantánea sin mostrar advertencias ni ventanas emergentes.")),
+                (_("Gestión y Administración de la Bóveda:"),
+                 _("Puedes abrir en cualquier momento el menú superior 'Dispositivo' → '🛡️ Bóveda de Dispositivos Confiables' para inspeccionar tus teléfonos autorizados, asignarles alias amigables (ej. 'Mi Celular Personal') o revocar la confianza a dispositivos antiguos.")),
+                (_("Blindaje de Red (Cierre de Puertos):"),
+                 _("Usa el blindaje de red (Modo Seguro) para revocar el puerto 5555 ejecutando `adb usb`, cerrando de inmediato el acceso remoto inalámbrico al teléfono."))
             ]
-            for desc in tips:
-                tk.Label(f, text=f"• {desc}", bg=C["bg"], fg=C["text2"], font=FONT_UI, anchor="w", wraplength=680, justify="left").pack(fill="x", padx=16, pady=2)
+            for title, desc in tips:
+                tk.Label(f, text=f"• {title}", bg=C["bg"], fg=C["indigo"], font=FONT_UI_B, anchor="w").pack(fill="x", padx=16, pady=(4, 1))
+                tk.Label(f, text=f"  {desc}", bg=C["bg"], fg=C["text2"], font=FONT_UI, anchor="w", wraplength=680, justify="left").pack(fill="x", padx=16, pady=(0, 4))
 
-        _add(_("🛡️ Bóveda de Dispositivos Confiables y Modo Seguro"), _faq_vault)
+        _add("🛡️  13. Importancia de la Bóveda de Dispositivos Confiables y Modo Seguro", _faq_vault)
 
         # ── 14. Modo Estudio Fotográfico ─────────────────────────────
         def _faq_studio(f):
@@ -927,7 +952,7 @@ class UIBuilder:
             for desc in tips:
                 tk.Label(f, text=f"• {desc}", bg=C["bg"], fg=C["text2"], font=FONT_UI, anchor="w", wraplength=680, justify="left").pack(fill="x", padx=16, pady=2)
 
-        _add(_("📷 Modo Estudio Fotográfico & Clean Camera Feed"), _faq_studio)
+        _add("📷  14. Modo Estudio Fotográfico & Clean Camera Feed", _faq_studio)
 
         # ── 15. Cierre Limpio vs Bandeja ─────────────────────────────
         def _faq_exit(f):
@@ -938,4 +963,72 @@ class UIBuilder:
             for desc in tips:
                 tk.Label(f, text=f"• {desc}", bg=C["bg"], fg=C["text2"], font=FONT_UI, anchor="w", wraplength=680, justify="left").pack(fill="x", padx=16, pady=2)
 
-        _add(_("🚪 Cierre Limpio vs. Minimizar a la Bandeja"), _faq_exit)
+        _add("🚪  15. Cierre Limpio vs. Minimizar a la Bandeja", _faq_exit)
+
+        # ── 16. Multidispositivo ──────────────────────────────────────
+        def _faq_multidev(f):
+            tips = [
+                (_("¿Cuántos dispositivos soporta MASV simultáneamente?"),
+                 _("MASV cuenta con un gestor dinámico de puertos (PortPoolAllocator) en el rango 27183 a 27199, lo que permite conectar y transmitir hasta 16 teléfonos Android al mismo tiempo en ventanas totalmente independientes.")),
+                (_("¿Cómo se distribuyen las ventanas?"),
+                 _("Cada dispositivo corre en su propia ventana individual de scrcpy con título identificador (ej: 'MASV: vivo V2314'), permitiéndote organizarlas libremente en tu monitor, acomodarlas en mosaico o enviarlas a monitores secundarios.")),
+                (_("Rendimiento recomendado:"),
+                 _("En equipos de escritorio con procesadores como el Intel Core i7-8700T, se recomienda mantener de 2 a 4 dispositivos en paralelo a 1080p60 fps para garantizar cero latencia y evitar sobrecalentamiento del procesador."))
+            ]
+            for title, desc in tips:
+                tk.Label(f, text=f"• {title}", bg=C["bg"], fg=C["indigo"], font=FONT_UI_B, anchor="w").pack(fill="x", padx=16, pady=(4, 1))
+                tk.Label(f, text=f"  {desc}", bg=C["bg"], fg=C["text2"], font=FONT_UI, anchor="w", wraplength=680, justify="left").pack(fill="x", padx=16, pady=(0, 4))
+
+        _add("📱  16. Soporte Multidispositivo: ¿Cuántos teléfonos puedo conectar a la vez?", _faq_multidev)
+
+        # ── 17. Modo OTG ──────────────────────────────────────────────
+        def _faq_otg(f):
+            tips = [
+                (_("¿Qué es el Modo OTG?"),
+                 _("El Modo OTG (On-The-Go) aprovecha la capacidad HID de scrcpy (--otg) para conectar el teclado y ratón de tu PC directamente como periféricos físicos de hardware en tu teléfono Android.")),
+                (_("¿Abre ventana de video en la pantalla de la PC?"),
+                 _("NO. En Modo OTG no se abre ninguna ventana de video en tu computadora. La pantalla del teléfono permanece visible para ti físicamente y respondiendo directamente a tus teclas y clics, con un consumo de CPU prácticamente del 0% en la computadora.")),
+                (_("¿Cuándo es útil el Modo OTG?"),
+                 _("Es ideal para responder mensajes largos de WhatsApp, redactar documentos o jugar con teclado físico mientras tienes tu celular colocado en un soporte sobre tu escritorio."))
+            ]
+            for title, desc in tips:
+                tk.Label(f, text=f"• {title}", bg=C["bg"], fg=C["indigo"], font=FONT_UI_B, anchor="w").pack(fill="x", padx=16, pady=(4, 1))
+                tk.Label(f, text=f"  {desc}", bg=C["bg"], fg=C["text2"], font=FONT_UI, anchor="w", wraplength=680, justify="left").pack(fill="x", padx=16, pady=(0, 4))
+
+        _add("⌨️  17. Modo OTG (Control por Teclado y Ratón sin Pantalla)", _faq_otg)
+
+        # ── 18. Reverse Tethering ─────────────────────────────────────
+        def _faq_tether(f):
+            tips = [
+                (_("¿Qué es el Reverse Tethering (Compartir Internet)?"),
+                 _("Permite que tu teléfono Android navegue por internet utilizando la conexión cableada o Wi-Fi de tu computadora a través del cable USB mediante la herramienta `gnirehtet`.")),
+                (_("¿Cuándo es necesario?"),
+                 _("Si tu teléfono no tiene SIM de datos, está fuera de alcance Wi-Fi o se encuentra en una zona con mala cobertura, este modo le provee conectividad de alta velocidad al instante a través del cable.")),
+                (_("¿Cómo se activa en MASV?"),
+                 _("Conecta el teléfono por USB y haz clic en el botón '🌐 Compartir Internet (USB)' dentro de la pestaña Dispositivo o en el menú superior Dispositivo. Si ya está activo, al pulsar el botón nuevamente se detiene el túnel."))
+            ]
+            for title, desc in tips:
+                tk.Label(f, text=f"• {title}", bg=C["bg"], fg=C["indigo"], font=FONT_UI_B, anchor="w").pack(fill="x", padx=16, pady=(4, 1))
+                tk.Label(f, text=f"  {desc}", bg=C["bg"], fg=C["text2"], font=FONT_UI, anchor="w", wraplength=680, justify="left").pack(fill="x", padx=16, pady=(0, 4))
+
+        _add("🌐  18. Compartir Internet de PC a Teléfono (Reverse Tethering)", _faq_tether)
+
+        # ── 19. Temas Visuales y Contraste ────────────────────────────
+        def _faq_themes(f):
+            tips = [
+                (_("Paletas disponibles:"),
+                 _("• Warm Stone (Por defecto): Tonos neutros orgánicos y cálidos inspirados en piedra de cantera.\n• Cyber Obsidian: Modo oscuro profundo de alto contraste.\n• Nordic Slate: Estilo nórdico frío y minimalista.")),
+                (_("Cómo cambiar el tema:"),
+                 _("Ve al menú superior 'Ver' → 'Tema Visual' y selecciona el de tu agrado. MASV te ofrecerá reiniciar o refrescar la interfaz para que todos los bordes, botones y textos mantengan un contraste impecable."))
+            ]
+            for title, desc in tips:
+                tk.Label(f, text=f"• {title}", bg=C["bg"], fg=C["indigo"], font=FONT_UI_B, anchor="w").pack(fill="x", padx=16, pady=(4, 1))
+                tk.Label(f, text=f"  {desc}", bg=C["bg"], fg=C["text2"], font=FONT_UI, anchor="w", wraplength=680, justify="left").pack(fill="x", padx=16, pady=(0, 4))
+
+        _add("🎨  19. Temas Visuales y Contraste de Interfaz", _faq_themes)
+
+        # Enlazar scroll a todos los elementos creados y actualizar scrollregion
+        canvas.update_idletasks()
+        canvas.configure(scrollregion=canvas.bbox("all"))
+        bind_mousewheel(inner, canvas)
+        bind_mousewheel(canvas, canvas)

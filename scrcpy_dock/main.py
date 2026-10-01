@@ -1,5 +1,5 @@
 import tkinter as tk
-from .i18n import _
+from .i18n import _, set_language, get_language
 from tkinter import ttk, messagebox, filedialog
 import queue
 import time
@@ -19,7 +19,7 @@ from typing import Optional, List, Dict, Any, Tuple
 from .utils import C, FONT_UI, FONT_UI_B, FONT_SM, FONT_LG, FONT_MONO, FONT_FAMILY, SingleInstance, _extract_serial, parse_ip_port, log_msg, LOG_FILE, save_config, apply_theme
 from .context import AppContext
 from .ui_tabs import UIBuilder
-from .ui_widgets import _recolor, Toast, Tooltip, DeviceTrustModal, SafeActionConfirmModal, TrustVaultDialog
+from .ui_widgets import _recolor, Toast, Tooltip, DeviceTrustModal, SafeActionConfirmModal, TrustVaultDialog, TrustPromptModal
 from .security import SecurityManager
 from .state import UIState
 from .errors import ErrorCode, get_error_detail
@@ -38,6 +38,10 @@ class ScrcpyDockApp:
 
         self.ctx = AppContext(root)
 
+        # Load and apply language from config
+        saved_lang = self.ctx.cfg.get("language", "es")
+        set_language(saved_lang)
+
         # Load and apply theme from config
         saved_theme = self.ctx.cfg.get("theme", "warm_stone")
         apply_theme(saved_theme)
@@ -47,7 +51,7 @@ class ScrcpyDockApp:
         self._build_menu_bar()
 
         # ── Restaurar geometría guardada ───────────────────────
-        geo = self.ctx.cfg.get(_("window_geometry"), _("860x680"))
+        geo = self.ctx.cfg.get("window_geometry", "860x680")
         self.root.geometry(geo)
         if self.ctx.cfg.get("window_state") == "zoomed":
             try: self.root.state("zoomed")
@@ -94,6 +98,8 @@ class ScrcpyDockApp:
             'sess_context_menu':self._sess_context_menu,
             'send_keyevent':    self._send_keyevent,
             'install_apk':       self._install_apk,
+            'toggle_tethering':  self._toggle_tethering,
+            'start_otg_mode':    self._start_otg_mode,
 
             # Callbacks de Seguridad & Bóveda de Confianza
             'open_trust_vault':        self._open_trust_vault,
@@ -155,6 +161,11 @@ class ScrcpyDockApp:
         theme_menu.add_command(label="Nordic Slate (Minimal)", command=lambda: self._change_theme("nordic_slate"))
         view_menu.add_cascade(label=_("Tema Visual"), menu=theme_menu)
 
+        lang_menu = tk.Menu(view_menu, tearoff=0, bg=C["card"], fg=C["text"], activebackground=C["blue"], activeforeground="#FFF")
+        lang_menu.add_command(label="Español (🇲🇽)", command=lambda: self._select_language("es"))
+        lang_menu.add_command(label="English (🇺🇸)", command=lambda: self._select_language("en"))
+        view_menu.add_cascade(label=_("Idioma / Language"), menu=lang_menu)
+
         menubar.add_cascade(label=_("Ver"), menu=view_menu)
 
         dev_menu = tk.Menu(menubar, tearoff=0, bg=C["card"], fg=C["text"], activebackground=C["blue"], activeforeground="#FFF")
@@ -164,48 +175,80 @@ class ScrcpyDockApp:
         dev_menu.add_command(label=_("🛡️ Blindar TCP/IP (Cerrar puerto 5555)"), command=self._lockdown_tcpip)
         dev_menu.add_command(label=_("📦 Instalar APK en Teléfono"), command=self._install_apk)
         dev_menu.add_command(label=_("📷 Configurar Webcam Virtual (v4l2)"), command=self._setup_v4l2)
+        dev_menu.add_separator()
+        dev_menu.add_command(label=_("⌨️ Modo OTG (Control por Teclado/Ratón USB)"), command=self._start_otg_mode)
+        dev_menu.add_command(label=_("🌐 Compartir Internet (Reverse Tethering)"), command=self._toggle_tethering)
         menubar.add_cascade(label=_("Dispositivo"), menu=dev_menu)
 
         help_menu = tk.Menu(menubar, tearoff=0, bg=C["card"], fg=C["text"], activebackground=C["blue"], activeforeground="#FFF")
         help_menu.add_command(label=_("📖 Guía de Depuración USB"), command=self._go_to_help_usb, accelerator="Ctrl+H")
         help_menu.add_command(label=_("💡 Ver Asistente de Inicio (Onboarding)"), command=self._show_onboarding)
-        help_menu.add_command(label=_("ℹ️ Acerca de MASV v1.3"), command=lambda: messagebox.showinfo(APP_NAME, "MASV v1.3 — Memexicanisimos Android Screen Viewer\n\nHerramienta nativa de transmisión y control de pantalla para Android.\nDesarrollada con Python, Tkinter y el núcleo de scrcpy."))
+        help_menu.add_command(label=_("ℹ️ Acerca de MASV v1.4"), command=lambda: messagebox.showinfo(APP_NAME, "MASV v1.4 — Memexicanisimos Android Screen Viewer\n\nHerramienta nativa de transmisión y control de pantalla para Android.\nDesarrollada con Python, Tkinter y el núcleo de scrcpy."))
         menubar.add_cascade(label=_("Ayuda"), menu=help_menu)
 
         self.root.config(menu=menubar)
 
+    def _select_language(self, lang_code: str):
+        """Cambia el idioma de la aplicación y ofrece reinicio inmediato."""
+        if get_language() == lang_code:
+            return
+        set_language(lang_code)
+        self.ctx.cfg["language"] = lang_code
+        save_config(self.ctx.cfg)
+        if messagebox.askyesno(
+            _("Cambiar Idioma"),
+            _("El idioma se ha guardado exitosamente.\n\n¿Deseas reiniciar MASV ahora para aplicar los cambios?")
+        ):
+            self._restart_app()
+        else:
+            Toast(self.root, _("El nuevo idioma se aplicará la próxima vez que inicies MASV."), "info")
+
+    def _restart_app(self):
+        """Reinicia limpiamente el proceso de MASV liberando instancias y sesiones previas."""
+        try:
+            self.ctx.session_mgr.stop_all()
+        except Exception:
+            pass
+        if self.single_instance:
+            try:
+                self.single_instance.release()
+            except Exception:
+                pass
+        try:
+            self.root.destroy()
+        except Exception:
+            pass
+        is_frozen = getattr(sys, 'frozen', False)
+        exe = sys.executable
+        if is_frozen:
+            os.execl(exe, exe, *sys.argv[1:])
+        else:
+            os.execl(exe, exe, *sys.argv)
 
     def _change_theme(self, theme_name: str):
         self.ctx.cfg["theme"] = theme_name
         save_config(self.ctx.cfg)
         apply_theme(theme_name)
-        self._setup_styles()
-        self.root.config(bg=C["bg"])
-
-        # Function to deeply recolor all tk widgets
-        def _deep_recolor(widget):
-            cls_name = widget.winfo_class()
-
-            try:
-                if cls_name in ('Frame', 'Toplevel', 'Tk'):
-                    widget.config(bg=C["bg"])
-                elif cls_name == 'Label':
-                    widget.config(bg=C["bg"], fg=C["text"])
-                elif cls_name == 'Button':
-                    widget.config(bg=C["card"], fg=C["text"])
-                elif cls_name == 'Menu':
-                    widget.config(bg=C["card"], fg=C["text"], activebackground=C["blue"], activeforeground="#FFF")
-            except Exception:
-                pass
-
-            for child in widget.winfo_children():
-                _deep_recolor(child)
-
-        # Actually call the recolor function
-        _deep_recolor(self.root)
-
-        # Notify state update to redraw any specific colored widgets
-        self.ctx.state_machine.transition_to(self.ctx.state_machine.current_state, self.ctx.state_machine.message, self.ctx.state_machine.error_code)
+        if messagebox.askyesno(
+            _("Cambiar Tema"),
+            _("Tema guardado exitosamente.\n\n¿Deseas reiniciar MASV ahora para aplicar todos los contrastes a la perfección?")
+        ):
+            self._restart_app()
+        else:
+            self._setup_styles()
+            self.root.config(bg=C["bg"])
+            if hasattr(self, '_tab_frames'):
+                for tid, frame in self._tab_frames.items():
+                    if tid == "quickcast": self.ui.build_simple_view(frame)
+                    elif tid == "actions": self.ui.build_tab_actions(frame)
+                    elif tid == "device": self.ui.build_tab_device(frame)
+                    elif tid == "controls": self.ui.build_tab_controls(frame)
+                    elif tid == "profiles": self.ui.build_tab_profile(frame)
+                    elif tid == "console": self.ui.build_tab_console(frame)
+                    elif tid == "help": self.ui.build_tab_help(frame)
+            active_tid = getattr(self, 'active_tab_id', 'quickcast') or "quickcast"
+            self._select_tab(active_tid)
+            Toast(self.root, f"Tema aplicado: {theme_name}", "success")
 
     def _install_to_system(self):
         from .services.installer_service import InstallerService
@@ -437,21 +480,18 @@ class ScrcpyDockApp:
         self._footer_shortcuts_lbl.pack(side="left", padx=6)
 
         # Language switcher
-        from .i18n import get_language, set_language
         lang_btn = tk.Button(bar, text="🇺🇸" if get_language() == "es" else "🇲🇽",
                              bg=C["card2"], fg=C["text"], bd=0, relief="flat", cursor="hand2", font=FONT_SM)
         lang_btn.pack(side="right", padx=(4, 12))
+        Tooltip(lang_btn, _("Cambiar idioma (Español / English)"))
 
         def _toggle_language():
             new_lang = "en" if get_language() == "es" else "es"
-            set_language(new_lang)
-            self.ctx.cfg["language"] = new_lang
-            save_config(self.ctx.cfg)
-            messagebox.showinfo(_("Reinicio requerido"), _("Por favor, reinicia la aplicación para aplicar los cambios de idioma."))
+            self._select_language(new_lang)
 
         lang_btn.config(command=_toggle_language)
 
-        tk.Label(bar, text="v1.3", bg=C["card2"], fg=C["muted"], font=FONT_SM).pack(side="right", padx=4)
+        tk.Label(bar, text="v1.4", bg=C["card2"], fg=C["muted"], font=FONT_SM).pack(side="right", padx=4)
 
         if 'profile_listbox' in self.ui.refs:
             self.ui.refs['profile_listbox'].bind("<<ListboxSelect>>", self._on_profile_listbox_sel)
@@ -1321,6 +1361,64 @@ class ScrcpyDockApp:
         self._set_status(f"Perfil activo: {name}", C["cyan"])
 
     # ── Actions Tab ───────────────────────────────────────────────────
+    def _start_otg_mode(self):
+        """Inicia una sesión de control USB directo por hardware (HID) con teclado y ratón sin ventana de video."""
+        serial = self.ctx.active_device_serial
+        if not serial:
+            messagebox.showwarning(_("Sin dispositivo"), _("Selecciona un dispositivo en la pestaña Dispositivo."))
+            self._nb.select(2)
+            return
+
+        if self.ctx.security_mgr.is_safe_mode_enabled and not self.ctx.security_mgr.is_trusted_device(serial):
+            alias = self.ctx.security_mgr.get_device_alias(serial)
+            model = self.ctx.device_mgr.get_device_model(serial) or "Android"
+            modal = TrustPromptModal(self.root, serial, model, alias, self.ctx.security_mgr, self.ctx.cfg)
+            if not modal.result or modal.result == "cancel":
+                return
+            if modal.result == "trust":
+                save_config(self.ctx.cfg)
+                self._on_dev_select()
+
+        otg_cfg = {
+            "extra_args": "--otg",
+            "audio_source": "none",
+            "turn_screen_off": False,
+            "stay_awake": True
+        }
+        res = self.ctx.session_mgr.start_scene(
+            serial, "Modo OTG (HID)", otg_cfg,
+            lambda: Toast(self.root, _("Modo OTG activo: Teclado y Ratón PC conectados al teléfono."), "success")
+        )
+        if not res.success:
+            messagebox.showerror(_("Error"), res.message)
+        else:
+            self._refresh_table()
+
+    def _toggle_tethering(self):
+        """Activa o desactiva el túnel de internet inverso (Reverse Tethering) mediante gnirehtet."""
+        serial = self.ctx.active_device_serial
+        if not serial:
+            messagebox.showwarning(_("Sin dispositivo"), _("Selecciona un dispositivo activo en la lista primero."))
+            return
+        if self.ctx.tether_service.is_tethering_active(serial):
+            res = self.ctx.tether_service.stop_tethering(serial)
+            if res.success:
+                Toast(self.root, _("Internet compartido detenido para el dispositivo."), "info")
+            else:
+                messagebox.showerror(_("Error"), res.message)
+        else:
+            if not self.ctx.tether_engine._binary_path:
+                messagebox.showinfo(
+                    _("gnirehtet no encontrado"),
+                    _("Para compartir internet de tu PC al teléfono por USB se requiere la herramienta 'gnirehtet'.\n\nPuedes colocar el ejecutable 'gnirehtet' en tu PATH o dentro de la carpeta bin de MASV.")
+                )
+                return
+            res = self.ctx.tether_service.start_tethering(serial)
+            if res.success:
+                Toast(self.root, _("Compartiendo internet de la PC al teléfono por USB."), "success")
+            else:
+                messagebox.showerror(_("Error"), res.message)
+
     def _toggle_scene(self):
         serial = self.ctx.active_device_serial
         if not serial:
@@ -1331,12 +1429,13 @@ class ScrcpyDockApp:
         # Verificación de seguridad si Modo Seguro está activo
         if self.ctx.security_mgr.is_safe_mode_enabled and not self.ctx.security_mgr.is_trusted_device(serial):
             alias = self.ctx.security_mgr.get_device_alias(serial)
-            if not messagebox.askyesno(
-                _("Advertencia de Seguridad"),
-                f"El dispositivo '{alias}' ({serial}) no está verificado en la Bóveda de Confianza.\n\n"
-                f"¿Deseas iniciar la transmisión de pantalla de todas formas?"
-            ):
+            model = self.ctx.device_mgr.get_device_model(serial) or "Android"
+            modal = TrustPromptModal(self.root, serial, model, alias, self.ctx.security_mgr, self.ctx.cfg)
+            if not modal.result or modal.result == "cancel":
                 return
+            if modal.result == "trust":
+                save_config(self.ctx.cfg)
+                self._on_dev_select()
 
         if serial in self.ctx.session_mgr.sessions:
             self._stop_current()

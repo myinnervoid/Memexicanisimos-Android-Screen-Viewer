@@ -6,6 +6,9 @@ from .security import SecurityManager
 from .state import UIStateMachine, UIState
 from .i18n import set_language
 
+from .core.tether_engine import TetherEngine
+from .services.tether_service import TetherService
+
 class AppContext:
     def __init__(self, root: tk.Tk):
         self.root = root
@@ -17,6 +20,8 @@ class AppContext:
         self.device_mgr = DeviceManager()
         self.session_mgr = SessionManager(self.log_q, device_mgr=self.device_mgr)
         self.security_mgr = SecurityManager(self.cfg)
+        self.tether_engine = TetherEngine()
+        self.tether_service = TetherService(self.tether_engine)
         
         self.active_device = tk.StringVar(value="Sin dispositivo")
         self.active_device_serial = None # Serial puro

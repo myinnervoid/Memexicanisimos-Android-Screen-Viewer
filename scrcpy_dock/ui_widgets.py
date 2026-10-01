@@ -331,18 +331,19 @@ def _cmd_chip(parent, cmd: str, root: tk.Tk = None) -> tk.Frame:
 
 class AccordionItem(tk.Frame):
     """
-    Elemento de FAQ acordeón con apertura/cierre fluido.
+    Elemento de FAQ acordeón con apertura/cierre fluido y scroll sincronizado.
     """
-    def __init__(self, parent, title: str, build_fn, **kw):
+    def __init__(self, parent, title: str, build_fn, canvas_ref=None, **kw):
         super().__init__(parent, bg=C["card"], **kw)
-        self._title    = title
-        self._expanded = False
+        self._title      = title
+        self._expanded   = False
+        self._canvas_ref = canvas_ref
 
         # ── Header ────────────────────────────────────────────────────
         self._hdr = tk.Frame(self, bg=C["card2"], cursor="hand2")
         self._hdr.pack(fill="x")
 
-        self._arrow = tk.Label(self._hdr, text=_("▶"), bg=C["card2"],
+        self._arrow = tk.Label(self._hdr, text="▶", bg=C["card2"],
                                fg=C["purple"], font=FONT_UI_B, width=2)
         self._arrow.pack(side="left", padx=(12, 4), pady=10)
 
@@ -364,8 +365,9 @@ class AccordionItem(tk.Frame):
             tk.Label(self._content_inner, text=build_fn, bg=C["bg"], fg=C["text2"],
                      font=FONT_SM, justify="left", wraplength=700).pack(anchor="w", padx=4, pady=4)
 
-        # Bindings de toggle
-        for w in [self._hdr, self._arrow] + self._hdr.winfo_children():
+        # Bindings de toggle sin duplicar referencias a self._arrow
+        target_widgets = {self._hdr} | set(self._hdr.winfo_children())
+        for w in target_widgets:
             w.bind("<Button-1>", self._toggle)
             w.bind("<Return>",   self._toggle)
 
@@ -382,17 +384,27 @@ class AccordionItem(tk.Frame):
         self._hdr.bind("<Enter>", enter)
         self._hdr.bind("<Leave>", leave)
 
+        if self._canvas_ref:
+            bind_mousewheel(self, self._canvas_ref)
+
         tk.Frame(self, bg=C["sep"], height=1).pack(fill="x")
 
-    def _toggle(self, _=None):
+    def _toggle(self, event=None):
         if self._expanded:
             self._content_outer.pack_forget()
-            self._arrow.config(text=_("▶"))
+            self._arrow.config(text="▶")
             self._expanded = False
         else:
             self._content_outer.pack(fill="x")
-            self._arrow.config(text=_("▼"))
+            self._arrow.config(text="▼")
             self._expanded = True
+        self.update_idletasks()
+        if self._canvas_ref:
+            try:
+                self._canvas_ref.configure(scrollregion=self._canvas_ref.bbox("all"))
+                bind_mousewheel(self._content_outer, self._canvas_ref)
+            except Exception:
+                pass
 
     def expand(self):
         if not self._expanded:
@@ -544,6 +556,13 @@ class ProfileWizard(tk.Toplevel):
             "audio_source": "playback", "video_codec": "h264",
             "turn_screen_off": False, "stay_awake": True,
             "force_screen_off_keyevent": False, "no_video": False, "extra_args": "",
+        },
+        "⌨️ Modo OTG (Teclado y Ratón USB)": {
+            "bitrate": "4M", "max_size": "720", "max_fps": "30",
+            "audio_source": "none", "video_codec": "h264",
+            "turn_screen_off": False, "stay_awake": True,
+            "force_screen_off_keyevent": False, "no_video": False,
+            "extra_args": "--otg",
         },
     }
 
@@ -940,6 +959,93 @@ class DeviceTrustModal:
         self.win.destroy()
         if self.on_close_cb:
             self.on_close_cb()
+
+
+class TrustPromptModal:
+    """Modal amigable cuando un dispositivo no verificado intenta conectarse en Modo Seguro."""
+    def __init__(self, parent, serial: str, model: str, alias: str, security_mgr, cfg=None):
+        self.result = "cancel"
+        self.serial = serial
+        self.model = model or "Android"
+        self.alias = alias or model or serial
+        self.sec = security_mgr
+        self.cfg = cfg
+
+        self.win = tk.Toplevel(parent)
+        self.win.title(_("Dispositivo No Verificado — Bóveda de Seguridad"))
+        self.win.geometry("540x360")
+        self.win.resizable(False, False)
+        self.win.configure(bg=C["bg"])
+        self.win.transient(parent)
+        self.win.grab_set()
+
+        # Centrar ventana
+        self.win.update_idletasks()
+        w, h = 540, 360
+        x = parent.winfo_rootx() + (parent.winfo_width() - w) // 2
+        y = parent.winfo_rooty() + (parent.winfo_height() - h) // 2
+        self.win.geometry(f"{w}x{h}+{max(0, x)}+{max(0, y)}")
+
+        self._build_ui()
+        parent.wait_window(self.win)
+
+    def _build_ui(self):
+        # Header
+        hdr = tk.Frame(self.win, bg=C["card2"], pady=12, padx=16)
+        hdr.pack(fill="x")
+        tk.Label(hdr, text="🛡️", font=(FONT_FAMILY, 24), bg=C["card2"], fg=C["orange"]).pack(side="left", padx=(0, 10))
+        tk.Label(hdr, text=_("Dispositivo No Verificado en Bóveda"), font=FONT_LG, bg=C["card2"], fg=C["text"]).pack(side="left")
+
+        body = tk.Frame(self.win, bg=C["bg"], padx=18, pady=12)
+        body.pack(fill="both", expand=True)
+
+        msg = (
+            f"{_('El dispositivo')} '{self.alias}' ({self.serial}) {_('no está registrado en tu Bóveda de Confianza.')}\n\n"
+            f"{_('El Modo Seguro protege tus transmisiones evitando conexiones involuntarias o no autorizadas.')}\n\n"
+            f"{_('¿Deseas agregar este dispositivo a la Bóveda de Confianza para no volver a ver este aviso?')}"
+        )
+        tk.Label(body, text=msg, bg=C["bg"], fg=C["text2"], font=FONT_UI, wraplength=490, justify="left").pack(anchor="w", pady=(0, 12))
+
+        btn_bar = tk.Frame(body, bg=C["bg"])
+        btn_bar.pack(fill="x", side="bottom", pady=(8, 0))
+
+        btn_trust = tk.Button(
+            btn_bar, text=_("🛡️ Confiar y Recordar"), bg=C["green_dim"], fg=C["green"],
+            font=FONT_UI_B, relief="flat", bd=0, padx=14, pady=8, cursor="hand2",
+            command=self._on_trust
+        )
+        btn_trust.pack(side="left", padx=(0, 6))
+        Tooltip(btn_trust, _("Agrega el teléfono a la Bóveda permanentemente. No volverás a ver este aviso."))
+
+        btn_once = tk.Button(
+            btn_bar, text=_("▶ Iniciar solo esta vez"), bg=C["card3"], fg=C["text"],
+            font=FONT_SM, relief="flat", bd=0, padx=10, pady=8, cursor="hand2",
+            command=self._on_once
+        )
+        btn_once.pack(side="left")
+
+        btn_cancel = tk.Button(
+            btn_bar, text=_("✕ Cancelar"), bg=C["card2"], fg=C["muted"],
+            font=FONT_SM, relief="flat", bd=0, padx=10, pady=8, cursor="hand2",
+            command=self._on_cancel
+        )
+        btn_cancel.pack(side="right")
+
+    def _on_trust(self):
+        from .utils import save_config
+        self.sec.trust_device(self.serial, self.model, self.alias)
+        if self.cfg:
+            save_config(self.cfg)
+        self.result = "trust"
+        self.win.destroy()
+
+    def _on_once(self):
+        self.result = "once"
+        self.win.destroy()
+
+    def _on_cancel(self):
+        self.result = "cancel"
+        self.win.destroy()
 
 
 class SafeActionConfirmModal:
