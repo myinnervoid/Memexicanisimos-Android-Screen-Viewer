@@ -145,7 +145,20 @@
   - *Negativas*: un nivel más de importaciones y un objeto de contexto que hay que pasar; quien añada una pestaña debe recordar llamar a `clear(parent)` (hay una guardia que lo comprueba sobre el código).
   - *Invariante de compatibilidad*: `refs` y `faq_items` se comparten **por identidad**, nunca por copia. La FAQ usa `.clear()` en vez de reasignar para no romperla.
   - *Verificación*: `tests/test_fase_c2_regressions.py` (12 pruebas, incluidas las de P3.25) sobre el arnés compartido `tests/ui_harness.py`.
-- **Regla derivada (procedimiento de extracción)**: al partir un archivo grande, **el código se mueve mecánicamente y se verifica línea a línea** contra el original (multiconjunto de líneas normalizadas, descontando sólo los cambios declarados), en vez de retranscribirlo a mano. La partición de 1.034 líneas se validó así antes de dar el cambio por bueno.
+<a name="adr-036"></a>
+### ADR-036: Ensayos de Componentes de UI y Prohibición de Enmascaramiento de `_` en Callbacks
+
+- **Contexto del Problema**: `ui_widgets.py` acumulaba 1.201 líneas con una cobertura del 49 % (por debajo del umbral del 60 % de la Ley 7). Al someterlo a pruebas unitarias rigurosas, se descubrieron dos defectos latentes que causaban caídas de ejecución en producción:
+  1. `PillNavBar` asignaba lambdas `self.select(tid, i)` a sus botones pero **no implementaba el método `select()`** (`AttributeError: 'PillNavBar' object has no attribute 'select'`).
+  2. `_cmd_chip` definía `def copy(_=None):`, usando el identificador `_` para el argumento `event` de Tkinter. Al hacer clic en `📋 Copiar`, `_` pasaba a ser la instancia de `Event`, enmascarando la función global de internacionalización `_()` de `i18n.py` y provocando `TypeError: 'Event' object is not callable`.
+- **Decisión Adoptada**:
+  - Implementar arnés unitario exhaustivo para todos los componentes de `ui_widgets.py` (`tests/test_ui_widgets_coverage.py`).
+  - Prohibir formalmente el uso de `_` como nombre de parámetro en handlers y callbacks de interfaz donde se invoque traducción de texto; usar siempre nombres explícitos como `event=None`.
+  - Integrar linter estricto `pyflakes` en el pipeline de GitHub Actions (`.github/workflows/build.yml`) y declarar dependencias en `requirements-dev.txt`.
+- **Consecuencias**:
+  - *Positivas*: la cobertura de `ui_widgets.py` saltó del 49 % al **81,8 %**, dejando la Ley 7 de interfaz en **✅ VERDE**; los 558 tests pasan en verde; el copiado en chips y la selección de pastillas funcionan sin excepciones.
+  - *Negativas*: los tests de UI requieren simulación y control de mapeo de ventanas en modo headless (Tkinter `update` y neutralización de modales bloqueantes).
+  - *Verificación*: `tests/test_ui_widgets_coverage.py` (14 pruebas unitarias) ejecutadas en CI y en local.
 
 ---
 

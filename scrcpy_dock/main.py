@@ -947,7 +947,7 @@ class ScrcpyDockApp:
         # `if not parsed` dejaba pasar `ip = None` y reventaba en
         # `is_private_ip(None)` con AttributeError (defecto reproducido por D1).
         if not parsed or not parsed[0]:
-            messagebox.showerror("IP inválida", f"'{ip_raw}:{port_raw}' no es válida.\nEjemplo: 192.168.1.25:5555")
+            messagebox.showerror(_("IP inválida"), f"'{ip_raw}:{port_raw}' no es válida.\nEjemplo: 192.168.1.25:5555")
             return
         ip, port = parsed
 
@@ -955,8 +955,8 @@ class ScrcpyDockApp:
         if self.ctx.security_mgr.is_safe_mode_enabled and not SecurityManager.is_private_ip(ip):
             messagebox.showerror(
                 _("IP no permitida"),
-                _("El Modo Seguro bloquea conexiones a IPs públicas o externas fuera de la red local.\n\n"
-                  f"Dirección ingresada: {ip}")
+                _("El Modo Seguro bloquea conexiones a IPs públicas o externas fuera de la red local.")
+                + f"\n\n{_('Dirección ingresada:')} {ip}"
             )
             return
 

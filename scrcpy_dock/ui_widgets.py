@@ -107,6 +107,16 @@ class PillNavBar(tk.Frame):
             btn.bind("<Enter>", _on_enter)
             btn.bind("<Leave>", _on_leave)
 
+    def select(self, tab_id, idx=None):
+        self.active_id = tab_id
+        for tid, btn in self.buttons.items():
+            if tid == tab_id:
+                btn.config(bg=C["pill_active"], fg=C["pill_text_act"])
+            else:
+                btn.config(bg=C["pill_btn"], fg=C["pill_text"])
+        if self.on_select_cb:
+            self.on_select_cb(tab_id, idx)
+
 # ─────────────────────────────────────────────────────────────────────────────
 # Barra Lateral de Navegación Estilo Dashboard con Menú Hamburguesa
 # ─────────────────────────────────────────────────────────────────────────────
@@ -311,7 +321,7 @@ def _cmd_chip(parent, cmd: str, root: tk.Tk = None) -> tk.Frame:
     tk.Label(chip, text=cmd, bg=C["card2"], fg=C["cyan"],
              font=FONT_MONO, anchor="w").pack(side="left", fill="x", expand=True)
 
-    def copy(_=None):
+    def copy(event=None):
         target = root or chip
         target.clipboard_clear()
         target.clipboard_append(cmd)

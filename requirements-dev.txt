@@ -1,0 +1,5 @@
+# Dependencias de desarrollo, auditoría y aseguramiento de calidad (Fase D / Ley 7)
+pyflakes>=3.2.0
+coverage>=7.4.0
+radon>=6.0.1
+pip-audit>=2.7.0

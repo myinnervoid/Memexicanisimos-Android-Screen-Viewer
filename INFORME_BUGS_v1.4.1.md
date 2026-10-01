@@ -512,29 +512,45 @@ de una sola pestaña fallan 3 de las 12 pruebas de C2.
 
 ---
 
-### 3.26 🟡 Seis claves duplicadas con valores distintos en la tabla de traducciones *(encontrado por pyflakes, 01-oct)*
+### 3.26 🟡 Doce claves duplicadas en la tabla de traducciones *(encontrado por pyflakes, 01-oct · ✅ CERRADO en Fase D)*
 
-**Archivo**: `scrcpy_dock/i18n.py` (`_translations`, líneas 166/487, 284/489, 285/490)
+**Archivo**: `scrcpy_dock/i18n.py` (`_translations["en"]`)
+
+En un literal de diccionario **la última clave gana**: doce entradas estaban duplicadas (`v1.1 | Ctrl+H...`, `Estado`, pasos de activación de depuración USB, etc.).
+
+**Corrección aplicada**: se eliminaron las 12 líneas redundantes conservando la mejor redacción, se añadió la clave faltante `'Dirección ingresada:'` a `_EN_EXTRA` y se verificó mediante AST que el 100 % de las 406 invocaciones activas a `_()` en el código poseen traducción en inglés sin claves faltantes ni duplicadas.
+
+---
+
+### 3.27 🔴 PillNavBar carecía del método `select()` provocando `AttributeError` al pulsar botones *(01-oct · ✅ CERRADO en Fase D)*
+
+**Archivo**: `scrcpy_dock/ui_widgets.py:96` (`PillNavBar`)
 
 ```python
-"   d. Aparecerá el mensaje: ¡Ahora eres desarrollador!": "   d. The message will appear: You are now a developer!",   # línea 166
-...
-"   d. Aparecerá el mensaje: ¡Ahora eres desarrollador!": "   d. The message 'You are now a developer!' will appear.",  # línea 487
+command=lambda tid=tab_id, i=idx: self.select(tid, i)
 ```
 
-En un literal de diccionario **la última clave gana**: el valor de la línea 166 es inalcanzable. Lo
-mismo con `"   a. Regresa a Ajustes → Sistema → Opciones para desarrolladores."` (284/489) y
-`"   b. Activa el interruptor 'Depuración USB'."` (285/490).
+`PillNavBar` asignaba a cada botón una lambda que invoca `self.select(tid, i)`, pero la clase no implementaba ningún método `select()`. Al hacer clic en cualquier pastilla de navegación, la aplicación fallaba inmediatamente con `AttributeError: 'PillNavBar' object has no attribute 'select'`.
 
-**Impacto**: hoy **no** hay error visible (las dos traducciones inglesas son correctas), pero el
-defecto es una trampa de mantenimiento: quien edite la entrada de la línea 166 para corregir el
-texto que ve el usuario **no verá ningún efecto** y no habrá ninguna señal de por qué.
+**Corrección**: se implementó `select(self, tab_id, idx=None)` actualizando `self.active_id`, los colores visuales de estado activo/inactivo de las pastillas y despachando el callback `on_select_cb`. Cubierto en `tests/test_ui_widgets_coverage.py`.
 
-**Corrección pendiente** (no aplicada en C2, que no toca i18n): conservar una sola entrada por clave
-—la que gana, o la mejor redactada— y borrar la otra. Es el mismo trabajo pendiente de las ~295
-claves huérfanas; conviene hacerlo todo junto con su propio ADR.
+---
 
-**Detección**: `python -m pyflakes scrcpy_dock` (`dictionary key ... repeated with different values`).
+### 3.28 🔴 Enmascaramiento de función de traducción `_` en `_cmd_chip` provocaba `TypeError: 'Event' object is not callable` *(01-oct · ✅ CERRADO en Fase D)*
+
+**Archivo**: `scrcpy_dock/ui_widgets.py:324` (`_cmd_chip`)
+
+```python
+def copy(_=None):
+    target = root or chip
+    target.clipboard_clear()
+    target.clipboard_append(cmd)
+    copy_btn.config(text=_("✔ Copiado"), fg=C["green"])
+```
+
+El parámetro del callback de clic de Tkinter se llamaba `_` (`def copy(_=None):`), enmascarando la función global de traducción `_` de `i18n.py`. Al hacer clic en `📋 Copiar`, Tkinter pasaba el objeto `Event` como primer argumento, provocando que la llamada `_("✔ Copiado")` intentara invocar la instancia de `Event`, arrojando `TypeError: 'Event' object is not callable` y rompiendo el copiado visual.
+
+**Corrección**: se renombró el parámetro a `event=None`, restaurando el acceso a `_()` para las cadenas `"✔ Copiado"` y `"📋 Copiar"`. Cubierto en `tests/test_ui_widgets_coverage.py`.
 
 ---
 

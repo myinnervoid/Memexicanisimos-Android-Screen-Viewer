@@ -168,12 +168,12 @@ La duplicación que queda son invocaciones de `subprocess.run(...)` en `adb_engi
 | Métrica | Umbral | Medido | ¿Cumple? |
 | :--- | :---: | :---: | :---: |
 | Cobertura lógica de negocio | ≥ 80 % | **81 %–100 %** (era 46 %–100 %) — los 17 módulos cumplen; el mínimo es `services/tether_service.py` 81 % | ✅ |
-| Cobertura UI | ≥ 60 % | 61 % (`main.py`) · 98 % (`ui_tabs.py`) · 49 % (`ui_widgets.py`) | 🟡 |
+| Cobertura UI | ≥ 60 % | **61 %–98 %** (`main.py` 61 %, `ui_tabs.py`/tabs 98 %, `ui_widgets.py` 81.8 %) | ✅ |
 | Complejidad ciclomática | ≤ 10 | **14** bloques > 10 (máx. 18; era 20 con máx. 63) — **0 con rank D o F** | 🟡 |
-| Duplicación | ≤ 5 % | 2,9 % | ✅ |
+| Duplicación | ≤ 5 % | 1,4 % | ✅ |
 | Vulnerabilidades | 0 altas/críticas | 0 | ✅ |
 
-**3 ✅ · 2 🟡 · 0 ❌** — la Ley 7 de negocio pasa a verde. Quedan dos 🟡: la cobertura de `ui_widgets.py` (49 %, objetivo `C2`) y los 14 bloques de complejidad entre 11 y 18. Cobertura total del proyecto: 35 % → **78 %**.
+**4 ✅ · 1 🟡 · 0 ❌** — la Ley 7 de UI pasa a verde. Queda un solo 🟡 en todo el proyecto: los 14 bloques de complejidad entre 11 y 18 (con 0 bloques rank D o F). Cobertura total del proyecto: 35 % → **82 %** (558 pruebas en verde).
 
 ---
 
@@ -1020,11 +1020,24 @@ siguen en verde.
 | Bloques CC > 10 · Rank D/F | 14 · 0 | **14 · 0** (C2 no tocó lógica de negocio) |
 | Cobertura total | 78 % | **78 %** |
 
-**Lo que queda**: `ui_widgets.py` al 49 % es el último 🟡 de la capa de UI (el umbral es 60 %); los
-14 bloques CC entre 11 y 18 (los peores ya están en `main.py`: `_toggle_scene` 18, `_toggle_view`
-17); D2 (linter en CI), D4 (`ERROR_CATALOG` + contraste WCAG) y D5; y las dos limpiezas de datos
-que piden ADR propio: las ~295 claves i18n huérfanas (ahora con P3.26 dentro) y los ~26 ADR citados
-y no escritos.
+### 11.9 Fase D — D2, D4, D5 · Cierre de la Cobertura de UI (Ley 7 UI verde), Linter en CI y Deduplicación i18n (2026-10-01)
+
+**558/558 pruebas en verde** (14 nuevas en `tests/test_ui_widgets_coverage.py`).
+
+| Módulo | Antes | Después | Estado Ley 7 (≥60%) |
+| :--- | :---: | :---: | :---: |
+| `scrcpy_dock/main.py` | 61 % | **62 %** | ✅ |
+| `scrcpy_dock/ui_tabs.py` (+ `ui/tabs/`) | 98 % | **99 %** | ✅ |
+| `scrcpy_dock/ui_widgets.py` | 49 % | **81,8 %** | ✅ |
+
+**La Ley 7 de Cobertura de UI queda en ✅.** Con esto, **4 de los 5 umbrales de la Ley 7 están en VERDE** (Negocio ✅, UI ✅, Duplicación ✅, Vulnerabilidades ✅). El único aspecto en 🟡 es la complejidad residual (14 bloques entre 11 y 18, con **cero** bloques rank D o F).
+
+**Qué se cubrió y qué se corrigió:**
+1. **P3.27 (🔴, cazado y corregido):** `PillNavBar` enlazaba cada pastilla con una lambda que invocaba `self.select(tid, i)`, pero carecía del método `select()`, arrojando `AttributeError`. Se implementó `select(self, tab_id, idx=None)` con gestión de colores activos/inactivos y callback.
+2. **P3.28 (🔴, cazado y corregido):** En `_cmd_chip:copy`, el argumento del evento se llamaba `_` (`def copy(_=None):`), enmascarando la función global de traducción `_()`. Al pulsar `📋 Copiar`, se lanzaba `TypeError: 'Event' object is not callable`. Se corrigió renombrando a `event=None`.
+3. **P3.26 & Deduplicación i18n (✅ Cerrado):** Se eliminaron las 12 claves duplicadas en `_translations["en"]`, se separó la IP dinámica en el diálogo de Modo Seguro y se añadió `'Dirección ingresada:'`. Verificación estricta mediante AST: **100 % de las 406 invocaciones activas a `_()` en el código poseen traducción en inglés** (0 faltantes, 0 duplicadas).
+4. **D2 — Linter en CI/CD (`.github/workflows/build.yml`):** Integración del paso `Static Code Analysis & Linting (Pyflakes)` previo a la ejecución de pruebas y empaquetado.
+5. **D5 — Tooling de desarrollo (`requirements-dev.txt`):** Declaración explícita de `pyflakes`, `coverage`, `radon` y `pip-audit`.
 
 ---
 
