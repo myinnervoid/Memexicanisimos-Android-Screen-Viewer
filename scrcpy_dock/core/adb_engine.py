@@ -652,6 +652,9 @@ class _TrackerThread(threading.Thread):
         self._max_attempts = max_attempts
         self._parse_line = parse_line or self._default_parse_line
         self._stop_event = threading.Event()
+        # Proceso de `track-devices` en curso: `stop()` lo necesita para desbloquear
+        # la lectura (terminarlo cierra el pipe y el `read()` devuelve EOF).
+        self._proc = None
         self._env = {
             **os.environ,
             "ADB_SERVER_SOCKET": f"tcp:localhost:{port}",
@@ -716,9 +719,13 @@ class _TrackerThread(threading.Thread):
         proc = self._lanzar_track_devices()
         if proc is None:
             return False
+        # Se guarda para que `stop()` pueda terminar el proceso que está siendo
+        # leído: el `Event` no desbloquea un `read()` ya en curso.
+        self._proc = proc
         try:
             self._bucle_de_eventos(proc)
         finally:
+            self._proc = None
             return self._cerrar_proceso(proc)
 
     def _lanzar_track_devices(self):
@@ -795,7 +802,23 @@ class _TrackerThread(threading.Thread):
         return proc.returncode == 0
 
     def stop(self, timeout: float = 2.0) -> None:
-        """Detiene el hilo. Idempotente."""
+        """Detiene el hilo. Idempotente y sin dejar la lectura bloqueada.
+
+        Poner el `Event` no desbloquea un `proc.stdout.read()` ya en curso (la
+        syscall no lo consulta), así que además se termina el proceso en lectura:
+        al morir, el pipe devuelve EOF y el bucle sale solo.
+        """
         self._stop_event.set()
+        self._terminar_proceso_activo()
         if self.is_alive():
             self.join(timeout=timeout)
+
+    def _terminar_proceso_activo(self) -> None:
+        """Termina el proceso en lectura (si lo hay) para desbloquear el `read()`."""
+        proc = self._proc
+        if proc is None or proc.poll() is not None:
+            return
+        try:
+            proc.terminate()
+        except Exception:
+            log.debug("track-devices: no se pudo terminar el proceso", exc_info=True)

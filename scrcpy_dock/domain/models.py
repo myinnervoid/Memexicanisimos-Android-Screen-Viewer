@@ -69,6 +69,13 @@ ALLOWED_EXTRA_FLAGS = {
     "--show-touches",
     "--stay-awake",
     "--window-title",
+    # Tamaño (⑫ · INFORME §3.16 / ANALISIS §11.3): un dock de streaming —OBS, cámara
+    # cenital pedagógica— necesita
+    # limitar el lado mayor y el tamaño del sensor; sin ellos `_has_size_flag` era
+    # inalcanzable desde la UI (la whitelist rechazaba el flag antes de evaluarlo).
+    "--max-size",
+    "--camera-size",
+    "-m",
 }
 
 

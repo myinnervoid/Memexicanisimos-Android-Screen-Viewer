@@ -98,6 +98,10 @@ class SecurityManager:
         if svc is None:
             return
         path = Path(self._vault_path)
+        if not path.exists():
+            legacy_path = Path.home() / ".MASV" / "config" / SecurityService.VAULT_FILENAME
+            if legacy_path.exists():
+                path = legacy_path
         if path.exists():
             res = svc.load_vault(path)
             trusted = res.data.get("trusted_devices") if (res.success and isinstance(res.data, dict)) else None
@@ -201,22 +205,28 @@ class SecurityManager:
     def is_private_ip(ip_str: str) -> bool:
         """Verifica que la IP pertenezca a rangos privados locales (RFC 1918 / Loopback / Link-Local).
 
+        Delega en `SecurityService` (única implementación). La copia que vivía aquí
+        aceptaba `0.0.0.0` y `255.255.255.255` como "privadas" —`ipaddress.is_private`
+        devuelve True para ellas— y tampoco entendía el formato IPv6 con corchetes:
+        dos implementaciones del mismo predicado con respuestas distintas.
+
         Contrato: entrada vacía, `None` o no parseable → **False** (nunca lanza).
         Ojo al sentido del valor: False significa "no es privada", así que el
         Modo Seguro **bloquea** ante un valor desconocido — dirección segura.
         """
-        clean = (ip_str or "").strip()
-        if not clean:
-            return False
-        try:
-            ip = ipaddress.ip_address(clean)
-            return ip.is_private or ip.is_loopback or ip.is_link_local
-        except ValueError:
-            return False
+        return SecurityService.is_private_ip(ip_str)
 
     @staticmethod
     def parse_pair_ip_port_code(raw_ip_port: str, raw_code: str) -> Optional[Tuple[str, str, str]]:
-        """Valida y estructura los datos para 'adb pair': IP, puerto (1-65535) y código de 6 dígitos."""
+        """Valida y estructura los datos para 'adb pair': IP, puerto (1-65535) y código de 6 dígitos.
+
+        Contrato de fallo (⑪): `None` suelto, **nunca** una tupla de Nones. No es un
+        capricho de estilo: el llamador comprueba `if not parsed:` antes de desempaquetar
+        (`main.py::_pair_with_code`), y una tupla de Nones es **verdadera** — pasaría la
+        guarda y reventaría al desenvolver tres valores nulos. Si algún día se unifica
+        con `utils.parse_ip_port` (que sí devuelve `(None, None)`), hay que cambiar
+        también esa guarda.
+        """
         raw_ip_port = (raw_ip_port or "").strip()
         raw_code = (raw_code or "").strip()
 

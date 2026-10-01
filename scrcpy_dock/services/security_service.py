@@ -3,12 +3,12 @@
 Contrato v1 congelado — ver ADR-020, ADR-031.
 NO cambiar firmas sin reabrir el ADR correspondiente.
 
-Estado del esqueleto:
+Estado del módulo (kit de arranque desde el esqueleto de la Fase A; hoy todo cableado):
   ✅ __init__ + helpers internos           → implementados
-  ✅ is_private_ip                          → TODO-S1 implementado
-  🟡 validate_wifi_endpoint                 → TODO-S2
-  🟡 encrypt_vault / decrypt_vault          → TODO-S3
-  🟡 is_whitelisted_device                  → TODO-S4
+  ✅ is_private_ip                          → TODO-S1 implementado (delegado desde `security.py`)
+  ✅ validate_wifi_endpoint                 → TODO-S2 implementado
+  ✅ encrypt_vault / decrypt_vault          → TODO-S3 implementado (Fernet + PBKDF2, ADR-020)
+  ✅ is_whitelisted_device                  → TODO-S4 implementado (acepta lista y dict)
 """
 from __future__ import annotations
 
@@ -150,7 +150,8 @@ class SecurityService:
     # ────────────────────────────────────────────────────────────────────
 
     # ─── TODO-S1 · is_private_ip ─────────────────────────────────────
-    def is_private_ip(self, host: str) -> bool:
+    @staticmethod
+    def is_private_ip(host: str) -> bool:
         """True si `host` es una IP privada/loopback/link-local.
 
         Contrato:

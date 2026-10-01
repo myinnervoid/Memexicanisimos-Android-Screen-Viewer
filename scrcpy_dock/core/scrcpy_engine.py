@@ -95,12 +95,21 @@ class ScrcpyEngine:
         self._scrcpy_binary = Path(scrcpy_binary)
         self._server_jar = Path(server_jar)
 
-    # ─── TODO-5 · verify_server_version (ADR-014) ──────────────────
+    # ─── verify_server_version (ADR-014) ───────────────────────────
     def verify_server_version(self) -> OperationResult[str]:
-        """Verifica que el binario de scrcpy responde y reporta su versión.
+        """Prueba el binario externo de scrcpy y reporta su versión. Contrato público.
 
-        En scrcpy 4.x el servidor va embebido en el paquete / binario.
-        Se ejecuta `scrcpy --version` y se extrae el string de versión.
+        **No se invoca en el arranque de la GUI a propósito** (ADR-014: paridad de
+        versiones cliente/servidor): abrir la ventana no debe depender de un binario
+        externo ni pagar un `subprocess` por hacerlo. Es el mecanismo de **auditoría
+        de compatibilidad** —comprobar que el scrcpy instalado es el que el perfil
+        espera y detectar el desajuste cliente/servidor— y se llama desde las
+        herramientas de diagnóstico, los tests de integración o un futuro «Comprobar
+        entorno» de la UI.
+
+        En scrcpy 4.x el servidor va **embebido** en el binario, así que la paridad se
+        mide sobre `scrcpy --version` y no sobre un `scrcpy-server` suelto (que en esta
+        instalación suele no existir: ver `_resolver_servidor_scrcpy` en `managers.py`).
         """
         try:
             proc = subprocess.run(
@@ -138,7 +147,14 @@ class ScrcpyEngine:
         scrcpy_version_output: str,
         server_version_output: str,
     ) -> OperationResult[str]:
-        """Compara las dos cadenas de versión extrayendo sus números de versión."""
+        """Compara las dos cadenas de versión extrayendo sus números de versión.
+
+        Contrato (ADR-014, paridad cliente/servidor): las entradas son las **salidas de
+        texto** de los dos binarios (`scrcpy --version`), no números ya parseados. Si
+        alguna no trae un número de versión se devuelve
+        `SCRCPY_SERVER_VERSION_MISMATCH`: no poder leerlas **no** se interpreta como
+        coincidencia (esa indulgencia es justo la que deja pasar un servidor viejo).
+        """
         ver_pattern = re.compile(r"(\d+\.\d+(?:\.\d+)?)")
         m_client = ver_pattern.search(scrcpy_version_output)
         m_server = ver_pattern.search(server_version_output)

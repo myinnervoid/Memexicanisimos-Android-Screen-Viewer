@@ -1,4 +1,6 @@
 import time
+import threading
+from pathlib import Path
 from dataclasses import dataclass, replace
 from typing import List, Dict, Optional, Tuple, Callable, Any
 
@@ -17,6 +19,33 @@ from .core.scrcpy_engine import ScrcpyEngine
 from .core.port_allocator import PortAllocator
 from .services.stream_service import StreamService
 from .utils import find_portable_binaries
+
+
+def _resolver_servidor_scrcpy() -> "Path":
+    """Ruta del `scrcpy-server` si el sistema lo trae suelto; si no, la histórica (§3.18).
+
+    scrcpy 4.x lleva el servidor **embebido** en el binario, así que este dato es
+    informativo: el motor no lo usa (`verify_server_version` prueba el binario, ADR-014).
+    Se busca en el layout gestionado (`~/.MASV/bin`, que mantiene `InstallerService`) y en
+    las rutas de la distribución. Si no aparece, se devuelve la última ruta en lugar de
+    `None` porque el parámetro del motor está congelado (ADR-007) y no acepta `None`.
+    """
+    from .services.installer_service import InstallerService
+
+    candidatas = []
+    try:
+        candidatas.append(InstallerService().bin_dir / "scrcpy-server")
+    except Exception:      # layout no resoluble: quedan las rutas del sistema
+        pass
+    candidatas += [
+        Path("/usr/local/share/scrcpy/scrcpy-server"),
+        Path("/usr/share/scrcpy/scrcpy-server"),
+    ]
+    for ruta in candidatas:
+        if ruta.exists():
+            return ruta
+    return candidatas[-1]
+
 
 
 @dataclass(frozen=True)
@@ -65,18 +94,28 @@ class ScrcpySession:
             uptime_str=self.uptime(),
         )
 
-    def terminate(self):
-        try:
-            self.process.terminate()
-            for _ in range(30):
-                if self.process.poll() is not None:
-                    break
-                time.sleep(0.1)
-            if self.process.poll() is None:
-                self.process.kill()
-        except Exception:
-            pass
+    def terminate(self, timeout: float = 3.0, block: bool = False):
         self.active = False
+
+        def _reap(proc):
+            try:
+                proc.terminate()
+                steps = max(1, int(timeout / 0.1))
+                for _ in range(steps):
+                    if proc.poll() is not None:
+                        return
+                    time.sleep(0.1)
+                if proc.poll() is None:
+                    proc.kill()
+            except Exception:
+                pass
+
+        proc = self.process
+        if block:
+            _reap(proc)
+        else:
+            t = threading.Thread(target=_reap, args=(proc,), daemon=True)
+            t.start()
 
 
 class ProfileManager:
@@ -303,8 +342,10 @@ class SessionManager:
             self._scrcpy = scrcpy_engine
         else:
             _, scrcpy_bin = find_portable_binaries()
-            from pathlib import Path
-            self._scrcpy = ScrcpyEngine(Path(scrcpy_bin or "/usr/local/bin/scrcpy"), Path("/usr/local/share/scrcpy/scrcpy-server"))
+            self._scrcpy = ScrcpyEngine(
+                Path(scrcpy_bin or "/usr/local/bin/scrcpy"),
+                _resolver_servidor_scrcpy(),
+            )
 
         self._allocator = allocator or PortAllocator(base=27183, max_offset=20)
         self._clock = clock or time.monotonic
