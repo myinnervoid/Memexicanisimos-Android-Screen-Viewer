@@ -1,442 +1,622 @@
-# 📋 DOCUMENTO DE ANÁLISIS, MODULARIZACIÓN Y PLAN DE EVOLUCIÓN ARQUITECTÓNICA (v3.2)
-**Ecosistema:** Estudio Memexicanisimos  
-**Proyecto:** MASV (Memexicanisimos Android Screen Viewer)  
-**Estándar Aplicado:** Motor Autónomo de Auditoría y Evolución de Software — 5 Vectores (v3.2)  
-**Perspectiva:** Senior Software Architect & Android Platform Specialist  
-**Fecha:** 13 de Septiembre, 2026  
-**Objetivo:** Análisis del mecanismo de integración al sistema, diagnóstico exhaustivo de acoplamiento de núcleos (`adb`, `scrcpy`, `v4l2`), desacoplamiento modular para prevenir regresiones entre mejoras y diseño del despliegue limpio encapsulado en `~/.MASV/`.
+# 📋 DOCUMENTO DE ANÁLISIS, MODULARIZACIÓN Y PLAN DE EVOLUCIÓN ARQUITECTÓNICA (v3.3)
+**Ecosistema:** Estudio Memexicanisimos
+**Proyecto:** MASV (Memexicanisimos Android Screen Viewer)
+**Estándar Aplicado:** Motor Autónomo de Auditoría y Evolución de Software — 5 Vectores (v3.2)
+**Perspectiva:** Senior Software Architect & Android Platform Specialist
+**Versión analizada:** 1.4.1 (commit `795f6e4`, rama `main`)
+**Fecha de actualización:** 1 de Octubre, 2026
+**Objetivo:** Verificar el resultado de la modularización hexagonal propuesta en la v3.2, medir el estado real del sistema contra las 10 Leyes Globales y los umbrales de la Ley 7, e integrar la revisión de bugs de v1.4.1 como deuda técnica priorizada.
+
+> **Trazabilidad del documento anterior:** la v3.2 del 13-sep-2026 (que diagnosticaba el monolito `main.py` de 1.571 líneas y proponía los Hitos 1–4) queda archivada en el historial de git. Se recupera íntegra con:
+> `git show c88c0a2:ANALISIS.md`
+> Este documento la **sustituye** y evalúa qué se ejecutó, qué se desvió y qué sigue pendiente. El material operativo de la v3.2 que sigue vigente (decisiones de exclusión, layout de despliegue, runbook de hardware) se preserva condensado en el **Anexo B**.
+
+> **Documentos relacionados generados en la misma ronda:**
+> - `INFORME_BUGS_v1.4.1.md` — 22 defectos con evidencia reproducible y parche.
+> - `AUDIT_REPORT.md` — verificación de los 11 hallazgos de v1.2 + puntuación por vector.
 
 ---
 
 ## 📌 1. Resumen Ejecutivo y Diagnóstico Senior
 
-MASV es una herramienta de alto rendimiento orientada a creadores, streamers y desarrolladores, cuyo valor reside en transformar el protocolo de transmisión de `scrcpy` y el puente de depuración `adb` en una experiencia de escritorio fluida, segura y ergonómica.
-
-A la fecha, la aplicación ha alcanzado un estado operativo maduro en su versión 1.2 (con interfaz Warm Stone, soporte bilingüe, bóveda de dispositivos de confianza y empaquetado PyInstaller de 35MB). Sin embargo, desde una perspectiva de **Ingeniería de Software Senior**, el sistema presenta un síntoma clásico de crecimiento orgánico: **alta cohesión interna pero alto acoplamiento estructural**:
-
-1. **Monolito de Presentación (`main.py` de 1,571 líneas):** La capa de interfaz gráfica no solo renderiza widgets de Tkinter, sino que ejecuta llamadas directas a subprocesos del sistema operativo (`subprocess.run(["adb", ...])`, `subprocess.run(["pkexec", ...])`, `subprocess.run(["lsmod"])`).
-2. **Fragilidad ante Mejoras Concurrentes:** Cuando se planifica una mejora (por ejemplo, el instalador limpio o soporte avanzado de audio/cámaras), modificar `main.py` o `managers.py` introduce un alto riesgo de regresiones o conflictos de integración, pues los controladores de UI y los adaptadores de hardware comparten el mismo contexto.
-3. **Falta de Aislamiento de Núcleos Externos:** Las dependencias críticas (`adb`, `scrcpy`, `v4l2loopback`) se tratan como cadenas de comandos en lugar de **Engines / Adapters tipados**, lo que impide interceptar códigos de error nativos de Android, caídas del daemon de ADB o inconsistencias de códecs de hardware.
-
-Este documento establece la hoja de ruta para **modularizar MASV**, consolidar sus núcleos existentes y habilitar el despliegue encapsulado en `~/.MASV/` bajo el estándar estricto de **5 Vectores (v3.2)**.
-
----
-
-## 🛠️ 2. Comandos Operativos de Integración Inmediata (Realizados)
-
-Para responder a la necesidad operativa inmediata del usuario sin alterar el código base ni el `README.md`:
-
-### 2.1. Habilitación en Terminal (`$PATH`)
-Se vincularon los alias canónicos en `~/.local/bin/` (directorio nativo en `$PATH` en Linux):
-```bash
-mkdir -p ~/.local/bin
-ln -sf "$HOME/.MASV/bin/MASV" ~/.local/bin/MASV
-ln -sf "$HOME/.MASV/bin/MASV" ~/.local/bin/masv
-```
-
-### 2.2. Habilitación en Menú de Aplicaciones (`XDG Desktop Menu`)
-Se generó el archivo de especificación en `~/.local/share/applications/MASV.desktop`:
-```ini
-[Desktop Entry]
-Version=1.0
-Type=Application
-Name=MASV
-GenericName=Memexicanisimos Android Screen Viewer
-Comment=Controla y visualiza dispositivos Android en pantalla
-Exec="/home/$USER/.MASV/bin/MASV" %U
-Path=/home/$USER/.MASV
-Icon=/home/$USER/.MASV/assets/logo.png
-Terminal=false
-Categories=Utility;
-StartupNotify=true
-StartupWMClass=MASV
-Keywords=MASV;scrcpy;android;screen;viewer;memexicanisimos;
-```
-
-### 2.3. Validación y Registro de Caché
-```bash
-chmod +x ~/.local/share/applications/MASV.desktop
-desktop-file-validate ~/.local/share/applications/MASV.desktop
-update-desktop-database ~/.local/share/applications
-```
-
----
-
-## 🧠 3. Análisis de Núcleos Externos: ¿Qué Consolidar vs. Qué NO Agregar?
-
-Una trampa habitual en software de escritorio con Android es caer en el *feature creep* agregando dependencias externas innecesarias o reemplazando herramientas nativas con librerías de inferior calidad.
-
-```
-┌─────────────────────────────────────────────────────────────────────────┐
-│                        NÚCLEOS DEL SISTEMA MASV                        │
-├───────────────────┬────────────────────────────┬────────────────────────┤
-│ NÚCLEO            │ ESTADO ACTUAL              │ DICTAMEN ARQUITECTÓNICO│
-├───────────────────┼────────────────────────────┼────────────────────────┤
-│ ADB (Android Debug│ Binario externo invocado   │ CONSOLIDAR COMO ENGINE │
-│ Bridge)           │ mediante subprocess sueltos│ AISLADO (Socket seguro)│
-├───────────────────┼────────────────────────────┼────────────────────────┤
-│ scrcpy +          │ Parámetros CLI dispersos en│ CONSOLIDAR CON MATRIZ  │
-│ scrcpy-server.jar │ SessionManager y main.py   │ DE CÓDECS Y DISPLAY FSM│
-├───────────────────┼────────────────────────────┼────────────────────────┤
-│ v4l2loopback      │ Script shell embebido con  │ CONSOLIDAR DRIVER      │
-│ (Virtual Webcam)  │ invocaciones a pkexec      │ USUARIO / V4L2 QUERY   │
-├───────────────────┼────────────────────────────┼────────────────────────┤
-│ sndcpy (Legacy)   │ Mencionada en roadmaps     │ DESCARTAR POR OBSOLETO │
-├───────────────────┼────────────────────────────┼────────────────────────┤
-│ Clientes ADB Pure │ Propuesto en issues        │ RECHAZAR / DESCARTAR   │
-│ Python            │                            │                        │
-└───────────────────┴────────────────────────────┴────────────────────────┘
-```
-
-### ❌ 3.1. Lo que NO se debe agregar (Decisiones de Exclusión Razonadas)
-
-1. **Rechazar Clientes ADB en Python Puro (`pure-python-adb`, `adb-shell`):**
-   - *Razón Técnica:* No soportan de forma transparente el protocolo de emparejamiento TLS de Android 11+ (`adb pair` con PIN de 6 dígitos), fallan con las renovaciones dinámicas de claves RSA en Android 12+, y son incapaces de mantener sockets de alta velocidad concurrentes para el túnel de `scrcpy-server`.
-   - *Decisión:* Mantener y consolidar el binario oficial `adb` de Google (Platform-Tools).
-
-2. **Descartar Utilidades Legacy como `sndcpy`:**
-   - *Razón Técnica:* `sndcpy` fue una solución provisional para Android 10 que requería inyectar un APK de captura de audio y reenviar un stream crudo por VLC. A partir de Android 11/12, `scrcpy` implementó captura nativa de audio de ultra baja latencia (`--audio-source=playback` / `--audio-source=mic` vía `AudioRecord` / `AudioPlaybackCapture`).
-   - *Decisión:* Apalancarse 100% en las capacidades de audio nativas de `scrcpy` moderno.
-
-3. **Rechazar WebViews o Frameworks Pesados (Electron, Tauri con Node, CEF):**
-   - *Razón Técnica:* Rompería el footprint de 35MB y el tiempo de arranque de 200ms de MASV. El stack actual (Python 3 + Tkinter optimizado con doble buffer y estilos planos oscuros) consume menos de 45MB de RAM en reposo.
-
----
-
-### 🛡️ 3.2. Lo que se debe CONSOLIDAR como Núcleo Indestructible
-
-#### A. `AdbEngine` (Aislamiento y Ciclo de Vida del Demonio)
-Desde la perspectiva de la plataforma Android, ADB opera mediante una arquitectura cliente-servidor:
-```
-[ MASV UI / Core ] ──> [ ADB Client ] ──(TCP 5037)──> [ ADB Server Daemon ] ──(USB / Wi-Fi)──> [ adbd (Teléfono) ]
-```
-- **Riesgo Actual:** Llamar a `adb kill-server` desde la UI de MASV tumba las sesiones de Android Studio, VS Code o emuladores abiertos por el usuario en su estación de trabajo.
-- **Consolidación Requerida:**
-  - Permitir opcionalmente definir un socket/puerto ADB aislado (`export ADB_SERVER_SOCKET=tcp:localhost:5038`) para que MASV opere en un sandbox sin colisionar con herramientas de desarrollo.
-  - Implementar **Health Check de Conectividad**: Detección granular del estado del daemon (`device`, `unauthorized`, `offline`, `bootloader`, `authorizing`).
-  - **Zero-Trust Wi-Fi & Auto-Lockdown:** Consolidar el cierre determinista del puerto 5555 (`adb -s <serial> usb`) para que al salir de la aplicación ningún dispositivo quede expuesto en redes LAN no confiables.
-
-#### B. `ScrcpyEngine` (Orquestación de Media & Hardware Encoders)
-- **Control de Versión de `scrcpy-server.jar`:** Garantizar que la versión del binario de escritorio coincida exactamente con el bytecode inyectado en el dispositivo Android para prevenir crashes silenciosos de JVM.
-- **Matriz Inteligente de Códecs según versión de Android y Chipset:**
-  ```
-  Android 5 - 9:   H.264 (AVC) obligatorio [omx.*.avc]. Compatibilidad universal.
-  Android 10 - 13: H.264 / H.265 (HEVC) [c2.android.hevc.encoder]. Ahorro de 40% ancho de banda en Wi-Fi.
-  Android 14+:     H.264 / H.265 / AV1 [c2.android.av1.encoder]. Máxima eficiencia en chips modernos.
-  ```
-- **Auto-Fallback:** Si un códec como `AV1` o `H.265` falla al iniciar la sesión por incompatibilidad con el encoder de hardware del teléfono, el motor debe capturar el error en el handshake y reintentar automáticamente en `H.264` sin congelar la interfaz.
-- **Captura Nativa de Cámara (Camera2 API):** Consolidar la flag `--video-source=camera` soportando selección de sensor (`front`, `back`, `external`), tamaño de captura y control de FPS sin pasar por la pantalla del dispositivo.
-
-#### C. `V4l2Driver` (Webcam Virtual Linux para Creadores/OBS)
-- Encapsular la detección de nodos de dispositivo (`/dev/video*`) mediante `v4l2-ctl --list-devices` o consulta a `/sys/class/video4linux/`.
-- Evitar solicitar contraseñas administrativas (`pkexec`) en tiempo de ejecución: verificar pertenencia del usuario al grupo `video` (`groups | grep video`).
-
----
-
-## 🏗️ 4. Arquitectura Modular Propuesta: Prevención de Colisiones
-
-Para garantizar que cualquier nueva característica (como el auto-instalador, perfiles en la nube o nuevos modos de streaming) no se contraponga a otra ni rompa código preexistente, se define la migración a un esquema de **Puertos y Adaptadores (Arquitectura Hexagonal)**:
-
-### 4.1. Diagrama de Separación de Capas
-
-```
-┌────────────────────────────────────────────────────────────────────────┐
-│                        CAPA DE PRESENTACIÓN (UI)                       │
-│  [ MainWindow ]    [ Tabs: Devices, Profiles, WiFi, Camera, Logs ]     │
-│  [ Modals: TrustVault, DevicePairing, Onboarding ]                     │
-└───────────────────────────────────┬────────────────────────────────────┘
-                                    │ (Invoca servicios / Observa FSM)
-┌───────────────────────────────────▼────────────────────────────────────┐
-│                    CAPA DE SERVICIOS DE APLICACIÓN                     │
-│  [ DeviceService ]  [ StreamService ]  [ SecurityService ]             │
-│  [ ProfileService ] [ InstallerService ]                               │
-└───────────────────┬────────────────────────────────┬───────────────────┘
-                    │                                │
-┌───────────────────▼──────────────┐   ┌─────────────▼───────────────────┐
-│     DOMINIO & CONTRATOS          │   │      CORE & HARDWARE ADAPTERS   │
-│  - OperationResult[T]            │   │  - AdbEngine (Socket, Pairing)  │
-│  - ErrorCode & ErrorCatalog      │   │  - ScrcpyEngine (Process/Codecs)│
-│  - UIStateMachine (FSM)          │   │  - V4l2LoopbackDriver           │
-│  - Modelos: Device, Session, Conf│   │  - CleanDeployInstaller         │
-└──────────────────────────────────┘   └─────────────────────────────────┘
-```
-
-### 4.2. Estructura de Paquetes Desacoplada
+La modularización **se ejecutó**: existe la Arquitectura Hexagonal completa que la v3.2 diseñó sobre el papel.
 
 ```
 scrcpy_dock/
-├── core/                         # Adaptadores de bajo nivel (Infraestructura / SO)
-│   ├── __init__.py
-│   ├── adb_engine.py             # Wrapper robusto de ADB (subprocesos y sockets)
-│   ├── scrcpy_engine.py          # Constructor de comandos y ciclo de vida de scrcpy
-│   ├── v4l2_driver.py            # Detección y enrutamiento a webcam virtual
-│   └── installer.py              # Gestión del ciclo de vida de instalación ~/.MASV
-│
-├── domain/                       # Reglas de negocio puras (Sin dependencias de UI ni SO)
-│   ├── __init__.py
-│   ├── models.py                 # Dataclasses inmutables (Device, Session, Profile)
-│   ├── contracts.py              # OperationResult[T] y ApiResponse[T]
-│   ├── errors.py                 # Catálogo tipado de fallos (ErrorCode)
-│   └── state.py                  # Autómata FSM de interfaz (UIStateMachine)
-│
-├── services/                     # Orquestación de Casos de Uso
-│   ├── __init__.py
-│   ├── device_service.py         # Escaneo, emparejamiento y handshake de dispositivos
-│   ├── stream_service.py         # Arranque, monitoreo y terminación de escenas
-│   ├── security_service.py       # Validación de IP privada, cifrado y lista blanca
-│   └── profile_service.py        # Carga, guardado y sanitización de perfiles
-│
-└── ui/                           # Interfaz gráfica desacoplada (Thin UI)
-    ├── __init__.py
-    ├── app.py                    # Ventana principal y despachador de eventos
-    ├── theme.py                  # Paleta de colores Warm Stone y fuentes
-    ├── components/               # Widgets genéricos reutilizables
-    │   ├── toasts.py
-    │   ├── tooltips.py
-    │   └── modals.py
-    └── tabs/                     # Pestañas independientes (cada una autocontenida)
-        ├── tab_devices.py
-        ├── tab_profiles.py
-        ├── tab_wifi.py
-        ├── tab_camera.py
-        └── tab_logs.py
+├── domain/     models.py (Device, DeviceCapabilities, SessionConfig) + protocols.py   ✅
+├── core/       adb_engine.py · scrcpy_engine.py · port_allocator.py · tether_engine.py ✅
+├── services/   profile_service.py · security_service.py · installer_service.py · tether_service.py ✅
+├── contracts.py · errors.py · state.py · context.py                                     ✅
+└── UI          main.py · ui_tabs.py · ui_widgets.py · i18n.py          ⚠️ monolito sin modularizar
 ```
 
-### 4.3. La Regla de No-Solapamiento (Non-Interference Rule)
+Sin embargo, la medición real (Ley 7) arroja un veredicto matizado: **el andamiaje arquitectónico está construido, pero no está gobernando el sistema**.
 
-Con esta separación modular, los desarrollos futuros quedan estrictamente aislados:
+| Síntoma | Evidencia medida |
+| :--- | :--- |
+| La capa de presentación **no fue modularizada** | `main.py` 1.989 líneas · `ui_tabs.py` 1.034 · `ui_widgets.py` 1.201; los `ui/tabs/tab_*.py` del Hito 3 **no existen** |
+| La UI **sigue llamando al SO directamente** | 10 sitios con `subprocess.run([self.ctx.adb, …])` en `main.py`, esquivando `AdbEngine` (ADR-006) |
+| Los artefactos nuevos **no están cableados** | `get_error_detail()` importado y jamás invocado · `ProfileService` escrito pero la app usa `utils.load_config()` · `SecurityService` (bóveda cifrada) es código muerto · `verify_server_version` nunca llamado |
+| La FSM de 5 estados **existe pero no gobierna** | 30 llamadas directas a `_set_status()` frente a 9 a `state_machine.set_*` |
+| La UI **no tiene pruebas** | cobertura `main.py` = **0 %**, `ui_tabs.py` = **0 %**, `ui_widgets.py` = **16 %** (umbral Ley 7: ≥60 %) |
 
-1. **Si se mejora la UI o se añade un nuevo tema visual:**  
-   Solo se tocan archivos dentro de `ui/`. Ningún comando de `adb` ni lógica de `scrcpy` puede romperse.
-2. **Si se agrega un nuevo códec de vídeo o soporte para Android 15/16:**  
-   Solo se actualiza `core/scrcpy_engine.py` y `domain/models.py`. La interfaz consume los parámetros mediante contratos tipados sin tocar el kernel de transmisión.
-3. **Si se evoluciona el instalador (`~/.MASV`):**  
-   Solo se trabaja en `core/installer.py` y `services/installer_service.py`. No hay impacto sobre la ejecución de streaming.
+**Diagnóstico:** en v1.2 el problema era *"alta cohesión interna pero alto acoplamiento estructural"*. En v1.4.1 el problema mutó a un patrón más sutil y más peligroso: **arquitectura correcta sin cumplimiento forzado**. Se puede romper una funcionalidad anunciada (modo solo-audio), un handler crítico (`stop_session`) o la configuración del usuario, y las **269 pruebas siguen en verde** porque ninguna importa la capa que el usuario toca.
+
+**Consecuencia verificada (Crítico, Ley 10):** la suite de pruebas ejecuta `save_config()` sobre `~/.config/masv/config.json` real y **destruye los perfiles y la bóveda del usuario**. Ocurrió durante esta auditoría.
+
+### Estado de los Hitos de la v3.2
+
+| Hito | Descripción | Estado |
+| :---: | :--- | :--- |
+| 0 | Comando terminal + acceso `.desktop` | ✅ **Completado** |
+| 1 | Extracción de núcleos (`core/adb_engine.py`, `core/scrcpy_engine.py`) | ✅ **Completado** (con la UI todavía sin migrar del todo) |
+| 2 | Capa de servicios (`device_service.py`, `stream_service.py`) | ❌ **No ejecutado** — se crearon otros servicios (profile/security/installer/tether), pero la orquestación de dispositivos/stream sigue en `managers.py` |
+| 3 | Modularización de UI (`tabs/tab_*.py`) | ❌ **No ejecutado** — `ui_tabs.py` sigue siendo un monolito de 1.034 líneas |
+| 4 | Despliegue encapsulado (`--install` / `--uninstall` / `--status` + `.tar.gz`) | 🟡 **Parcial** — `--install`/`--uninstall` y el `.tar.gz` existen; **`--status` no está implementado** |
 
 ---
 
-## 📦 5. Plan de Despliegue Limpio: Encapsulado en `~/.MASV/`
+## ⚖️ 2. Cumplimiento de las 10 Leyes Globales (v3.2)
 
-### 5.1. El Principio de Cero Residuos
+| Ley | Nombre | Estado | Evidencia |
+| :---: | :--- | :---: | :--- |
+| **1** | Auditoría Primero | ✅ | Este documento + `AUDIT_REPORT.md` |
+| **2** | Contratos Existentes y Brechas | 🟡 | `contracts.py` y `errors.py` existen; pero `security.py` conserva firmas `dict`/`bool`/`None` y hay un `ErrorCode` invocado que no existe (P3.4) |
+| **3** | Profundidad Adaptativa | 🟡 | El proyecto controla USB/ADB/TCP y custodia una bóveda → rigor elevado exigido. Hay Modo Seguro y sanitización de shell, pero la **bóveda cifrada (Fernet+PBKDF2) no está cableada**: la real vive en texto plano en `config.json` (P3.14) |
+| **4** | Bucle de Retroalimentación | ✅ | Este documento actualiza contratos y decisiones a partir de hallazgos nuevos |
+| **5** | Estandarización de Transporte/IPC | 🟡 | `OperationResult[T] ≡ { success, data, error_code, message }` cumple el contrato; **no** se aplica en toda la capa (utils, security, handlers de UI) y arrastra un campo espejo `error` que invierte la semántica de verdad (`ok()` deja `error = NONE`, *truthy*) |
+| **6** | Autómata Finito de Interfaz | ❌ | Los 5 estados están definidos, pero `transition_to()` **retorna siempre `True`** (no valida nada) y la UI lo evade en el 77 % de los mensajes |
+| **7** | Métricas de Aptitud | 🟡 | **2 de 5** umbrales cumplidos (ver §3) |
+| **8** | Clarificación Proactiva | ✅ | n/a — acceso completo al repositorio, entorno y suite |
+| **9** | Criterio de Finalización de Auditoría | ✅ | Informe de brechas priorizado + matriz de gap (§5) |
+| **10** | Clasificación de Hallazgos | ✅ | Aplicada estrictamente: Crítico = seguridad / pérdida de datos / legal; Mayor = rendimiento, escalabilidad, mantenibilidad; Menor = estilo, documentación, opcional (§4 y §6) |
 
-Para no ensuciar el directorio raíz del usuario y permitir que la aplicación se instale y desinstale sin dejar rastros residuales, toda la presencia de MASV se concentra en:
+**Cumplimiento: 5 ✅ · 4 🟡 · 1 ❌**
+
+---
+
+## 📊 3. Métricas del Estado Actual (Ley 7)
+
+Medidas **hoy** sobre el repositorio, no estimadas. Comandos en el §10.
+
+### 3.1 Cobertura de pruebas
+
+Runner: `python -m unittest discover -s tests` (el del CI). Herramienta: `coverage.py`.
+
+| Capa | Umbral Ley 7 | Medido | Veredicto |
+| :--- | :---: | :---: | :---: |
+| **UI** (`main.py`, `ui_tabs.py`, `ui_widgets.py`) | ≥ 60 % | **0 % / 0 % / 16 %** | ❌ **Brecha grave** |
+| **Lógica de negocio / núcleo** | ≥ 80 % | ver desglose | 🟡 Mixto |
+| **TOTAL proyecto** | — | **35 %** (4.664 stmts, 3.052 sin cubrir) | — |
+
+Desglose de la capa de negocio (17 módulos):
+
+| Módulo | Cob. | Módulo | Cob. |
+| :--- | :---: | :--- | :---: |
+| `errors.py` | **100 %** | `services/tether_service.py` | 81 % |
+| `domain/models.py` | **100 %** | `core/tether_engine.py` | 77 % |
+| `domain/protocols.py` | **100 %** | `core/scrcpy_engine.py` | 75 % |
+| `core/port_allocator.py` | **100 %** | `managers.py` | 72 % |
+| `contracts.py` | 98 % | `context.py` | 72 % |
+| `state.py` | 95 % | `security.py` | 71 % |
+| `services/profile_service.py` | 93 % | `utils.py` | 64 % |
+| `services/security_service.py` | 93 % | **`core/adb_engine.py`** | **46 %** ⚠️ |
+| `services/installer_service.py` | 90 % | | |
+
+**Lectura:** el dominio y los contratos están excelentemente cubiertos (100 %), pero **el adaptador más crítico para la estabilidad operativa —`adb_engine.py`— está al 46 %**: sin cubrir las líneas 379-402 (`revert_tcpip` y sus marcadores de transición de transporte) ni 597-655 (todo el bucle de reconexión de `_TrackerThread._run_once`). La cobertura cae a cero justo donde vive la lógica de reconexión y lock-down.
+
+### 3.2 Complejidad ciclomática (umbral Ley 7: ≤ 10)
+
+`radon cc`: **19 funciones/métodos por encima del umbral** (distribución A=51, B=7, C=12, D=4, F=2, +1 clase C).
+
+| Función | Rank | CC | Ubicación |
+| :--- | :---: | :---: | :--- |
+| `ScrcpyEngine.build_command` | **F** | **50** | `core/scrcpy_engine.py:194` |
+| `SessionManager.start_scene_legacy` | **F** | **43** | `managers.py:428` |
+| `ProfileService.sanitize_profile_dict` | **D** | 28 | `services/profile_service.py:132` |
+| `ScrcpyDockApp._exit` | **D** | 23 | `main.py:1852` |
+| `ScrcpyDockApp._on_dev_select` | **D** | 21 | `main.py:744` |
+| `ScrcpyDockApp._toggle_scene` | C | 18 | `main.py:1448` |
+| `ScrcpyDockApp._toggle_view` | C | 17 | `main.py:527` |
+| `main()` | C | 15 | `main.py:1916` |
+| `ProfileChipsView.set_profile` | C | 14 | `ui_widgets.py:469` |
+| `ScrcpyDockApp._on_tab_changed` | C | 14 | `main.py:1538` |
+| `_TrackerThread._run_once` | C | 13 | `core/adb_engine.py:595` |
+| `ScrcpyEngine` (clase) | C | 12 | `core/scrcpy_engine.py:91` |
+| `get_compatible_codecs` · `_change_theme` · `_launch_with_fallback` | C | 12 | varios |
+| `parse_pair_ip_port_code` · `scan_devices` · `is_private_ip` · `revert_tcpip` · `_select_tab` | C | 11 | varios |
+
+**Lectura:** `build_command` (CC 50) es el punto de máxima fragilidad y **explica la regresión P3.5**: 50 caminos de decisión sin una sola prueba de aceptación de los perfiles que la propia aplicación distribuye.
+
+### 3.3 Duplicación de código (umbral Ley 7: ≤ 5 %)
+
+**2,9 %** — 24 bloques de ≥ 6 líneas normalizadas repetidos; 252 líneas de 8.769. ✅ **Cumple.**
+Concentrada en las invocaciones repetidas de `subprocess.run(...)` en `adb_engine.py` (los mismos `capture_output/text/timeout/env` ×6), candidata natural a un helper único `_run_adb()`.
+
+### 3.4 Mantenibilidad (radon MI)
+
+| Archivo | MI | Nota |
+| :--- | :---: | :--- |
+| `main.py` | **C** | 1.989 líneas, UI + SO mezclados |
+| `ui_widgets.py` | **C** | 1.201 líneas |
+| `managers.py` | B | 592 líneas |
+| Resto (22 archivos) | **A** | — |
+
+### 3.5 Vulnerabilidades (umbral Ley 7: 0 críticas/altas)
+
+`pip-audit -r requirements.txt` → **No known vulnerabilities found** ✅
+*(Nota de rigor: se auditan las 4 dependencias directas —`cryptography`, `pystray`, `Pillow`, `pyinstaller`—. Al no existir lockfile, las transitivas no quedan cubiertas.)*
+
+### 3.6 Resumen de cumplimiento (Ley 7)
+
+| Métrica | Umbral | Medido | ¿Cumple? |
+| :--- | :---: | :---: | :---: |
+| Cobertura lógica de negocio | ≥ 80 % | 46 %–100 % (mixto; `adb_engine` 46 %) | 🟡 |
+| Cobertura UI | ≥ 60 % | 0 %–16 % | ❌ |
+| Complejidad ciclomática | ≤ 10 | 19 bloques > 10 (máx. 50) | ❌ |
+| Duplicación | ≤ 5 % | 2,9 % | ✅ |
+| Vulnerabilidades | 0 altas/críticas | 0 | ✅ |
+
+**2 ✅ · 1 🟡 · 2 ❌**
+
+---
+
+## 🔬 4. Evaluación por los 5 Vectores (v1.4.1)
+
+### 🔷 Vector 1 — Dominio, Invariantes & Marco Legal · 88 %
+
+- ✅ **Logro del Hito 1**: `domain/models.py` con `@dataclass(frozen=True)` (`Device`, `DeviceCapabilities`, `SessionConfig`) y enums `DeviceState`, `Codec`, `ConnectionType`; `domain/protocols.py` con `SessionProcess` y `TrackerHandle`.
+- ❌ **Brecha 1.1 (Mayor)** — La frontera no migró: `managers.py:105-107` mantiene **tres representaciones** del mismo dato (`List[Tuple[str,str,str]]`, `List[DeviceEntry]`, `_caps_cache`); `ScrcpySession` sigue con `active: bool` y **no existe `SessionState`**.
+- ❌ **Brecha 1.2 (Menor)** — `context.py` sin cabecera de invariantes/licencia.
+- 🐞 **Derivado P3.8 (Mayor)** — `DeviceCapabilities` no transporta el modelo → `get_device_props()` devuelve el **fabricante** como modelo → título de ventana `MASV: vivo` en lugar de `MASV: V2314`. Una brecha de dominio cobrada como bug de usuario.
+
+### 🔷 Vector 2 — Contratos de Datos, Esquema & Catálogo de Fallos · 88 %
+
+- ✅ `contracts.py` (`OperationResult[T]`, `DeviceEntry`, `SessionInfo`, `ProfileConfig`, `TrustedDeviceEntry`) y `errors.py` (30 `ErrorCode` + `ErrorDetail` bilingüe con remediación).
+- 🟡 **Brecha 2.1 (Mayor)** — Ley 5 no aplicada transversalmente: `security.py` devuelve `dict`/`bool`/`int`/`None` en 5 métodos; `utils` devuelve `dict`; los handlers de UI devuelven `None`. El doble campo `error`/`error_code` con `ok().error == NONE` (*truthy*) es una trampa semántica.
+- 🟡 **Brecha 2.2 (Mayor)** — `ERROR_CATALOG` detalla **13 de 30** códigos; 3 definidos sin uso; y **P3.4**: `ErrorCode.INTERNAL_ERROR` se invoca sin existir (`services/security_service.py:207`) → `AttributeError` que enmascara el error original de cifrado.
+- ❌ **Brecha 2.3 (Mayor, agravada)** — `utils.load_config()` sigue sin validar tipos (un `"profiles": []` se conserva tal cual) y ahora **comparte subdicts con `DEFAULT_CONFIG`** por copia superficial (P3.11): guardar un perfil contamina los valores de fábrica del proceso.
+- 🐞 **P3.14 (Crítico, Ley 10)** — Divergencia `security.py` (dict, texto plano) vs `services/security_service.py` (Fernet+PBKDF2, lista) → dos fuentes de verdad de seguridad y la robusta es **código muerto**.
+- ℹ️ **Aviso de la Ley 4**: `DECISIONS.md` declara «guardado atómico con validación de esquema», pero esa implementación vive en `ProfileService` y **no en el camino que usa la aplicación**. La decisión documentada describe código no ejecutado.
+
+### 🔷 Vector 3 — Lógica de Dominio, Concurrencia & Hardening · 84 %
+
+- ✅ Hardening de `extra_args` en tres capas (rechazo de operadores de shell + whitelist + normalización de tokens legacy). **Cierra el Hallazgo 3.1 de v1.2.**
+- ❌ **Regresión P3.5 (Mayor)** — La whitelist no incluye `--no-video`: el **perfil por defecto `🎙️ Stream OBS (Huawei)` y el preset del asistente no arrancan nunca** (`INVALID_EXTRA_ARGS`). El hardening se aplicó sin prueba de aceptación de los perfiles distribuidos.
+- ❌ **P3.1 y P3.2 (Mayor)** — `SessionManager.stop()` y `_build_cmd()` no existen; dos handlers (`_stop_selected`, `_copy_sess_cmd`) mueren con `AttributeError`. `_stop_selected` está además **duplicado** (`main.py:1527` y `:1660`).
+- 🟡 **Brecha 3.2 (Menor)** — Persisten hilos `daemon` sin dispatcher: `start_scene_legacy` lanza scrcpy **sin watchdog** (`on_exit`/`on_stderr_line` ausentes, a diferencia del camino hexagonal), y `_TrackerThread.stop()` no desbloquea el `read(4)`.
+- ❌ **P3.15 (Mayor)** — La UI evita `AdbEngine` en 10 puntos y ejecuta `adb kill-server` directo: se pierde el socket aislado (`ADB_SERVER_SOCKET tcp:localhost:5038`) y se tumba el daemon compartido del usuario (Android Studio, VS Code).
+- 🟡 **P3.21 (Menor)** — `SingleInstance` sin `SO_REUSEADDR` → falso «ya está en ejecución» tras `_restart_app()`.
+
+### 🔷 Vector 4 — Superficie de Interfaz, Ergonomía & Mapeo de Estados · 80 %
+
+- 🟡 **Brecha 4.1 (Mayor)** — **La FSM no gobierna.** Existe `UIStateMachine` con los 5 estados y está suscrita (`main.py:121`), pero `transition_to()` **siempre retorna `True`** sin validar (P3.19) y la UI la evade: **30 llamadas a `_set_status()` vs 9 a `state_machine.set_*`** (77 % fuera del autómata). **Ley 6 NO cumplida.**
+- 🟡 **Brecha 4.2 (Mayor)** — El mapeo error→remediación existe (`ErrorDetail.remediation_es/en`) pero `get_error_detail()` **se importa y nunca se usa** (`pyflakes`).
+- ❌ **P3.12 (Mayor)** — **i18n incompleta**: 563 claves EN, pero **133 literales** pasados a `_()` sin traducción (todos los menús Archivo/Editar/Ver, `Modo Seguro: ON/OFF`, `Blindar Red`, la barra lateral completa). En inglés la app sigue en español; el test que lo «verifica» sólo comprueba 5 claves. Hay **6 claves duplicadas** (P3.13).
+- ❌ **P3.9 (Mayor)** — Los 4 botones de Quick Cast buscan perfiles con nombres inexistentes (`Juego Rápido` vs `🎮 Juego Rápido`): no hacen nada, en silencio.
+- 🟡 **P3.20 (Mayor)** — `ScrcpySession.terminate()` bloquea el hilo de Tk hasta 3 s por sesión.
+- 🟡 **P3.10 (Menor)** — `_connect_wifi` nunca detecta IP inválida: `if not parsed` sobre una tupla `(None, None)` que es *truthy*.
+- ❌ **P3.6 (Mayor)** — `NameError` en el `lambda` que captura `e` de un `except` finalizado.
+- ℹ️ **WCAG 2.2 AA**: la paleta declara contraste AAA (`utils.py:52`) y hay foco visible, pero **no hay verificación automatizada** de contraste ni de áreas táctiles para los 3 temas.
+
+### 🔷 Vector 5 — Infraestructura, Resiliencia & Auditoría Cruzada · 90 %
+
+- ✅ **Cierre del Hallazgo 5.1**: **269 pruebas** (antes 18) con `tests/contracts/` (7), `tests/integration/` (5), mocks de `subprocess`/`AdbEngine`, y cobertura 100 % en dominio/contratos.
+- ✅ **Cierre del Hallazgo 5.2**: `build.yml:58-60` ejecuta la suite antes del empaquetado (matriz ubuntu/windows/macos).
+- ❌ **Brecha 5.1b (Crítico, Ley 10)** — **0 pruebas importan `scrcpy_dock.main`.** Toda la superficie de UI está sin verificar (0 %), lo que hace invisibles los 4 fallos duros de handlers (P3.1, P3.2, P3.3, P3.6).
+- ❌ **P3.7 (Crítico, Ley 10)** — **La suite destruye datos del usuario**: `tests/test_core.py:41-45` llama a `save_config()`/`load_config()` sin aislar `HOME`, sobrescribiendo `~/.config/masv/config.json` (perfiles + bóveda) con `{"test_key": …}`. Reproducido en esta auditoría.
+- 🟡 **P3.17 (Menor)** — `index.html` y `style.css` versionados con restos de prueba (`"Prueba de Concurrencia"`, `p { color: red; }`).
+- 🟡 **P3.18 (Menor)** — `verify_server_version()`/`_compare_versions()` (ADR-014) implementados y nunca invocados; `managers.py:260` con ruta de `scrcpy-server` hardcodeada e inútil.
+- 🟡 **Higiene de CI (Menor)** — sin linter (`pyflakes`/`ruff`) ni `--failfast`; habría detectado P3.6 y los 20+ imports muertos.
+
+---
+
+## 📐 5. Matriz de Brechas (columnas del estándar v3.2)
+
+| Vector | Artefacto esperado | Estado actual | Brecha | Criticidad | Acción propuesta |
+| :---: | :--- | :--- | :--- | :---: | :--- |
+| V1 | `domain/models.py` con `SessionState` | Solo `DeviceState`; `ScrcpySession.active: bool` | Falta ciclo de vida formal de sesión | Mayor | Añadir enum `SessionState`; eliminar las 3 representaciones de `devices` |
+| V1 | `DeviceCapabilities.model` | Ausente | Bug funcional P3.8 | Mayor | Añadir campo y propagar `ro.product.model` |
+| V1 | Cabecera legal/invariantes en `context.py` | Ausente | Hallazgo 1.2 de v1.2 sigue abierto | Menor | Añadir cabecera + invariantes |
+| V2 | `contracts.py` · `OperationResult[T]` | ✅ Creado y usado en core/services | No transversal (security/utils/UI) | Mayor | Migrar `security.py`; exponer solo `OperationResult` |
+| V2 | Catálogo `ErrorCode` completo | 30 códigos; catálogo detalla 13; 1 invocado inexistente | P3.4 rompe el contrato | Mayor | `INTERNAL_ERROR`→`UNKNOWN_ERROR`; cubrir 17 códigos |
+| V2 | Validación de esquema de config | Sin validar tipos + alias mutable | P3.11 + brecha 2.3 | Mayor | Cablear `ProfileService` a la UI (o validar + `deepcopy`) |
+| V2/V3 | Una sola fuente de verdad de seguridad | `security.py` (plano) vs `security_service.py` (cifrado, muerto) | P3.14 — privacidad | **Crítico** | Cablear `SecurityService` (Fernet+PBKDF2) y retirar el duplicado |
+| V3 | Whitelist de `extra_args` coherente | Bloquea `--no-video` (perfil por defecto) | P3.5 — regresión | Mayor | Añadir `--no-video` / `SessionConfig.video_enabled` |
+| V3 | Handlers de sesión operativos | `stop()` y `_build_cmd()` inexistentes; `_stop_selected` duplicado | P3.1, P3.2 | Mayor | Corregir y consolidar definiciones |
+| V3 | UI sobre `AdbEngine` (ADR-006) | 10 llamadas `subprocess` directas | P3.15 | Mayor | Migrar a `AdbEngine` con socket aislado |
+| V3 | Despachador de tareas unificado | ~15 `Thread(daemon=True)` sueltos | Brecha 3.2 de v1.2 | Menor | Centralizar en un `TaskDispatcher` |
+| V4 | FSM gobernante (Ley 6) | `transition_to()` siempre `True`; UI la evade 30 vs 9 | P3.19 + brecha 4.1 | Mayor | Tabla `_ALLOWED` + enrutar UI por la FSM |
+| V4 | `get_error_detail()` cableado | Importado y nunca usado | Brecha 4.2 de v1.2 | Mayor | Mapear errores a acciones en consola |
+| V4 | i18n EN completa | 133 faltantes, 6 duplicadas | P3.12, P3.13 | Mayor | Completar + test AST de cobertura |
+| V4 | Presets y perfiles coherentes | 4 botones con nombres inexistentes | P3.9 | Mayor | Constantes compartidas / match tolerante |
+| V4 | Verificación de contraste WCAG 2.2 AA | Declarado, no verificado | Check del vector sin evidencia | Menor | Script de contraste por tema |
+| V5 | Suite sin efectos secundarios | Escribe el `config.json` real | P3.7 — **pérdida de datos** | **Crítico** | Aislar `CONFIG_FILE` con `tmp` + `patch` |
+| V5 | Smoke test de UI | 0 pruebas importan `main.py` | Cobertura UI 0 % | **Crítico** | Suite Tk oculta sobre handlers |
+| V5 | `TRADEOFFS_MATRIX.md` | Vive dentro de `DECISIONS.md` | Artefacto del estándar no separado | Menor | Extraer a archivo propio |
+| V5 | `services/device_service.py`, `stream_service.py` (Hito 2) | No existen | Hito 2 desviado | Mayor | Extraer orquestación de `managers.py` |
+| V5 | `ui/tabs/tab_*.py` (Hito 3) | No existen (`ui_tabs.py` 1.034 líneas) | Hito 3 no ejecutado | Mayor | Modularizar la presentación |
+| V5 | `requirements-dev.txt` | Todo en `requirements.txt` (incl. `pyinstaller`) | Higiene de despliegue | Menor | Separar runtime/dev |
+| V5 | Linter en CI | Ausente | ~20 imports muertos; P3.6 indetectable | Menor | `ruff`/`pyflakes` + `--failfast` |
+| V5 | Artefactos basura fuera del repo | `index.html`, `style.css`, `backups/` | P3.17 | Menor | `git rm --cached` y limpieza |
+
+---
+
+## 🐞 6. Integración de la Revisión de Bugs (v1.4.1)
+
+Los 22 defectos del `INFORME_BUGS_v1.4.1.md`, reclasificados según la **Ley 10** (Crítico = seguridad / pérdida de datos / legal; Mayor = rendimiento, escalabilidad, mantenibilidad; Menor = estilo, documentación, opcional).
+
+> **Nota de nomenclatura:** el informe de bugs usa una escala *operativa* de 4 niveles (`🔴` = rompe funcionalidad anunciada). La Ley 10 es más estricta con «Crítico». Ambas columnas se ofrecen para que la conciliación sea explícita.
+
+| ID | Defecto | Sev. operativa | **Ley 10** | Vector |
+| :---: | :--- | :---: | :---: | :---: |
+| P3.7 | La suite sobrescribe el `config.json` real → pérdida de perfiles y bóveda | 🔴 | **Crítico** | V5 |
+| P3.14 | Bóveda cifrada sin cablear; credenciales en texto plano; seguridad divergente | 🟡 | **Crítico** | V2/V3 |
+| P3.1 | `SessionManager.stop()` inexistente (handler duplicado) | 🔴 | Mayor | V3 |
+| P3.2 | `SessionManager._build_cmd()` inexistente | 🔴 | Mayor | V3 |
+| P3.3 | `DeviceManager.get_device_model()` inexistente (rompe TrustPrompt) | 🔴 | Mayor | V1/V4 |
+| P3.4 | `ErrorCode.INTERNAL_ERROR` inexistente (ruta de cifrado) | 🔴 | Mayor | V2 |
+| P3.5 | `--no-video` fuera de la whitelist (perfil por defecto inoperante) | 🔴 | Mayor | V3 |
+| P3.6 | `NameError` por `lambda` capturando `e` de un `except` | 🔴 | Mayor | V4 |
+| P3.8 | `get_device_props()` devuelve el fabricante como modelo | 🟠 | Mayor | V1 |
+| P3.9 | Botones de Quick Cast sin efecto (nombres inexistentes) | 🟠 | Mayor | V4 |
+| P3.11 | `load_config()` comparte subdicts con `DEFAULT_CONFIG` | 🟠 | Mayor | V2 |
+| P3.12 | i18n EN incompleta (133 claves) | 🟠 | Mayor | V4 |
+| P3.15 | La UI evade `AdbEngine` (rompe aislamiento ADR-006) | 🟡 | Mayor | V3 |
+| P3.19 | `transition_to()` no valida (FSM decorativa) | 🟡 | Mayor | V4 |
+| P3.20 | `terminate()` bloquea el hilo de Tk hasta 3 s | 🟡 | Mayor | V4 |
+| P3.10 | `_connect_wifi` no detecta IP inválida | 🟠 | Menor | V4 |
+| P3.13 | 6 claves i18n duplicadas | 🟠 | Menor | V4 |
+| P3.16 | Docs vs código (puertos 16 vs 21, versión, ejemplos) | 🟡 | Menor | V1 |
+| P3.17 | `index.html`/`style.css` basura versionada | 🟡 | Menor | V5 |
+| P3.18 | Código muerto/sin cablear | 🟡 | Menor | V2/V5 |
+| P3.21 | `SingleInstance` sin `SO_REUSEADDR` | 🟡 | Menor | V3 |
+| P3.22 | `_TrackerThread.stop()` no desbloquea el `read` | 🟡 | Menor | V3 |
+
+**Totales según Ley 10: 2 Críticos · 12 Mayores · 8 Menores.**
+
+### Patrón raíz (hallazgo transversal)
+
+Cuatro de los seis fallos «mayores» de handlers (P3.1, P3.2, P3.3, P3.6) y el crítico P3.7 comparten una sola causa raíz: **la capa `main.py` no tiene ninguna prueba y el CI no tiene linter**. Cerrar esas dos brechas (Fase D del plan) tiene la mejor relación impacto/esfuerzo de todo el backlog.
+
+---
+
+## 🗺️ 7. Diagnóstico de Acoplamiento: qué se desacopló y qué no
+
+**Se desacopló correctamente (Hito 1):** los núcleos externos (`adb`, `scrcpy`, `v4l2`) ya no son cadenas de comando sueltas dentro de la UI para el camino principal de streaming; viven en `core/` tras interfaces tipadas (`SessionProcess`) con `OperationResult`. El camino `_start_scene_hexagonal` es limpio y testeado.
+
+**No se desacopló (Hitos 2 y 3 pendientes):**
+
+```
+ANTES (v1.2)                          AHORA (v1.4.1)
+main.py 1.571 líneas                  main.py 1.989 líneas   ← creció, no se dividió
+  ├─ widgets Tkinter                    ├─ widgets Tkinter
+  ├─ subprocess adb directo             ├─ subprocess adb directo   (10 sitios)
+  ├─ subprocess pkexec/lsmod            ├─ subprocess pkexec/lsmod
+  └─ lógica de sesión                   └─ lógica de sesión
+                                        ▲
+                                        └─ mientras core/ y services/ existen al lado,
+                                           pero NO son el único camino de acceso
+```
+
+El síntoma clásico que la v3.2 quería eliminar —**«la capa de interfaz ejecuta llamadas directas al SO»**— sigue presente literalmente. Lo que cambió es que ahora hay un motor correcto *al lado* que la UI ignora la mitad de las veces: **deuda silenciosa** (dos formas de hacer lo mismo, una verificada y otra no).
+
+**Regla de no-solapamiento (sección 4.3 de la v3.2):** sigue sin poder garantizarse. Mejorar el tema visual está aislado, pero tocar «arrancar sesión» afecta a **dos rutas vivas** (`_start_scene_hexagonal`, testeada, y `start_scene_legacy`, CC 43 y 0 % de cobertura de UI).
+
+---
+
+## 📱 8. Compatibilidad de Hardware — Estado Validado en v1.4.1
+
+### 8.1 Matriz de comportamiento (código + tests)
+
+| Caso | Comportamiento v1.4.1 | Verificación |
+| :--- | :--- | :--- |
+| Android ≤ 10 (SDK ≤ 29) | `--no-audio` forzado automáticamente | `scrcpy_engine.py:281` · `test_hardware_governance::test_android_10_forces_no_audio` |
+| Kirin 710 (Huawei) | Códec forzado H.264 + clamp de bitrate a 8 M | `scrcpy_engine.py:226-228` · `test_connection_modes::test_legacy_huawei_y9...` |
+| `--stay-awake` / `--turn-screen-off` | Inyectados salvo conflicto con `extra_args` | `scrcpy_engine.py:305-310` |
+| Cámara nativa (sensor 48 MP) | `--max-size 1920` si no se pidió tamaño + sin `--no-downsize-on-error` | `scrcpy_engine.py:238-271` · `test_camera_mode_native_resolution_clamps_to_safe_1920` |
+| Cámara en Android < 12 | Rechazo preventivo `INVALID_INPUT` (SDK < 31) | `test_camera_mode_rejects_android_below_sdk_31` |
+| Webcam virtual v4l2loopback | Comando a `/dev/video9` con pre-chequeo del nodo | `main.py:1167-1226` ⚠️ **fuera del motor** (P3.15) |
+| Modo OTG (HID) | `--otg` sin flags de video; limpia `--no-downsize-on-error` | `test_otg_mode_injects_flag_and_omits_video_params` |
+| Multi-dispositivo | Pool de **21 puertos** reales (27183–27203, `max_offset=20`) | `port_allocator.py:25` ⚠️ las docs dicen «16» y «27199» → **P3.16** |
+
+**Corrección documental requerida:** el rango real es `[27183, 27203]` = **21 sesiones concurrentes**, no 16. (Afecta a `ui_tabs.py:972`, `i18n.py:567` y el CHANGELOG.)
+
+### 8.2 Runbook EMUI 10 (Huawei Y9) — preservado de v3.2
+
+1. **Audio:** Android 10 no soporta `AudioPlaybackCapture` (Android 11+). MASV ya lo resuelve forzando `--no-audio`; el usuario debe elegir fuente `mic` si necesita sonido.
+2. **Encoder Kirin 710:** H.264 a 8 Mbps máximo (ya forzado por el motor).
+3. **Ajustes en el teléfono (requeridos, no automatizables):**
+   - *Opciones de Desarrollador* → activar **«Permitir depuración ADB en modo solo carga»**.
+   - Activar **«Entrada de simulación de pantalla / depuración táctil por USB»**.
+   - Excluir las apps del sistema del «Optimizador» agresivo de batería de EMUI.
+   - Mantener `--stay-awake` y `--turn-screen-off` (activos por defecto).
+
+### 8.3 Modo Estudio Fotográfico (Clean Camera Feed + V4L2) — preservado de v3.2
+
+- **Cámara cenital / detalle de producto** (feed limpio, sin UI del teléfono):
+  `scrcpy -s <serial> --video-source=camera --camera-facing=back --camera-size=1920x1080 --camera-fps=30`
+  *(En MASV se obtiene con el perfil `📷 Cámara HD` o `route_cam`; el motor fuerza `--max-size 1920` en sensores 48 MP.)*
+- **Webcam virtual para OBS / Discord / Zoom:** `--v4l2-sink=/dev/video9` (requiere `v4l2loopback`; el módulo puede cargarse desde la UI con `pkexec`).
+- **Monitor de campo inalámbrico:** segundo teléfono como referencia de encuadre; el pool de 21 puertos permite ambos simultáneos con títulos de ventana `MASV: <modelo>` (pendiente P3.8: hoy mostraría el fabricante).
+
+---
+
+## 🚀 9. Plan de Evolución (Fase 2 del Motor)
+
+### Fase A — Detener el sangrado (1–2 h)
+*Objetivo: eliminar los 2 Críticos y la pérdida de datos.*
+
+| # | Acción | Criterio de aceptación |
+| :--- | :--- | :--- |
+| A1 | Aislar `CONFIG_FILE`/`HOME` en `tests/test_core.py` (`TemporaryDirectory` + `patch`) | La suite deja de modificar `~/.config/masv/` (verificar hash antes/después) |
+| A2 | `main.py:1670` → `stop_session`; borrar la definición duplicada de `:1660` | `_stop_selected()` detiene la sesión sin excepción |
+| A3 | `main.py:1710` → reconstruir el argv con `ScrcpyEngine.build_command` | «Copiar comando» produce un comando válido |
+| A4 | `main.py:1400/1458` → usar `device_mgr.devices` (o implementar `get_device_model`) | Modo Seguro + dispositivo no confiable muestra el TrustPrompt |
+| A5 | `security_service.py:207` → `ErrorCode.UNKNOWN_ERROR` | `encrypt_vault` falla con `OperationResult`, no con `AttributeError` |
+| A6 | `main.py:667-668` → materializar el mensaje antes del `lambda` | El toast de error de instalación muestra el texto, no `NameError` |
+| A7 | `--no-video` en la whitelist **o** `SessionConfig.video_enabled` | El perfil `🎙️ Stream OBS (Huawei)` arranca |
+
+### Fase B — Cumplir las Leyes 5 y 6 (medio día)
+
+| # | Acción | Criterio de aceptación |
+| :--- | :--- | :--- |
+| B1 | `transition_to()` con tabla `_ALLOWED` que devuelva `False` ante transición inválida | Test: `IDLE→SUCCESS` no cambia estado → **Ley 6 cumplida a nivel de máquina** |
+| B2 | Enrutar por la FSM todos los mensajes de estado de la UI | `grep -c "_set_status("` baja de 30 a < 5 |
+| B3 | Cablear `get_error_detail()` a la consola con acción contextual | Cada `ErrorCode` en consola muestra su `remediation_*` |
+| B4 | `DeviceCapabilities.model` + propagación de `ro.product.model` | Título de ventana = `MASV: V2314` (test de `build_command`) |
+| B5 | Migrar `security.py` a `OperationResult` y **unificar** con `SecurityService` (bóveda cifrada) | Una sola fuente de verdad; `vault.enc` en uso; ADR actualizado |
+
+### Fase C — Cerrar los Hitos 2 y 3 (deuda estructural, 1–2 días)
+
+| # | Acción | Criterio de aceptación |
+| :--- | :--- | :--- |
+| C1 | Extraer `services/device_service.py` y `stream_service.py`; dejar `managers.py` como fachada | `start_scene_legacy` sale de `managers.py`; CC de `build_command` < 20 |
+| C2 | Dividir la presentación en `ui/tabs/tab_devices.py`, `tab_profiles.py`, `tab_wifi.py`, `tab_camera.py`, `tab_logs.py` | Ningún archivo de UI > 400 líneas; `main.py` < 500 |
+| C3 | Migrar **todas** las llamadas ADB de la UI a `AdbEngine` (socket aislado) | `grep -c "subprocess.run(\[self.ctx.adb" main.py` → 0 |
+| C4 | Completar las 133 traducciones EN y deduplicar las 6 claves | Test AST de cobertura i18n = 100 % |
+| C5 | Refactorizar `build_command` (CC 50) en un ensamblador por bloques | CC ≤ 10 por bloque; tests por bloque |
+
+### Fase D — Ingeniería de guardia (prevención de regresiones)
+
+| # | Acción | Criterio de aceptación |
+| :--- | :--- | :--- |
+| D1 | **Smoke test de UI** (Tk oculto): construir `ScrcpyDockApp` y ejercitar detener sesión, copiar comando, TrustPrompt y **arranque de cada perfil de `DEFAULT_CONFIG`** | Habría cazado P3.1, P3.2, P3.3, P3.5, P3.6, P3.9 |
+| D2 | Linter en CI (`ruff`/`pyflakes`) + `--failfast` | 0 imports/variables muertos; P3.6 imposible de reintroducir |
+| D3 | Subir `adb_engine.py` del 46 % al ≥ 80 % (`revert_tcpip` y `_TrackerThread`) | Umbral de negocio de la Ley 7 alcanzado |
+| D4 | Test de exhaustividad de `ERROR_CATALOG` (30/30) y de contraste WCAG por tema | 0 códigos sin `ErrorDetail`; contraste verificado |
+| D5 | Separar `requirements-dev.txt`; extraer `TRADEOFFS_MATRIX.md` | Artefactos del estándar completos |
+
+### Criterios de éxito globales (re-medición)
+
+| Métrica | Hoy | Objetivo |
+| :--- | :---: | :---: |
+| Cobertura UI | 0–16 % | ≥ 60 % |
+| Cobertura `adb_engine` | 46 % | ≥ 80 % |
+| Bloques CC > 10 | 19 (máx. 50) | 0 (máx. ≤ 10) |
+| Cuerpo de `main.py` | 1.989 líneas | < 500 |
+| Ley 6 (FSM gobernante) | ❌ | ✅ |
+| Defectos Críticos | 2 | 0 |
+
+---
+
+### 9.1 Runbook Quirúrgico de Ejecución por Fases (Guía de Implementación Paso a Paso)
+
+#### 🛡️ Fase 0 — Hotfixes Críticos & Blindaje de Datos del Host (Estimación: 1 a 2 horas)
+*Meta: Detener la pérdida silenciosa de datos en `~/.config/masv/config.json` y reparar los métodos rotos de la UI que colapsan ante interacción del usuario.*
+
+1. **Paso A.1: Aislamiento del Test de Configuración (Prevención de Pérdida de Datos)**
+   - **Archivo:** `tests/test_core.py` (método `test_atomic_save_config`).
+   - **Acción:** Emplear `unittest.mock.patch("scrcpy_dock.utils.CONFIG_FILE")` apuntando a un archivo temporal dentro de `tempfile.TemporaryDirectory()`.
+   - **Verificación:** Ejecutar `python3 -m unittest discover -s tests` y comprobar con `stat` o `sha256sum` que `~/.config/masv/config.json` no sufre ninguna modificación.
+
+2. **Paso A.2: Reparación del Manejador de Detención de Sesión (`AttributeError`)**
+   - **Archivo:** `scrcpy_dock/main.py`.
+   - **Acción:** Localizar la redefinición duplicada de `_stop_selected` en la línea 1660 que invoca `self.ctx.session_mgr.stop(serial)`. Eliminar la duplicidad o corregir a `self.ctx.session_mgr.stop_session(serial)`.
+   - **Verificación:** Probar que el menú contextual y la tecla `Supr` invocan `stop_session` sin excepciones.
+
+3. **Paso A.3: Reconstrucción del Comando scrcpy en Portapapeles**
+   - **Archivo:** `scrcpy_dock/main.py` (`_copy_sess_cmd`).
+   - **Acción:** Reemplazar la llamada inexistente `_build_cmd` por la llamada al motor hexagonal `self.ctx.session_mgr._scrcpy.build_command(...)`.
+   - **Verificación:** Hacer clic en "📋 Copiar comando scrcpy" y verificar que el portapapeles contiene la cadena completa de ejecución.
+
+4. **Paso A.4: Desbloqueo del Flujo "Confiar y Recordar" (TrustPromptModal)**
+   - **Archivos:** `scrcpy_dock/managers.py` y `scrcpy_dock/main.py`.
+   - **Acción:** Implementar `get_device_model(self, serial: str) -> str` en `DeviceManager`, extrayendo el modelo de `self.devices` o retornando `"Android"` como fallback defensivo. Usarlo en `_start_otg_mode` y `_toggle_scene`.
+   - **Verificación:** Conectar un dispositivo no registrado con Modo Seguro activo; verificar que el diálogo `TrustPromptModal` se despliega sin arrojar `AttributeError`.
+
+5. **Paso A.5: Corrección de Símbolo Inexistente en Catálogo de Errores**
+   - **Archivo:** `scrcpy_dock/services/security_service.py:207`.
+   - **Acción:** Sustituir `ErrorCode.INTERNAL_ERROR` por `ErrorCode.UNKNOWN_ERROR`.
+   - **Verificación:** Comprobar con introspección `hasattr(ErrorCode, "INTERNAL_ERROR")` que no quedan referencias rotas en el código.
+
+6. **Paso A.6: Materialización de Mensaje en Excepciones Asíncronas (`NameError`)**
+   - **Archivo:** `scrcpy_dock/main.py:667-668`.
+   - **Acción:** Asignar `err_msg = str(e)` dentro del bloque `except Exception as e:` antes de despachar el `lambda` diferido a `root.after`.
+   - **Verificación:** Simular un fallo de instalación y confirmar que el `Toast` muestra el texto descriptivo del error en vez de `NameError: free variable 'e'`.
+
+7. **Paso A.7: Habilitación de `--no-video` en la Lista Blanca de Seguridad**
+   - **Archivos:** `scrcpy_dock/domain/models.py` y `scrcpy_dock/core/scrcpy_engine.py`.
+   - **Acción:** Incorporar `"--no-video"` al conjunto inmutable `ALLOWED_EXTRA_FLAGS`.
+   - **Verificación:** Probar que el perfil predeterminado `"🎙️ Stream OBS (Huawei)"` genera su `argv` sin ser rechazado con `INVALID_EXTRA_ARGS`.
+
+---
+
+#### 🎨 Fase 1 — Estabilización de UI, Ergonomía & Coherencia de Perfiles (Estimación: medio día)
+*Meta: Resolver la desconexión visual entre los botones del Dashboard y el backend, blindar la memoria contra aliasing y completar el soporte bilingüe.*
+
+1. **Paso B.1: Búsqueda Tolerante a Emojis en Quick Cast**
+   - **Archivo:** `scrcpy_dock/ui_tabs.py:75-87`.
+   - **Acción:** Modificar `_select_preset(name)` para realizar coincidencia normalizada (slug o substring en minúsculas), permitiendo que `"Juego Rápido"` enlace automáticamente con `"🎮 Juego Rápido"`, y que `"Modo OTG"` active el comando OTG de inmediato.
+   - **Verificación:** Clic en los 4 botones del panel principal y confirmar activación visual.
+
+2. **Paso B.2: Copia Profunda en `load_config` contra Aliasing Mutable**
+   - **Archivo:** `scrcpy_dock/utils.py`.
+   - **Acción:** Aplicar `copy.deepcopy(DEFAULT_CONFIG)` en lugar de la copia superficial `dict(DEFAULT_CONFIG)`.
+   - **Verificación:** Modificar un perfil en una sesión en memoria y comprobar que `DEFAULT_CONFIG` permanece inmutable.
+
+3. **Paso B.3: Validación Estricta de Tupla de Conexión Inalámbrica**
+   - **Archivo:** `scrcpy_dock/main.py:812-816`.
+   - **Acción:** Ajustar la condición a `if not parsed or not parsed[0]:` para interceptar correctamente tuplas `(None, None)`.
+   - **Verificación:** Ingresar `999.999.1.1:5555` y verificar que muestra "IP inválida" en vez de "IP no permitida".
+
+4. **Paso B.4: Propagación de Modelo Real en Títulos de Ventana**
+   - **Archivos:** `scrcpy_dock/domain/models.py` y `scrcpy_dock/managers.py`.
+   - **Acción:** Añadir `model: str = ""` a `DeviceCapabilities` y poblarlo con `ro.product.model` para que los títulos generados sean `MASV: V2314` en vez de `MASV: vivo`.
+   - **Verificación:** Comprobar `--window-title` generado en `build_command`.
+
+5. **Paso B.5: Cobertura Bilingüe Completa (133 claves i18n)**
+   - **Archivo:** `scrcpy_dock/i18n.py`.
+   - **Acción:** Traducir los 133 literales pasados a `_()` que carecen de traducción en inglés (menús, cabeceras, botones de navegación) y deduplicar las 6 claves redundantes.
+   - **Verificación:** Ejecutar la app con `language="en"` y constatar que ningún elemento visible queda en español.
+
+---
+
+#### 🏛️ Fase 2 — Robustecimiento Arquitectónico, FSM y Bóveda Cifrada (Estimación: 1 a 2 días)
+*Meta: Hacer efectiva la gobernanza de las Leyes 5 y 6, activar la bóveda cifrada en producción y canalizar todo ADB por el motor aislado.*
+
+1. **Paso C.1: Autómata de Estados con Validación Estricta de Transiciones (Ley 6)**
+   - **Archivo:** `scrcpy_dock/state.py`.
+   - **Acción:** Declarar la matriz `_ALLOWED_TRANSITIONS: dict[UIState, set[UIState]]`. Si una transición no es válida (ej. `FAULT → SUCCESS` sin pasar por `PENDING`), retornar `False` y no notificar a los suscriptores.
+   - **Verificación:** Test unitario en `tests/test_state.py` comprobando rechazo de transiciones ilegales.
+
+2. **Paso C.2: Gobernanza Centralizada de Estado en UI**
+   - **Archivo:** `scrcpy_dock/main.py`.
+   - **Acción:** Reemplazar las 30 llamadas directas `_set_status()` por invocaciones a `self.ctx.state_machine.set_*`.
+   - **Verificación:** `grep -c "_set_status(" scrcpy_dock/main.py` reducido a 0.
+
+3. **Paso C.3: Mapeo Contextual de Errores con Remediación**
+   - **Archivo:** `scrcpy_dock/main.py`.
+   - **Acción:** Cablear `get_error_detail(error_code)` para que cuando ocurra un fallo en consola, se desplieguen los pasos de mitigación recomendados (`remediation_es` / `remediation_en`).
+   - **Verificación:** Provocar desconexión de USB y verificar despliegue de ayuda guiada en log.
+
+4. **Paso C.4: Unificación de Bóveda hacia `SecurityService` (Cifrado Fernet)**
+   - **Archivos:** `scrcpy_dock/security.py` y `scrcpy_dock/services/security_service.py`.
+   - **Acción:** Migrar la persistencia de dispositivos de confianza de texto plano en `config.json` hacia `~/.MASV/config/vault.enc` protegido con derivación PBKDF2 y sal local.
+   - **Verificación:** Verificar que la clave y la lista de seriales autorizados no son legibles en texto plano en disco.
+
+5. **Paso C.5: Canalización Total de ADB hacia `AdbEngine` (Socket 5038)**
+   - **Archivo:** `scrcpy_dock/main.py`.
+   - **Acción:** Erradicar los 10 `subprocess.run([self.ctx.adb, ...])` directos y reemplazarlos por los métodos del adaptador `AdbEngine`.
+   - **Verificación:** `grep -c "subprocess.run(\[self.ctx.adb" scrcpy_dock/main.py` igual a 0.
+
+---
+
+#### 🧪 Fase 3 — Prevención de Regresiones, Modularización & CI/CD Guards (Estimación: 2 días)
+*Meta: Garantizar que ningún cambio futuro pueda introducir métodos rotos o fallos de contrato sin romper el build en GitHub Actions.*
+
+1. **Paso D.1: Suite de Pruebas de Humo de UI (`tests/test_ui_smoke.py`)**
+   - **Acción:** Crear prueba automatizada que instancie `ScrcpyDockApp` con `root.withdraw()` (modo headless) y simule:
+     - Apertura y cierre de cada pestaña.
+     - Clic en los botones de Quick Cast.
+     - Ejecución de `_stop_selected`, `_copy_sess_cmd`, `_start_otg_mode`.
+     - Carga de cada uno de los perfiles de `DEFAULT_CONFIG`.
+   - **Verificación:** Si algún handler llama a un método inexistente, el test falla de inmediato.
+
+2. **Paso D.2: Integración de Linter Estricto en GitHub Actions (`build.yml`)**
+   - **Archivo:** `.github/workflows/build.yml`.
+   - **Acción:** Añadir paso previo al empaquetado:
+     `python -m pyflakes scrcpy_dock/ tests/` (o `ruff check .`) con bandera que aborte el flujo ante variables no usadas o imports rotos.
+   - **Verificación:** Ejecución limpia en pull request.
+
+3. **Paso D.3: Modularización de Pestañas (`ui/tabs/tab_*.py`)**
+   - **Acción:** Dividir el monolito `ui_tabs.py` (1.034 líneas) en subcomponentes por responsabilidad: `tab_devices.py`, `tab_streaming.py`, `tab_profiles.py`, `tab_wifi.py`, `tab_help.py`.
+   - **Verificación:** Ningún archivo de interfaz debe superar 400 líneas de código.
+
+---
+
+## 🔎 10. Verificación — Comandos de esta Auditoría
+
+```bash
+cd "/home/myinnervoid/Estudio Memexicanisimos/MASV"
+V=.venv/bin   # o el intérprete con las dependencias
+
+# Ley 7 · Cobertura
+python -m coverage run --source=scrcpy_dock -m unittest discover -s tests
+python -m coverage report -m
+
+# Ley 7 · Complejidad ciclomática (umbral ≤ 10)
+python -m radon cc -s -n C scrcpy_dock/
+
+# Ley 7 · Mantenibilidad
+python -m radon mi scrcpy_dock/
+
+# Ley 7 · Vulnerabilidades
+python -m pip_audit -r requirements.txt
+
+# Ley 7 · Duplicación (bloques ≥ 6 líneas normalizadas)
+# Ley 6 · Gobierno de la FSM
+grep -c "_set_status(" scrcpy_dock/main.py          # 30
+grep -c "state_machine\.set_" scrcpy_dock/main.py   #  9
+
+# Ley 5 · Contratos y código muerto
+python -m pyflakes scrcpy_dock build.py run.py tests
+
+# Ley 6 · La FSM no valida transiciones
+grep -n "return True" scrcpy_dock/state.py           # state.py:67
+
+# Ley 9 · Suite
+python -m unittest discover -s tests -v              # 269 tests OK
+```
+
+---
+
+## 📎 Anexo A — Archivos y trazabilidad
+
+| Documento | Rol |
+| :--- | :--- |
+| `ANALISIS.md` (este) | Análisis arquitectónico y plan de evolución v3.3 |
+| `AUDIT_REPORT.md` | Auditoría por 5 vectores + verificación de los 11 hallazgos de v1.2 |
+| `INFORME_BUGS_v1.4.1.md` | 22 defectos con evidencia reproducible y parche |
+| `DECISIONS.md` | ADR-001…005 + matriz de trade-offs |
+| `docs/adr/ADR_MASTER_HEXAGONAL.md` | Especificación de la arquitectura hexagonal |
+| `git show c88c0a2:ANALISIS.md` | Documento original v3.2 (13-sep-2026), archivado |
+
+**Principio de cierre (Ley 4):** toda corrección de la Fase A/B debe acompañarse de (a) su prueba de aceptación, (b) la actualización del ADR afectado en `DECISIONS.md`, y (c) la re-medición de las métricas de la Ley 7. Una mejora sin métrica que la respalde no se considera cerrada.
+
+---
+
+## 📎 Anexo B — Material operativo de la v3.2 que sigue vigente
+
+### B.1 Decisiones de exclusión (razonadas, sin cambios)
+
+| Núcleo | Dictamen | Razón |
+| :--- | :--- | :--- |
+| **ADB** (Android Debug Bridge) | ✅ **Consolidar como Engine aislado** | Ya implementado en `core/adb_engine.py` (socket 5038, health-check de estados). Pendiente: que la UI lo use (P3.15) |
+| **scrcpy + server** | ✅ **Consolidar con matriz de códecs** | `core/scrcpy_engine.py` (matriz por SDK + override Kirin + fallback de códec) |
+| **v4l2loopback** | 🟡 **Consolidar driver de usuario** | Hoy vive en `main.py:_route_cam/_setup_v4l2`, **fuera del motor** (P3.15) |
+| **Clientes ADB en Python** (`pure-python-adb`, `adb-shell`) | ❌ **Rechazar** | No soportan el emparejamiento TLS de Android 11+, ni la rotación de claves RSA de Android 12+, ni sockets concurrentes para `scrcpy-server` |
+| **`sndcpy` (legacy)** | ❌ **Descartar** | Obsoleto: scrcpy moderno captura audio nativo (`AudioPlaybackCapture`, Android 11+) |
+| **Electron / Tauri+Node / CEF** | ❌ **Rechazar** | Rompería el footprint (~35 MB, <45 MB RAM, arranque ~200 ms) del stack Python 3 + Tkinter |
+
+**Estado del núcleo `ScrcpyEngine` respecto a la v3.2:** la matriz de códecs y el auto-fallback H.264 están implementados y testeados (`_CODECS_BY_SDK`, `is_codec_failure`, `_launch_with_fallback`). El **control de versión de `scrcpy-server.jar` (ADR-014) sigue sin cablear**: `verify_server_version()` existe y nunca se invoca (P3.18).
+
+### B.2 Layout de despliegue encapsulado (`~/.MASV/`) — implementado
+
 ```
 $HOME/.MASV/
-├── bin/
-│   └── MASV                      # Ejecutable binario autónomo
-├── assets/
-│   └── logo.png                  # Icono de alta resolución
-├── config/
-│   ├── config.json               # Configuración de usuario y perfiles
-│   └── vault.enc                 # Bóveda cifrada de dispositivos de confianza
-└── logs/
-    └── masv.log                  # Registro de auditoría operativo
+├── bin/MASV              # Ejecutable (copia persistente del binario)
+├── assets/logo.png
+├── config/               # (reservado)
+└── logs/                 # (reservado)
 ```
+Puntos de enlace XDG gestionados por `InstallerService`:
+1. `~/.local/bin/MASV` (symlink para terminal) — `installer_service.py:89`.
+2. `~/.local/share/applications/MASV.desktop` — `installer_service.py:85`.
 
-Los únicos dos puntos de enlace con el sistema operativo son enlaces simbólicos gestionados por estándares XDG:
-1. `~/.local/bin/MASV` (Acceso por Terminal).
-2. `~/.local/share/applications/MASV.desktop` (Acceso por Menú Gráfico).
+> ⚠️ **Configuración real del usuario:** hoy vive en `~/.config/masv/config.json` (no en `~/.MASV/config/`), con permisos `0600` y directorio `0700` (`utils.py:220-227`) según ADR-005. El `config/` de `~/.MASV/` está creado pero vacío. Conviene decidir una sola ubicación.
+> ⚠️ **Bóveda cifrada:** el layout prevé `config/vault.enc`, pero el cifrado (`SecurityService`) no se usa (P3.14).
+> ⚠️ **Desktop entry:** `installer_service._render_desktop_entry` escribe `Exec={exec_path}` **sin entrecomillar**; una ruta con espacios (como la carpeta de este mismo proyecto, `Estudio Memexicanisimos/MASV`) produce una entrada inválida. Requiere comillas.
 
-### 5.2. Módulo de Auto-Instalación y Desinstalación Atómica (`AppInstaller`)
+### B.3 Scorecard v3.2 vs v3.3 (referencia de evolución)
 
-```python
-import os
-import shutil
-import subprocess
-from .contracts import OperationResult
-from .errors import ErrorCode
+| Vector | v3.2 (13-sep) | v3.3 (01-oct) | Δ |
+| :--- | :---: | :---: | :---: |
+| V1 Dominio, Invariantes & Legal | 95 % | 88 % | ▼ 7 |
+| V2 Contratos, Esquema & Catálogo | 92 % | 88 % | ▼ 4 |
+| V3 Lógica, Concurrencia & Hardening | 90 % | 84 % | ▼ 6 |
+| V4 Interfaz, Ergonomía & Estados FSM | 94 % | 80 % | ▼ 14 |
+| V5 Infraestructura & Despliegue | 96 % | 90 % | ▼ 6 |
+| **Global** | **93 %** (declarado) | **86 %** (medido) | ▼ 7 |
 
-class AppInstaller:
-    BASE_DIR = os.path.expanduser("~/.MASV")
-    LOCAL_BIN = os.path.expanduser("~/.local/bin")
-    DESKTOP_DIR = os.path.expanduser("~/.local/share/applications")
-    DESKTOP_FILE = os.path.join(DESKTOP_DIR, "MASV.desktop")
-
-    @classmethod
-    def install(cls, source_binary_path: str, source_logo_path: str) -> OperationResult[dict]:
-        """Despliega MASV en ~/.MASV y genera los accesos directos."""
-        try:
-            bin_dir = os.path.join(cls.BASE_DIR, "bin")
-            assets_dir = os.path.join(cls.BASE_DIR, "assets")
-            config_dir = os.path.join(cls.BASE_DIR, "config")
-            logs_dir = os.path.join(cls.BASE_DIR, "logs")
-
-            for d in (bin_dir, assets_dir, config_dir, logs_dir, cls.LOCAL_BIN, cls.DESKTOP_DIR):
-                os.makedirs(d, exist_ok=True)
-
-            target_bin = os.path.join(bin_dir, "MASV")
-            target_logo = os.path.join(assets_dir, "logo.png")
-
-            shutil.copy2(source_binary_path, target_bin)
-            os.chmod(target_bin, 0o755)
-
-            if os.path.exists(source_logo_path):
-                shutil.copy2(source_logo_path, target_logo)
-
-            # Crear Symlinks en ~/.local/bin
-            for symlink_name in ("MASV", "masv"):
-                link_path = os.path.join(cls.LOCAL_BIN, symlink_name)
-                if os.path.islink(link_path) or os.path.exists(link_path):
-                    os.remove(link_path)
-                os.symlink(target_bin, link_path)
-
-            # Generar Desktop Entry apuntando a ~/.MASV
-            desktop_content = f"""[Desktop Entry]
-Version=1.0
-Type=Application
-Name=MASV
-GenericName=Memexicanisimos Android Screen Viewer
-Comment=Controla y visualiza dispositivos Android en pantalla
-Exec="{target_bin}" %U
-Path={cls.BASE_DIR}
-Icon={target_logo}
-Terminal=false
-Categories=Utility;
-StartupNotify=true
-StartupWMClass=MASV
-Keywords=MASV;scrcpy;android;screen;viewer;memexicanisimos;
-"""
-            with open(cls.DESKTOP_FILE, "w", encoding="utf-8") as f:
-                f.write(desktop_content)
-            os.chmod(cls.DESKTOP_FILE, 0o755)
-
-            # Refrescar base de datos XDG
-            subprocess.run(["update-desktop-database", cls.DESKTOP_DIR], capture_output=True)
-
-            return OperationResult.ok(
-                data={"base_dir": cls.BASE_DIR, "binary": target_bin},
-                message="MASV instalado exitosamente en ~/.MASV"
-            )
-        except Exception as e:
-            return OperationResult.fail(ErrorCode.UNEXPECTED_ERROR, f"Error durante la instalación: {e}")
-
-    @classmethod
-    def uninstall(cls) -> OperationResult[None]:
-        """Purga absoluta: retira accesos y borra ~/.MASV dejando 0 residuos."""
-        try:
-            # 1. Remover Symlinks
-            for symlink_name in ("MASV", "masv"):
-                link_path = os.path.join(cls.LOCAL_BIN, symlink_name)
-                if os.path.islink(link_path) or os.path.exists(link_path):
-                    os.remove(link_path)
-
-            # 2. Remover archivo .desktop
-            if os.path.exists(cls.DESKTOP_FILE):
-                os.remove(cls.DESKTOP_FILE)
-
-            # 3. Refrescar base de datos
-            subprocess.run(["update-desktop-database", cls.DESKTOP_DIR], capture_output=True)
-
-            # 4. Eliminar directorio encapsulado completo
-            if os.path.exists(cls.BASE_DIR):
-                shutil.rmtree(cls.BASE_DIR)
-
-            return OperationResult.ok(message="MASV ha sido purgado completamente del sistema sin dejar rastros.")
-        except Exception as e:
-            return OperationResult.fail(ErrorCode.UNEXPECTED_ERROR, f"Fallo al desinstalar: {e}")
-```
-
----
-
-## 🔬 6. Evaluación Rigurosa por los 5 Vectores (v3.2)
-
-```
-┌─────────────────────────────────────────────────────────────────────────┐
-│              MATRIZ DE CONFORMIDAD ARQUITECTÓNICA (v3.2)                │
-├────────┬───────────────────────────────────┬─────────┬──────────────────┤
-│ VECTOR │ DIMENSIÓN EVALUADA                │ SCORE   │ ESTADO           │
-├────────┼───────────────────────────────────┼─────────┼──────────────────┤
-│ V1     │ Dominio, Invariantes & Marco Legal│ 95%     │ Sólido           │
-│ V2     │ Contratos, Esquema & Catálogo     │ 92%     │ Estandarizado    │
-│ V3     │ Lógica, Concurrencia & Hardening  │ 90%     │ Robusto          │
-│ V4     │ Interfaz, Ergonomía & Estados FSM │ 94%     │ Alta Fidelidad   │
-│ V5     │ Infraestructura & Despliegue      │ 96%     │ Automatizado     │
-└────────┴───────────────────────────────────┴─────────┴──────────────────┘
-```
-
-1. **Vector 1 (Dominio & Legal):** Aislamiento estricto en espacio de usuario. Sin escalación de privilegios (`sudo`). Atribución explícita a licencias Apache 2.0 (`scrcpy`/`adb`) y MIT (`MASV`).
-2. **Vector 2 (Contratos & Catálogo):** Uso sistemático de `OperationResult[T]` para operaciones de hardware y despliegue. Errores categorizados (`ErrorCode.DEVICE_NOT_FOUND`, `ErrorCode.SCRCPY_NOT_FOUND`, etc.).
-3. **Vector 3 (Hardening & Concurrencia):** Aislamiento de subprocesos mediante hilos controlados, sanitización estricta de `extra_args` en perfiles y permisos atómicos `0755` para binarios y `0600` para configuraciones.
-4. **Vector 4 (Ergonomía & FSM):** Autómata de 5 estados (`IDLE`, `PENDING`, `SUCCESS`, `EMPTY`, `FAULT`) mapeado 1:1 en la interfaz visual.
-5. **Vector 5 (Infraestructura & Resiliencia):** Proceso de empaquetado reproducible, verificación automatizada de enlaces y desinstalación atómica verificable.
-
----
-
-## 🗺️ 7. Hoja de Ruta de Refactorización (Roadmap Modular)
-
-Para ejecutar esta separación de módulos sin interrumpir el funcionamiento continuo de MASV:
-
-- [x] **Hito 0 (Inmediato):** Habilitación del comando de terminal `MASV` y acceso al menú de escritorio (`.desktop`). *(Completado y verificado).*
-- [ ] **Hito 1 (Extracción de Núcleos):** Crear `core/adb_engine.py` y `core/scrcpy_engine.py`. Migrar las llamadas de subproceso de `managers.py` y `main.py` a estas clases especializadas.
-- [ ] **Hito 2 (Capa de Servicios):** Centralizar la lógica de negocio en `services/device_service.py` y `services/stream_service.py`. Desacoplar la UI de llamadas directas al sistema operativo.
-- [ ] **Hito 3 (Modularización de UI):** Dividir `ui_tabs.py` y `main.py` en vistas independientes (`tabs/tab_*.py`) suscritas al `UIStateMachine`.
-- [ ] **Hito 4 (Despliegue Encapsulado):** Integrar `AppInstaller` con flags CLI (`MASV --install`, `MASV --uninstall`, `MASV --status`) y generación de release portable en `.tar.gz`.
-
----
-
-## 📱 8. Diagnóstico Específico: Compatibilidad Huawei Y9 (EMUI 10), Multi-Dispositivo y Modo Curso de Fotografía
-
-### 8.1. Particularidades del Huawei Y9 (Android 10 / EMUI 10 con GMS)
-El Huawei Y9 opera sobre el procesador **HiSilicon Kirin 710** bajo la capa de personalización **EMUI 10** (Android 10), conservando los servicios de Google (GMS). Este dispositivo presenta tres condicionantes técnicas que MASV debe manejar de forma nativa:
-
-1. **Audio en Android 10 (Restricción del Sistema Operativo):**
-   - *Causa:* La captura nativa de audio en `scrcpy` (`--audio-source=playback`) requiere la API `AudioPlaybackCapture`, introducida oficialmente en **Android 11**.
-   - *Impacto:* Si MASV ejecuta `scrcpy` sin parámetros de audio, intentará capturar audio y lanzará advertencias o errores de inicialización.
-   - *Solución Arquitectónica:* `DeviceManager` debe inspeccionar `ro.build.version.release`. Si la versión es `<= 10`, MASV forzará automáticamente `--no-audio` o desactivará el selector de audio en la UI para ese dispositivo.
-
-2. **Encoder de Video Kirin 710 (HiSilicon):**
-   - *Causa:* El chip Kirin 710 (`OMX.hisi.video.encoder.avc`) tiene dificultades con códecs HEVC (H.265) o bitrates elevados (>8 Mbps) sobre el socket ADB, lo que puede provocar lag o cuadros verdes.
-   - *Solución Arquitectónica:* Crear un perfil optimizado **"Huawei / EMUI Legacy"**:
-     - Códec forzado: `H.264` (`--video-codec=h264`).
-     - Bitrate seguro: `6M` a `8M` (`--video-bit-rate=6M`).
-     - Resolución máxima: `1080p` o `720p` (`--max-size=1080`).
-     - FPS: `30` (`--max-fps=30`) para estabilidad térmica en sesiones prolongadas.
-
-3. **Políticas de Energía y Seguridad de EMUI 10:**
-   - *Causa:* EMUI cuenta con un gestor agresivo de ahorro de energía ("Optimizador") que suspende procesos USB o desactiva la pantalla cerrando el túnel de `scrcpy`. Además, exige permisos explícitos para entrada táctil.
-   - *Ajustes Requeridos en el Teléfono:*
-     - En *Opciones de Desarrollador*: Activar **"Permitir depuración ADB en modo solo carga"**.
-     - Activar **"Entrada de simulación de pantalla / depuración táctil por USB"**.
-     - Excluir a las apps del sistema de optimizaciones agresivas de batería.
-   - *Soporte en MASV:* Mantener activas las flags `--stay-awake` y `--turn-screen-off` (esta última apaga físicamente el panel del teléfono ahorrando batería mientras el stream se mantiene en PC).
-
----
-
-### 8.2. Orquestación Multi-Dispositivo Simultáneo (Dual Phone Dock)
-El usuario opera con **2 teléfonos conectados simultáneamente**. Para soportar este entorno sin interferencias:
-
-1. **Aislamiento de Puertos Locales (TCP):**
-   - `scrcpy` vincula por defecto el puerto `27183`. Si se abre el segundo teléfono sin especificar puerto, puede ocurrir un conflicto de sockets (`bind: Address already in use`).
-   - *Solución:* `SessionManager` debe asignar puertos dinámicos por sesión:
-     - Dispositivo 1: `--port=27183`
-     - Dispositivo 2: `--port=27184` (o rango automático `--port=27183:27199`).
-
-2. **Diferenciación Visual en KDE Plasma:**
-   - Cada ventana de streaming debe llevar un título explícito basado en el modelo:
-     - Ventana 1: `--window-title="MASV: Huawei Y9 (Cámara/Monitor)"`
-     - Ventana 2: `--window-title="MASV: [Dispositivo 2]"`
-   - Permite organizar las ventanas en pantallas separadas o mosaicos de escritorio en KDE.
-
----
-
-### 8.3. Modo Especial: Estudio de Fotografía (Clean Camera Feed + V4L2)
-Para el desarrollo del **Curso de Fotografía**, MASV adquiere un rol de herramienta de producción audiovisual:
-
-1. **Uso como Cámara Cenital / Detalle de Producto:**
-   - Colocar el teléfono en un trípode o brazo articulado apuntando a la mesa de trabajo o cámara réflex.
-   - Iniciar en modo sensor limpio:
-     ```bash
-     scrcpy -s <serial> --video-source=camera --camera-facing=back --camera-size=1920x1080 --camera-fps=30
-     ```
-   - *Ventaja Clave:* Entrega la señal de vídeo limpia del sensor (Clean HDMI / Clean Feed) sin mostrar botones de disparador, cuadrículas de la app de cámara ni iconos de batería.
-
-2. **Webcam Virtual para OBS y Ambient Videos:**
-   - Enrutar el feed directamente al módulo de kernel `v4l2loopback`:
-     ```bash
-     scrcpy -s <serial> --video-source=camera --v4l2-sink=/dev/video2
-     ```
-   - Permite usar la cámara de 48MP/16MP del smartphone como cámara web profesional en Linux para transmisiones del curso o demostraciones en vivo.
-
-3. **Uso como Monitor de Campo Inalámbrico:**
-   - Usar el segundo teléfono como pantalla de referencia para verificar encuadres, histogramas y composición fotográfica en tiempo real.
-
+> **Advertencia metodológica:** los porcentajes de la v3.2 eran *declarativos* (proyectaban la arquitectura diseñada). Los de la v3.3 son *medidos* contra umbrales verificables (cobertura, complejidad, FSM). La caída no indica necesariamente una regresión del producto —indica que **ahora se mide lo que antes se asumía**. Los tests pasaron de 18 a 269 y los núcleos existen; el descenso refleja que la UI, la FSM y el catálogo **no alcanzan el estándar que el documento anterior daba por cumplido**.
