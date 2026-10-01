@@ -300,6 +300,13 @@ class SessionManager:
             bit_rate=int(getattr(profile, "bit_rate", 8_000_000)),
             video_source=str(getattr(profile, "video_source", "display")),
             max_fps=getattr(profile, "max_fps", None),
+            camera_id=str(getattr(profile, "camera_id")) if getattr(profile, "camera_id", None) is not None else None,
+            camera_facing=getattr(profile, "camera_facing", None),
+            audio_source=getattr(profile, "audio_source", "playback"),
+            turn_screen_off=bool(getattr(profile, "turn_screen_off", True)),
+            stay_awake=bool(getattr(profile, "stay_awake", True)),
+            extra_args=tuple(getattr(profile, "extra_args", ())),
+            otg_mode=bool(getattr(profile, "otg_mode", False)),
         )
 
         # 3. Resolver DeviceCapabilities
@@ -466,6 +473,11 @@ class SessionManager:
             except Exception:
                 pass
 
+        v_source = profile_data.get("video_source", "display")
+        camera_id = profile_data.get("camera_id")
+        camera_facing = profile_data.get("camera_facing")
+        otg_mode = bool(profile_data.get("otg_mode", False))
+
         extra_args_tuple: tuple[str, ...] = ()
         extra_str = profile_data.get("extra_args", "")
         if extra_str:
@@ -474,7 +486,36 @@ class SessionManager:
                 if self.log_q:
                     self.log_q.put(("ERROR", f"[{serial}] {res_args.message}"))
                 return OperationResult.fail(res_args.error_code or ErrorCode.INVALID_INPUT, res_args.message)
-            extra_args_tuple = tuple(res_args.data or [])
+            raw_tokens = list(res_args.data or [])
+            filtered_tokens = []
+            idx = 0
+            while idx < len(raw_tokens):
+                tok = raw_tokens[idx]
+                if tok.startswith("--video-source="):
+                    v_source = tok.split("=", 1)[1]
+                elif tok == "--video-source" and idx + 1 < len(raw_tokens):
+                    v_source = raw_tokens[idx + 1]
+                    idx += 1
+                elif tok == "--otg":
+                    otg_mode = True
+                elif tok.startswith("--camera-id="):
+                    camera_id = tok.split("=", 1)[1]
+                elif tok == "--camera-id" and idx + 1 < len(raw_tokens):
+                    camera_id = raw_tokens[idx + 1]
+                    idx += 1
+                elif tok.startswith("--camera-facing="):
+                    camera_facing = tok.split("=", 1)[1]
+                elif tok == "--camera-facing" and idx + 1 < len(raw_tokens):
+                    camera_facing = raw_tokens[idx + 1]
+                    idx += 1
+                else:
+                    filtered_tokens.append(tok)
+                idx += 1
+            extra_args_tuple = tuple(filtered_tokens)
+
+        # Si v_source es "camera" y no hay camera_id ni camera_facing, default a "0" (trasera)
+        if v_source == "camera" and not camera_id and not camera_facing:
+            camera_id = "0"
 
         # Sincronizar puertos pre-ocupados en self.sessions (ej. inyectados en tests/UI)
         used_ports = {s.assigned_port for s in self.sessions.values() if hasattr(s, "assigned_port")}
@@ -492,14 +533,15 @@ class SessionManager:
             codec=codec_enum,
             resolution=str(profile_data.get("max_size", "1080")),
             bit_rate=bitrate_int,
-            video_source=profile_data.get("video_source", "display"),
+            video_source=v_source,
             max_fps=float(profile_data["max_fps"]) if profile_data.get("max_fps") else None,
-            camera_facing=profile_data.get("camera_facing"),
-            camera_id=profile_data.get("camera_id"),
+            camera_facing=camera_facing,
+            camera_id=str(camera_id) if camera_id is not None else None,
             audio_source=profile_data.get("audio_source", "playback"),
             turn_screen_off=bool(profile_data.get("turn_screen_off", True)),
             stay_awake=bool(profile_data.get("stay_awake", True)),
             extra_args=extra_args_tuple,
+            otg_mode=otg_mode,
         )
 
         caps = DeviceCapabilities(

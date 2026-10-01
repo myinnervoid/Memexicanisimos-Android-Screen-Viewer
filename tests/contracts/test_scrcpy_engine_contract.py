@@ -404,6 +404,22 @@ class ScrcpyV4FlagsContract(unittest.TestCase):
         self.assertNotIn("--max-fps", argv)
         self.assertNotIn("--camera-fps", argv)
 
+    def test_camera_source_omits_no_downsize_on_error(self):
+        result = self.engine.build_command(
+            _cfg(video_source="camera"), make_modern_samsung(), make_caps_modern_samsung(),
+        )
+        self.assertTrue(result.success)
+        self.assertNotIn("--no-downsize-on-error", result.data)
+
+    def test_camera_source_defaults_max_size_to_1920_when_native(self):
+        result = self.engine.build_command(
+            _cfg(video_source="camera", resolution="native"), make_modern_samsung(), make_caps_modern_samsung(),
+        )
+        self.assertTrue(result.success)
+        argv = result.data
+        self.assertIn("--max-size", argv)
+        self.assertEqual(argv[argv.index("--max-size") + 1], "1920")
+
 
 # ─── is_codec_failure · ADR-011 ────────────────────────────────────────────
 

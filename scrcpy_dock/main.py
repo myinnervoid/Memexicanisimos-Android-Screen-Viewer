@@ -1167,12 +1167,38 @@ class ScrcpyDockApp:
     def _route_cam(self):
         serial = self.ctx.active_device_serial
         if not serial or not self.ctx.scrcpy:
-            messagebox.showerror("Error","Selecciona un dispositivo activo.")
+            messagebox.showerror(_("Error"), _("Selecciona un dispositivo activo."))
             return
         p = self.ctx.profile_mgr.get_profiles().get(self.ctx.active_profile.get(), {})
-        camid = p.get("camera_id","0")
-        cmd = [self.ctx.scrcpy,"-s",serial, "--video-source=camera","--camera-id",camid, "--v4l2-sink=/dev/video9","--no-playback"]
-        self.ctx.log("INFO",f"[{serial}] Enrutando cámara:\n  {' '.join(cmd)}")
+        camid = p.get("camera_id", "0")
+
+        # Si /dev/video9 no existe en Linux, preguntar si se desea abrir la cámara en pantalla directa
+        if _PLAT != "win32" and not os.path.exists("/dev/video9"):
+            ans = messagebox.askyesno(
+                _("v4l2loopback no detectado"),
+                _("El dispositivo virtual /dev/video9 no está activo en el sistema.\n"
+                  "(Se requiere 'sudo modprobe v4l2loopback video_nr=9' para OBS).\n\n"
+                  "¿Deseas abrir la cámara directamente en una ventana en pantalla?")
+            )
+            if ans:
+                cam_cfg = dict(p)
+                cam_cfg["video_source"] = "camera"
+                cam_cfg["camera_id"] = str(camid)
+                cam_cfg["max_size"] = "1920"
+                res = self.ctx.session_mgr.start_scene(
+                    serial, f"Cámara: {serial}", cam_cfg,
+                    lambda: Toast(self.root, _("Cámara activa en ventana."), "success")
+                )
+                if not res.success:
+                    messagebox.showerror(_("Error"), res.message)
+                self._refresh_table()
+                return
+            else:
+                self._v4l2_help()
+                return
+
+        cmd = [self.ctx.scrcpy, "-s", serial, "--video-source=camera", "--camera-id", str(camid), "--max-size", "1920", "--v4l2-sink=/dev/video9", "--no-playback"]
+        self.ctx.log("INFO", f"[{serial}] Enrutando cámara:\n  {' '.join(cmd)}")
         try:
             kw = {}
             if _PLAT != "win32":

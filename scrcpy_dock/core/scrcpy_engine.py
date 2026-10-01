@@ -235,7 +235,9 @@ class ScrcpyEngine:
         if device.serial:
             argv.extend(["-s", device.serial])
 
-        argv.append("--no-downsize-on-error")
+        is_camera = config.video_source == "camera" or "--video-source=camera" in config.extra_args
+        if not is_camera and not config.otg_mode:
+            argv.append("--no-downsize-on-error")
 
         if config.otg_mode:
             argv.append("--otg")
@@ -251,6 +253,22 @@ class ScrcpyEngine:
                             argv.extend(["--max-size", res_str])
                     else:
                         argv.extend(["--max-size", res_str])
+                elif is_camera:
+                    # En modo cámara, 'native' puede ser un sensor de 48MP/12MP (ej. 4608x3456)
+                    # que desborda el encoder de hardware si no se limita. Default seguro a 1920.
+                    has_size = any(
+                        t.startswith("--max-size") or t.startswith("--camera-size") or t == "-m"
+                        for t in config.extra_args
+                    )
+                    if not has_size:
+                        argv.extend(["--max-size", "1920"])
+            elif is_camera:
+                has_size = any(
+                    t.startswith("--max-size") or t.startswith("--camera-size") or t == "-m"
+                    for t in config.extra_args
+                )
+                if not has_size:
+                    argv.extend(["--max-size", "1920"])
 
             argv.extend([
                 "--port", str(config.port),

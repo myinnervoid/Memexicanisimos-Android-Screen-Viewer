@@ -185,6 +185,8 @@ class ProfileService:
         vs_val = raw.get("video_source")
         if isinstance(vs_val, str) and vs_val.lower() in _VALID_VIDEO_SOURCES:
             out["video_source"] = vs_val.lower()
+        elif "--video-source=camera" in str(raw.get("extra_args") or ""):
+            out["video_source"] = "camera"
         else:
             out["video_source"] = "display"
 
