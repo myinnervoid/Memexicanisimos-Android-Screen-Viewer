@@ -88,6 +88,41 @@ class BuildCommandContract(unittest.TestCase):
         self.assertNotIn("--no-audio", argv)
         self.assertIn("--audio-source", argv)
 
+    def test_audio_source_none_forces_no_audio_on_android_11(self):
+        result = self.engine.build_command(
+            _cfg(audio_source="none"), make_modern_samsung(), make_caps_modern_samsung(),
+        )
+        self.assertTrue(result.success)
+        argv = result.data
+        self.assertIn("--no-audio", argv)
+        self.assertNotIn("--audio-source", argv)
+
+    def test_audio_source_system_normalizes_to_playback(self):
+        result = self.engine.build_command(
+            _cfg(audio_source="system"), make_modern_samsung(), make_caps_modern_samsung(),
+        )
+        self.assertTrue(result.success)
+        argv = result.data
+        self.assertIn("--audio-source", argv)
+        idx = argv.index("--audio-source")
+        self.assertEqual(argv[idx + 1], "playback")
+
+    def test_turn_screen_off_and_stay_awake_injected_when_true(self):
+        result = self.engine.build_command(
+            _cfg(turn_screen_off=True, stay_awake=True), self.device, self.caps,
+        )
+        self.assertTrue(result.success)
+        self.assertIn("--turn-screen-off", result.data)
+        self.assertIn("--stay-awake", result.data)
+
+    def test_turn_screen_off_omitted_when_false(self):
+        result = self.engine.build_command(
+            _cfg(turn_screen_off=False, stay_awake=False), self.device, self.caps,
+        )
+        self.assertTrue(result.success)
+        self.assertNotIn("--turn-screen-off", result.data)
+        self.assertNotIn("--stay-awake", result.data)
+
     # ── bitrate clamp (ADR-010 + ajuste #2) ──
 
     def test_kirin_clamps_high_bitrate_to_8m(self):

@@ -259,11 +259,12 @@ class ScrcpyEngine:
                 "--video-source", config.video_source,
             ])
 
-            # 5. Gobernanza de audio: SDK <= 29 fuerza --no-audio y omite --audio-source
-            if device.android_sdk <= 29:
+            # 5. Gobernanza de audio: SDK <= 29 o audio_source="none" fuerza --no-audio
+            if device.android_sdk <= 29 or config.audio_source == "none":
                 argv.append("--no-audio")
             else:
-                argv.extend(["--audio-source", config.audio_source])
+                a_src = "playback" if config.audio_source == "system" else config.audio_source
+                argv.extend(["--audio-source", a_src])
 
             # 6. Framerate adaptativo
             if config.max_fps is not None:
@@ -283,7 +284,14 @@ class ScrcpyEngine:
         if config.mouse_mode:
             argv.extend(["--mouse", config.mouse_mode])
 
-        # 8. Título de ventana: inyectar f"MASV: {device.model}" si no se especificó en extra_args
+        # 8. Opciones de display: apagar pantalla del dispositivo y evitar suspensión
+        if not config.otg_mode:
+            if config.turn_screen_off and "--turn-screen-off" not in config.extra_args:
+                argv.append("--turn-screen-off")
+            if config.stay_awake and "--stay-awake" not in config.extra_args:
+                argv.append("--stay-awake")
+
+        # 9. Título de ventana: inyectar f"MASV: {device.model}" si no se especificó en extra_args
         has_custom_title = any(
             token == "--window-title" or token.startswith("--window-title=")
             for token in config.extra_args
@@ -291,7 +299,7 @@ class ScrcpyEngine:
         if not has_custom_title and device.model:
             argv.extend(["--window-title", f"MASV: {device.model}"])
 
-        # 9. Inyectar extra_args validados
+        # 10. Inyectar extra_args validados
         argv.extend(config.extra_args)
 
         return OperationResult.ok(argv, "comando construido exitosamente")

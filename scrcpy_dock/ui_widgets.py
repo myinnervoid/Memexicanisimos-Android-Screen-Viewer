@@ -713,18 +713,20 @@ class ProfileWizard(tk.Toplevel):
         pair("Códec de vídeo:",    self._codec_var, ["h264","h265","av1","vp8","vp9"])
 
     def _step_3(self):
-        self._audio_var   = tk.StringVar(value=self._data.get(_("audio_source"), _("playback")))
+        curr_audio = self._data.get("audio_source", "playback")
+        if curr_audio == "system":
+            curr_audio = "playback"
+        self._audio_var   = tk.StringVar(value=curr_audio)
         self._novideo_var = tk.BooleanVar(value=self._data.get("no_video", False))
-        self._usemic_var  = tk.BooleanVar(value=(self._data.get("audio_source") == "mic"))
+        self._usemic_var  = tk.BooleanVar(value=(curr_audio == "mic"))
 
         tk.Label(self._content, text=_("Selecciona la fuente de audio:"),
                  bg=C["bg"], fg=C["text2"], font=FONT_UI_B).pack(anchor="w", pady=(4, 6))
 
         for emoji_lbl, val, tip in [
             (_("🔈 playback (sistema)"), "playback", _("Audio del sistema interno del teléfono.")),
-            ("🎤 mic (micrófono)",     "mic",      "Micrófono físico del teléfono."),
-            ("📻 system (sonido)",     "system",   "Audio directo del sistema Android."),
-            ("🔇 none (sin audio)",    "none",     "Solo transmisión de vídeo, sin captura de audio."),
+            (_("🎤 mic (micrófono)"),     "mic",      _("Micrófono físico del teléfono.")),
+            (_("🔇 none (sin audio)"),    "none",     _("Solo transmisión de vídeo, sin captura de audio.")),
         ]:
             f = tk.Frame(self._content, bg=C["card"], pady=5, padx=10)
             f.pack(fill="x", pady=3)
