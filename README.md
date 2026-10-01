@@ -1,123 +1,125 @@
-# 📱 MASV — Memexicanisimos Android Screen Viewer (v1.2)
+# 📱 MASV — Memexicanisimos Android Screen Viewer (v1.3)
 
 ![Open Source · Python · scrcpy](https://img.shields.io/badge/Open%20Source-Python%20%7C%20scrcpy-F59E0B?style=for-the-badge&logo=python&logoColor=white)
-![Version v1.2](https://img.shields.io/badge/Version-v1.2-EA580C?style=for-the-badge)
+![Version v1.3](https://img.shields.io/badge/Version-v1.3-EA580C?style=for-the-badge)
 ![MIT License](https://img.shields.io/badge/License-MIT-10B981?style=for-the-badge)
 ![Platforms](https://img.shields.io/badge/Platforms-Linux%20%7C%20Windows%20%7C%20macOS-D97706?style=for-the-badge)
 
-[🇲🇽 Leer en Español](#español) | [🇺🇸 Read in English](#english)
+[English Version 🇺🇸](README.en.md) | [Portal Oficial 🌐](https://memexicanisimos.com)
 
 ---
 
-<a name="english"></a>
-## 🇺🇸 English Documentation
+**MASV** (Memexicanisimos Android Screen Viewer) es una interfaz gráfica (GUI) avanzada, moderna, ligera y de alto rendimiento para controlar, transmitir y gestionar dispositivos Android en PC utilizando el núcleo de [`scrcpy`](https://github.com/Genymobile/scrcpy) y `ADB`.
 
-**MASV** (Memexicanisimos Android Screen Viewer) is an advanced, modern, and intuitive graphical user interface (GUI) to manage and stream Android devices on PC using [`scrcpy`](https://github.com/Genymobile/scrcpy) and `ADB`.
-
-Designed especially for **gamers, streamers, content creators, and developers** who need high-performance screen mirroring, camera streaming for OBS Studio, wireless Wi-Fi TCP/IP connections, or automated profile management.
-
-> 🌐 **Official website**: [memexicanisimos.com/masv](https://memexicanisimos.com)
+Diseñada especialmente para **creadores de contenido, streamers, fotógrafos, gamers y desarrolladores** que requieren una estación de trabajo completa: control físico OTG/UHID, cámara limpia para OBS Studio con `v4l2loopback`, blindaje de red y gestión multi-dispositivo sin dependencias pesadas de Electron ni navegadores embebidos (< 40 MB RAM, < 1% CPU).
 
 ---
 
-### 🚀 What's New in Version 1.2
+### 🚀 Novedades de la Versión 1.3
 
-- 🎨 **Warm Cozy Dark UI**: Completely redesigned interface using Warm Stone (`#1C1917`), Amber Gold (`#F59E0B`), and Terracotta (`#EA580C`).
-- 🛡️ **Trusted Devices Vault & Safe Mode**: Whitelist vault to prevent unauthorized connections to third-party devices on LAN/Wi-Fi networks.
-- 🔒 **Secure Wi-Fi Pairing (Android 11+)**: Support for `adb pair` with 6-digit PIN and TLS encryption.
-- 🔒 **TCP/IP Lockdown & Auto-Shield**: Quick button to close port 5555 (`adb usb`) and auto-lockdown on exit to protect phones on Wi-Fi.
-- 🗄️ **Native Window Menu Bar**: Top menu bar (`File`, `Edit`, `View`, `Device`, `Help`) with keyboard shortcuts (`Ctrl+Q`, `Ctrl+R`, `Alt+1..6`).
-- 📦 **1-Click Linux `.run` Installer**: Self-extracting installer for Linux that installs to `~/.local/share/masv/`, creates desktop shortcuts, and enables the `MASV` terminal command.
-- 🎬 **Expanded Codec & Camera Support**: Support for `VP8`, `VP9`, `AV1`, `H.264`, `H.265`, Android 12+ native camera capture, audio codecs, and v4l2 virtual webcams.
-- 🌐 **Full Bilingual Support**: Toggle dynamically between Spanish and English on both the app and web landing page.
+- 🎨 **Selector Dinámico de Temas Visuales:**
+  - `Warm Stone` (por defecto): Tonos cálidos y oscuros confortables para largas jornadas.
+  - `Cyber Obsidian`: Estilo Gamer/OBS con acentos Cyan Neón (`#00F0FF`) y bordes profundos.
+  - `Nordic Slate`: Minimalismo técnico en tonos Azul Hielo y grafito.
+  - Conmutables en caliente desde el menú `Ver` $\rightarrow$ `Tema Visual`.
+- ⌨️ **Modo Físico OTG y Emulación UHID:**
+  - Control de teclado y ratón nativos mediante emulación USB HID (`--keyboard=uhid`, `--mouse=uhid`, `--otg`).
+  - Permite controlar el teléfono como teclado/ratón físico incluso sin streaming de video o con la pantalla apagada.
+- 🌐 **Módulo de Reverse Tethering (`gnirehtet`):**
+  - Comparte el internet de tu PC hacia el teléfono Android por el cable USB de manera desacoplada y estable.
+- 📦 **Instalador y Desinstalador Universal (1-Clic):**
+  - Nuevo comando universal con `curl` para instalar en segundos sin compilar.
+  - Instalación persistente en `~/.MASV/bin/` (puedes borrar la carpeta de descargas sin romper nada).
+  - Opciones gráficas en el menú `Archivo` $\rightarrow$ `📥 Instalar en Sistema` y `🗑️ Desinstalar`.
+- ❓ **Centro de Ayuda y FAQ Interactivo:**
+  - Acordeones interactivos desplegables integrados en la pestaña Ayuda (`Ctrl + H`).
+  - Soluciones documentadas para estado Offline, restricciones de Android 10/EMUI, Bóveda de Red y Modo Estudio OBS.
+- 🛡️ **Bóveda de Dispositivos Confiables y Blindaje TCP/IP:**
+  - Whitelist de seguridad contra intromisiones en redes Wi-Fi públicas y auto-cierre con `adb usb` al pulsar `Ctrl + Q`.
 
 ---
 
-### 📋 Installation & Usage
+### 📥 Descargas Directas Listas para Usar
 
-#### 🐧 Linux (Debian, Ubuntu, Mint, Arch, Fedora)
+| Sistema Operativo | Archivo / Formato | Tipo de Instalación |
+| :--- | :--- | :--- |
+| **🐧 Linux** (Debian, Ubuntu, Arch, Fedora, Mint) | [`MASV-Linux.tar.gz`](https://github.com/myinnervoid/Memexicanisimos-Android-Screen-Viewer/releases/latest/download/MASV-Linux.tar.gz) | **100% Portable** o mediante `./install.sh` |
+| **🪟 Windows** (Windows 10 y 11) | [`MASV-Windows.exe`](https://github.com/myinnervoid/Memexicanisimos-Android-Screen-Viewer/releases/latest/download/MASV-Windows.exe) | **Standalone Portable** (Incluye núcleo scrcpy/adb) |
+| **🍎 macOS** (Intel & Apple Silicon) | [`MASV-macOS`](https://github.com/myinnervoid/Memexicanisimos-Android-Screen-Viewer/releases/latest/download/MASV-macOS) | Binario para macOS Monterey o superior |
 
-1. **Download the 1-Click Installer**:
-   Download `MASV-Linux-Installer.run` from [Releases](https://github.com/myinnervoid/Memexicanisimos-Android-Screen-Viewer/releases/latest).
+---
 
-2. **Run the Installer**:
+### 📋 Guía de Instalación en Linux
+
+Elige el método que mejor se adapte a tu flujo de trabajo:
+
+#### Opción A: Instalación Automática con 1 Solo Comando (Recomendado)
+Abre tu terminal y pega:
+```bash
+curl -sSL https://raw.githubusercontent.com/myinnervoid/Memexicanisimos-Android-Screen-Viewer/main/install.sh | bash
+```
+*Esto descarga la última versión oficial, instala el binario en `~/.MASV/bin/`, configura el icono en tu menú de aplicaciones y habilita el comando `MASV` en terminal.*
+
+---
+
+#### Opción B: Modo 100% Portable (Sin tocar el sistema)
+1. Descarga [`MASV-Linux.tar.gz`](https://github.com/myinnervoid/Memexicanisimos-Android-Screen-Viewer/releases/latest/download/MASV-Linux.tar.gz).
+2. Descomprímelo en cualquier carpeta o memoria USB:
    ```bash
-   chmod +x MASV-Linux-Installer.run
-   ./MASV-Linux-Installer.run
+   tar -xzf MASV-Linux.tar.gz
    ```
-   *This automatically creates the desktop icon and enables the `MASV` command in your terminal.*
+3. Haz doble clic en el ejecutable `MASV` (o ejecútalo con `./MASV`). ¡Listo! Abre inmediatamente sin requerir instalación.
+*(Si después decides instalarlo, solo ve al menú `Archivo` $\rightarrow$ `📥 Instalar en Sistema`).*
 
 ---
 
-#### 🪟 Windows (Windows 10 & 11)
-
-1. Download `MASV-Windows.exe` from [Releases](https://github.com/myinnervoid/Memexicanisimos-Android-Screen-Viewer/releases/latest).
-2. Double-click `MASV-Windows.exe` to run immediately (no installation required).
-
----
-
-<a name="español"></a>
-## 🇲🇽 Documentación en Español
-
-**MASV** es una interfaz gráfica (GUI) avanzada, moderna e intuitiva para controlar y transmitir dispositivos Android en PC utilizando el núcleo de [`scrcpy`](https://github.com/Genymobile/scrcpy) y `ADB`.
-
-Diseñada especialmente para **gamers, streamers, creadores de contenido y desarrolladores** que requieren transmisión de pantalla a 120 FPS, webcam virtual HD para OBS Studio, conexión inalámbrica por Wi-Fi y gestión de perfiles de alta eficiencia.
+#### Opción C: Desde el Repositorio de Código Fuente (`git clone`)
+```bash
+git clone https://github.com/myinnervoid/Memexicanisimos-Android-Screen-Viewer.git MASV
+cd MASV
+./install.sh
+```
 
 ---
 
-### 🚀 Novedades de la Versión 1.2
+### 🗑️ Desinstalación Limpia
 
-- 🎨 **Interfaz Cálida Personal**: Rediseño visual en tonos *Warm Stone*, Ámbar Dorado y Terracota para mayor confort visual.
-- 🛡️ **Bóveda de Dispositivos Confiables y Modo Seguro**: Lista blanca para evitar intromisiones o conexiones a equipos ajenos en redes Wi-Fi / LAN.
-- 🔒 **Emparejamiento Seguro (Android 11+)**: Soporte para `adb pair` con código de 6 dígitos cifrado por TLS.
-- 🔒 **Blindaje TCP/IP y Auto-Cierre**: Botón de pánico y cierre automático de puertos (`adb usb`) al desconectar o salir de la app.
-- 🗄️ **Barra de Menús Nativa Superior**: Menú superior (`Archivo`, `Editar`, `Ver`, `Dispositivo`, `Ayuda`) con atajos (`Ctrl+Q`, `Ctrl+R`, `Alt+1..6`).
-- 📦 **Instalador Ejecutable `.run` para Linux**: Instalador ejecutable de 1-clic que configura el acceso directo en Escritorio y habilita el comando `MASV` en terminal.
-- 🎬 **Códecs y Cámaras Avanzadas**: Soporte para `VP8`, `VP9`, `AV1`, `H.264`, `H.265`, cámara nativa Android 12+, códecs de audio y `v4l2loopback`.
-- 🌐 **Soporte Bilingüe Completo**: Conmutación dinámica entre Español e Inglés tanto en la aplicación como en la página web.
-
----
-
-### 📋 Guía de Uso por Sistema Operativo
-
-#### 🐧 Linux (Debian, Ubuntu, Mint, Arch, Fedora)
-
-1. **Descargar el Instalador de 1-Clic**:
-   Descarga `MASV-Linux-Installer.run` desde la sección de [Releases](https://github.com/myinnervoid/Memexicanisimos-Android-Screen-Viewer/releases/latest).
-
-2. **Ejecutar el Instalador**:
-   ```bash
-   chmod +x MASV-Linux-Installer.run
-   ./MASV-Linux-Installer.run
-   ```
-   *Esto instalará la app, creará el icono en tu Escritorio y habilitará el comando `MASV` en cualquier terminal.*
+Puedes desinstalar MASV en cualquier momento sin dejar residuos:
+* **Desde Terminal:**
+  ```bash
+  MASV --uninstall
+  ```
+  *(o `MASV --uninstall --purge` si deseas borrar también configuraciones y perfiles)*.
+* **Desde la Interfaz Gráfica:**
+  Menú `Archivo` $\rightarrow$ `🗑️ Desinstalar del Sistema`.
 
 ---
 
-#### 🪟 Windows (Windows 10 y 11)
+### 🪟 Instrucciones para Windows
 
-1. Descarga `MASV-Windows.exe` desde [Releases](https://github.com/myinnervoid/Memexicanisimos-Android-Screen-Viewer/releases/latest).
-2. Haz doble clic sobre `MASV-Windows.exe` para abrir inmediatamente sin necesidad de instalar nada.
+1. Descarga [`MASV-Windows.exe`](https://github.com/myinnervoid/Memexicanisimos-Android-Screen-Viewer/releases/latest/download/MASV-Windows.exe).
+2. Haz doble clic sobre el archivo descargado.
+3. El ejecutable viene con `scrcpy` y `adb` integrados por dentro; comenzará a funcionar inmediatamente sin necesidad de instalar controladores externos.
 
 ---
 
-## ❓ Preguntas Frecuentes (FAQ)
+### ❓ Preguntas Frecuentes (FAQ)
 
-### 🔴 ¿Qué hacer si el dispositivo aparece en estado "Offline"?
+#### 🔴 ¿Qué hacer si el dispositivo aparece en estado "Offline"?
 Indica que el teléfono perdió comunicación con el socket ADB (común por micro-cortes o suspensión de energía del puerto USB).
 * **Solución:** Reconecta el cable USB, comprueba que el puerto no suspenda energía y pulsa **"⚡ Reiniciar ADB"** en MASV (o atajo en menú Dispositivo).
 
-### 📱 Restricciones y Optimización en Huawei Y9 / Android 10 (EMUI 10)
+#### 📱 Restricciones y Optimización en Huawei Y9 / Android 10 (EMUI 10)
 * **Audio:** Android 10 no admite captura nativa interna de audio por `scrcpy` (requiere Android 11+). MASV activa automáticamente `--no-audio`.
 * **Rendimiento:** Para el chipset Kirin 710, se recomienda el códec **H.264** a un bitrate máximo de **8 Mbps** y resolución **1080p o 720p**.
 
-### 🛡️ Bóveda de Dispositivos Confiables y Modo Seguro
-Registrar equipos en la Bóveda evita conexiones accidentales o no autorizadas en redes Wi-Fi públicas. El **Modo Seguro** revoca el puerto 5555 ejecutando `adb usb` para blindar el dispositivo.
+#### 🛡️ Bóveda de Dispositivos Confiables y Modo Seguro
+Registrar equipos en la Bóveda evita conexiones accidentales o no autorizadas en redes Wi-Fi públicas. El **Modo Seguro** revoca el puerto 5555 ejecutando `adb usb` para blindar el dispositivo al salir con `Ctrl + Q`.
 
-### 📷 Modo Estudio Fotográfico & Clean Camera Feed
+#### 📷 Modo Estudio Fotográfico & Clean Camera Feed
 Permite usar la cámara trasera limpia del teléfono en **OBS Studio** sin elementos de interfaz gráfica. En Linux, MASV monta la cámara como webcam virtual de cero latencia mediante el módulo del kernel `v4l2loopback`.
 
-### 🚪 Cierre Limpio vs. Minimizar a la Bandeja
+#### 🚪 Cierre Limpio vs. Minimizar a la Bandeja
 El botón Salir (o `Ctrl + Q`) cierra deterministamente la interfaz, detiene los subprocesos de scrcpy y apaga el rastreador de dispositivos (`Device Tracker`), liberando limpiamente los puertos de red y locks de archivo.
 
 ---
