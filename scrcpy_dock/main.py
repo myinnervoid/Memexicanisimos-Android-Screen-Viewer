@@ -260,6 +260,9 @@ class ScrcpyDockApp:
         self.root.bind("<Control-q>", lambda _: self._on_close())
         self.root.bind("<Control-r>", lambda _: self._refresh_devices())
         self.root.bind("<Control-i>", lambda _: self._toggle_scene())
+        self.root.bind("<Control-m>", lambda _: self._toggle_view())
+        self.root.bind("<Control-M>", lambda _: self._toggle_view())
+        self.root.bind("<F10>", lambda _: self._toggle_view())
         self.root.bind("<Control-h>", lambda _: self._select_tab("help"))
         self.root.bind("<Control-b>", lambda _: self.sidebar.toggle_collapse())
 
@@ -348,6 +351,14 @@ class ScrcpyDockApp:
         self._btn_safe_mode.pack(side="right", padx=(6, 0))
         Tooltip(self._btn_safe_mode, "Bloquea conexiones a IPs públicas y previene intromisiones en equipos no verificados.")
 
+        # Switch Modo Compacto (Mini-Dock) / Vista Completa
+        self._btn_mode_toggle = tk.Button(right_hdr, text="🔲 " + _("Modo Compacto"),
+                                          bg=C["card2"], fg=C["text2"], font=FONT_SM,
+                                          relief="flat", bd=0, padx=8, pady=4,
+                                          cursor="hand2", command=self._toggle_view)
+        self._btn_mode_toggle.pack(side="right", padx=(6, 0))
+        Tooltip(self._btn_mode_toggle, _("Alternar entre Modo Compacto (Mini-Dock) y Modo Avanzado completo (Ctrl+M)"))
+
         self._sess_count_lbl = tk.Label(right_hdr, text="", bg=C["card"], fg=C["green"], font=FONT_SM)
         self._sess_count_lbl.pack(side="right", padx=(6, 0))
         self._dep_lbl = tk.Label(right_hdr, text="", bg=C["card"], fg=C["muted"], font=FONT_SM)
@@ -373,7 +384,8 @@ class ScrcpyDockApp:
         self.sidebar = DashboardSidebar(body, nav_items, lambda tid, idx: self._select_tab(tid))
         self.sidebar.pack(side="left", fill="y")
 
-        tk.Frame(body, bg=C["card_border"], width=1).pack(side="left", fill="y")
+        self._sidebar_sep = tk.Frame(body, bg=C["card_border"], width=1)
+        self._sidebar_sep.pack(side="left", fill="y")
 
         # Área de Contenido Principal
         self.main_content = tk.Frame(body, bg=C["bg"])
@@ -419,7 +431,7 @@ class ScrcpyDockApp:
                                     fg=C["muted"], font=FONT_SM, anchor="w")
         self._status_lbl.pack(side="left", padx=12, fill="x", expand=True)
 
-        tk.Label(bar, text="Ctrl+I Iniciar · Ctrl+R Refrescar · Ctrl+B Menú · Ctrl+H Ayuda",
+        tk.Label(bar, text="Ctrl+I Iniciar · Ctrl+R Refrescar · Ctrl+M Compacto · Ctrl+B Menú · Ctrl+H Ayuda",
                  bg=C["card2"], fg=C["muted"], font=FONT_SM).pack(side="left", padx=6)
 
         # Language switcher
@@ -465,14 +477,51 @@ class ScrcpyDockApp:
         if hasattr(self, 'sidebar') and self.sidebar.active_id != tab_id:
             self.sidebar.select(tab_id)
 
+        if tab_id == "profiles":
+            self._sync_profile_selection()
+
         self._on_tab_changed()
 
     def _toggle_view(self):
-        cur = self.sidebar.active_id if hasattr(self, 'sidebar') else "quickcast"
-        if cur == "quickcast":
-            self._select_tab("actions")
-        else:
+        """Alterna entre Vista Avanzada Completa (con Sidebar y 880x680) y Modo Compacto (Mini-Dock 450x580)."""
+        if self.is_advanced_view:
+            # Pasar a Modo Compacto (Mini-Dock)
+            self.is_advanced_view = False
+            self._saved_geometry = self.root.geometry()
+
+            # Ocultar barra lateral y separador
+            if hasattr(self, 'sidebar'):
+                self.sidebar.pack_forget()
+            if hasattr(self, '_sidebar_sep'):
+                self._sidebar_sep.pack_forget()
+
+            # Cambiar a Quick Cast
             self._select_tab("quickcast")
+
+            # Redimensionar a tamaño compacto
+            self.root.minsize(420, 500)
+            self.root.geometry("450x580")
+
+            if hasattr(self, '_btn_mode_toggle'):
+                self._btn_mode_toggle.config(text="🗖 " + _("Vista Completa"), fg=C["blue"])
+            self._set_status(_("Modo Compacto activo (Ctrl+M para expandir)"), C["cyan"])
+        else:
+            # Restaurar Vista Avanzada Completa
+            self.is_advanced_view = True
+
+            # Restaurar barra lateral y separador antes del contenido principal
+            if hasattr(self, 'sidebar') and hasattr(self, 'main_content'):
+                self.sidebar.pack(side="left", fill="y", before=self.main_content)
+            if hasattr(self, '_sidebar_sep') and hasattr(self, 'main_content'):
+                self._sidebar_sep.pack(side="left", fill="y", before=self.main_content)
+
+            geom = getattr(self, '_saved_geometry', "880x680")
+            self.root.minsize(680, 520)
+            self.root.geometry(geom)
+
+            if hasattr(self, '_btn_mode_toggle'):
+                self._btn_mode_toggle.config(text="🔲 " + _("Modo Compacto"), fg=C["text2"])
+            self._set_status(_("Vista Completa activa"), C["muted"])
 
     def _on_app_close(self):
         """Detiene sesiones, desactiva servicios y cierra la aplicación de forma limpia y completa."""
@@ -1123,6 +1172,33 @@ class ScrcpyDockApp:
         if simple_combo:
             simple_combo['values'] = names
 
+        self._sync_profile_selection()
+
+    def _sync_profile_selection(self, target_name: str = None):
+        """Sincroniza bidireccionalmente el listbox y las fichas de detalle con el perfil activo."""
+        listbox = self.ui.refs.get('profile_listbox')
+        if not listbox: return
+        profiles = self.ctx.profile_mgr.get_profiles()
+        if not profiles: return
+
+        name = target_name or self.ctx.active_profile.get()
+        if name not in profiles:
+            name = list(profiles.keys())[0]
+            self.ctx.active_profile.set(name)
+
+        names = list(profiles.keys())
+        if name in names:
+            idx = names.index(name)
+            listbox.selection_clear(0, tk.END)
+            listbox.selection_set(idx)
+            listbox.activate(idx)
+            listbox.see(idx)
+
+        # Actualizar las fichas de detalle (chips) inmediatamente
+        p = profiles[name]
+        if 'profile_chips' in self.ui.refs:
+            self.ui.refs['profile_chips'].set_profile(name, p)
+
     def _on_profile_listbox_sel(self, event=None):
         listbox = self.ui.refs['profile_listbox']
         sel = listbox.curselection()
@@ -1131,22 +1207,15 @@ class ScrcpyDockApp:
         profiles = self.ctx.profile_mgr.get_profiles()
         if raw not in profiles: return
         p = profiles[raw]
-        lines = [
-            f"Perfil       : {raw}",
-            f"Bitrate      : {p.get('bitrate','?')}",
-            f"Resolución   : {p.get('max_size','?')}p",
-            f"FPS máx      : {p.get('max_fps','?')}",
-            f"Códec        : {p.get('video_codec','?')}",
-            f"Audio        : {p.get('audio_source','?')}",
-            f"Cámara ID    : {p.get('camera_id','0')}",
-            f"Pantalla off : {'Sí' if p.get('turn_screen_off') else 'No'}",
-            f"Despierto    : {'Sí' if p.get('stay_awake') else 'No'}",
-            f"Keyevent EMUI: {'Sí' if p.get('force_screen_off_keyevent') else 'No'}",
-            f"Args extra   : {p.get('extra_args','ninguno')}"
-        ]
         if 'profile_chips' in self.ui.refs:
             self.ui.refs['profile_chips'].set_profile(raw, p)
         self.ctx.active_profile.set(raw)
+        combo = self.ui.refs.get('active_profile_combo')
+        if combo:
+            combo.set(raw)
+        simple_combo = self.ui.refs.get('simple_prof_combo')
+        if simple_combo:
+            simple_combo.set(raw)
         self.ctx.save_current_config()
 
     def _open_wizard(self):
@@ -1162,27 +1231,48 @@ class ScrcpyDockApp:
             self.ui.refs['active_profile_combo'].config(values=list(self.ctx.cfg["profiles"].keys()))
             self.ctx.active_profile.set(name)
             self.ctx.save_current_config()
+            self._sync_profile_selection(name)
             self.ctx.log("OK", f"Perfil '{name}' creado desde el asistente.")
             Toast(self.root, f"Perfil '{name}' creado correctamente.", "success")
         from .ui_widgets import ProfileWizard
         ProfileWizard(self.root, on_save)
 
     def _start_profile(self):
-        """Selecciona el perfil resaltado e inicia la transmisión inmediatamente."""
+        """Lanza la transmisión con el perfil seleccionado en el listbox o en el combobox activo."""
         listbox = self.ui.refs.get('profile_listbox')
-        if not listbox: return
-        sel = listbox.curselection()
-        if not sel:
-            messagebox.showwarning(_("Seleccionar perfil"), _("Selecciona un perfil en la lista primero."))
-            return
-        name = listbox.get(sel[0]).strip()
-        
+        name = None
+        if listbox:
+            sel = listbox.curselection()
+            if sel:
+                name = listbox.get(sel[0]).strip()
+
+        # Fallback resiliente: combobox o perfil activo global
+        if not name:
+            combo = self.ui.refs.get('active_profile_combo')
+            if combo and combo.get().strip():
+                name = combo.get().strip()
+            else:
+                name = self.ctx.active_profile.get().strip()
+
+        profiles = self.ctx.profile_mgr.get_profiles()
+        if not name or name not in profiles:
+            if profiles:
+                name = list(profiles.keys())[0]
+            else:
+                from .ui_widgets import Toast
+                Toast(self.root, _("No hay perfiles disponibles. Crea uno primero."), "warning")
+                return
+
+        self.ctx.active_profile.set(name)
+        self.ctx.save_current_config()
+        self._sync_profile_selection(name)
+
         if not self.ctx.active_device_serial:
-            Toast(self.root, _("Selecciona un dispositivo en la pestaña Dispositivo."), "warning")
-            self._nb.select(2)  # Pestaña Dispositivo (índice 2)
+            from .ui_widgets import Toast
+            Toast(self.root, _("Selecciona un dispositivo en la pestaña Dispositivos."), "warning")
+            self._select_tab("device")
             return
 
-        self._on_profile_listbox_sel()
         self._toggle_scene()
 
     def _delete_profile(self):
@@ -1203,11 +1293,14 @@ class ScrcpyDockApp:
             pl = list(self.ctx.cfg["profiles"].keys())
             self.ui.refs['active_profile_combo'].config(values=pl)
             self.ctx.active_profile.set(pl[0])
+            self._sync_profile_selection(pl[0])
             self.ctx.log("INFO", f"Perfil '{name}' eliminado.")
 
     def _on_active_profile_change(self, event=None):
+        name = self.ctx.active_profile.get()
         self.ctx.save_current_config()
-        self._set_status(f"Perfil activo: {self.ctx.active_profile.get()}", C["cyan"])
+        self._sync_profile_selection(name)
+        self._set_status(f"Perfil activo: {name}", C["cyan"])
 
     # ── Actions Tab ───────────────────────────────────────────────────
     def _toggle_scene(self):
