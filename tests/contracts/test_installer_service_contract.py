@@ -1,6 +1,7 @@
 """Contratos congelados de InstallerService. NO modificar sin reabrir ADR-018/019."""
 from __future__ import annotations
 import os
+import sys
 import stat
 import tempfile
 import unittest
@@ -43,8 +44,9 @@ class ResolveBinaryContract(unittest.TestCase):
         svc = _make_service(self.tmp, which_map={"scrcpy": "/usr/local/bin/scrcpy"})
         r = svc.resolve_binary("scrcpy")
         self.assertTrue(r.success)
-        self.assertEqual(r.data, Path("/usr/local/bin/scrcpy"))
+        self.assertEqual(r.data, Path("/usr/local/bin/scrcpy").absolute())
 
+    @unittest.skipIf(sys.platform == "win32", "POSIX file permissions do not apply on Windows")
     def test_non_executable_local_is_skipped(self):
         self.tmp.joinpath(".MASV", "bin").mkdir(parents=True)
         local = self.tmp / ".MASV" / "bin" / "adb"
@@ -54,7 +56,7 @@ class ResolveBinaryContract(unittest.TestCase):
         svc = _make_service(self.tmp, which_map={"adb": "/usr/bin/adb"})
         r = svc.resolve_binary("adb")
         self.assertTrue(r.success)
-        self.assertEqual(r.data, Path("/usr/bin/adb"))
+        self.assertEqual(r.data, Path("/usr/bin/adb").absolute())
 
     def test_not_found_returns_binary_not_found(self):
         svc = _make_service(self.tmp, which_map={})
@@ -138,8 +140,8 @@ class WriteDesktopEntryContract(unittest.TestCase):
         content = self.svc.desktop_entry_path.read_text()
         self.assertIn("[Desktop Entry]", content)
         self.assertIn("Name=MASV", content)
-        self.assertIn(f"Exec={self.exec_path}", content)
-        self.assertIn(f"Icon={self.icon_path}", content)
+        self.assertIn(f"Exec={self.exec_path.resolve()}", content)
+        self.assertIn(f"Icon={self.icon_path.resolve()}", content)
 
     def test_creates_bin_symlink(self):
         r = self.svc.write_desktop_entry(self.exec_path, self.icon_path)

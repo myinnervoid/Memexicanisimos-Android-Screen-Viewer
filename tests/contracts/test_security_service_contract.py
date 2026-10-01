@@ -2,6 +2,7 @@
 from __future__ import annotations
 import json
 import os
+import sys
 import tempfile
 import unittest
 from pathlib import Path
@@ -201,8 +202,9 @@ class VaultEncryptionContract(unittest.TestCase):
         self.svc.encrypt_vault(self.sample)
         salt = self.tmp / ".salt"
         self.assertTrue(salt.exists())
-        mode = salt.stat().st_mode & 0o777
-        self.assertEqual(mode, 0o600)
+        if sys.platform != "win32":
+            mode = salt.stat().st_mode & 0o777
+            self.assertEqual(mode, 0o600)
 
     def test_salt_is_reused_across_calls(self):
         enc1 = self.svc.encrypt_vault(self.sample)
