@@ -18,6 +18,7 @@ from .domain.protocols import SessionProcess
 from .core.adb_engine import AdbEngine
 from .core.scrcpy_engine import ScrcpyEngine
 from .core.port_allocator import PortAllocator
+from .services.stream_service import StreamService
 from .utils import find_portable_binaries
 
 
@@ -130,8 +131,11 @@ class DeviceManager:
             return self.device_props[serial]
         caps = self.get_capabilities(serial)
         if caps:
+            # P3.8: `model` debe ser el modelo real (ro.product.model / adb devices -l),
+            # nunca el fabricante.
+            model = caps.model or self.get_device_model(serial) or serial
             return {
-                "model": caps.manufacturer,
+                "model": model,
                 "android_version": caps.sdk_int,
                 "manufacturer": caps.manufacturer,
                 "platform": caps.platform,
@@ -172,6 +176,7 @@ class DeviceManager:
         caps = DeviceCapabilities(
             manufacturer=data.get("ro.product.manufacturer", ""),
             platform=data.get("ro.board.platform", ""),
+            model=data.get("ro.product.model", ""),
             camera2_level="LIMITED",
             supported_codecs=(),
             sensor_orientation=0,
@@ -271,7 +276,10 @@ class SessionManager:
     ):
         if adb_engine is not None:
             self._adb = adb_engine
-            self.log_q = None
+            # Un `log_q` explícito sigue siendo válido aunque se inyecte motor:
+            # antes se descartaba en silencio y el panel de logs dejaba de
+            # recibir los mensajes de sesión.
+            self.log_q = log_q_or_adb if hasattr(log_q_or_adb, "put") else None
         elif isinstance(log_q_or_adb, AdbEngine):
             self._adb = log_q_or_adb
             self.log_q = None
@@ -293,6 +301,17 @@ class SessionManager:
 
         self.sessions: Dict[str, Any] = {}
         self._session_info: Dict[str, _SessionInfo] = {}
+
+        # C1: la compilación del perfil y el lanzamiento viven en un servicio;
+        # este manager queda como fachada. Se comparten por referencia el pool
+        # de puertos y el registro de sesiones (son la misma fuente de verdad).
+        self._stream = StreamService(
+            scrcpy_provider=lambda: self._scrcpy,
+            allocator_provider=lambda: self._allocator,
+            log_q_provider=lambda: self.log_q,
+            sessions=self.sessions,
+            session_factory=ScrcpySession,
+        )
 
     def get_session(self, serial: str) -> Optional[Any]:
         return self.sessions.get(serial)
@@ -370,6 +389,7 @@ class SessionManager:
                 caps = DeviceCapabilities(
                     manufacturer=props_res.data.get("ro.product.manufacturer", ""),
                     platform=props_res.data.get("ro.board.platform", ""),
+                    model=props_res.data.get("ro.product.model", "") or device.model,
                     camera2_level="LIMITED",
                     supported_codecs=(),
                     sensor_orientation=0,
@@ -379,6 +399,7 @@ class SessionManager:
                 caps = DeviceCapabilities(
                     manufacturer="",
                     platform="",
+                    model=device.model,
                     camera2_level="LIMITED",
                     supported_codecs=(),
                     sensor_orientation=0,
@@ -483,155 +504,18 @@ class SessionManager:
         profile_data: dict,
         success_cb: Optional[Callable] = None,
     ) -> OperationResult[Any]:
-        """Adaptador legacy de compatibilidad hacia atrás para main.py y tests preexistentes."""
-        if not serial:
-            msg = "No se especificó ningún serial de dispositivo"
-            if self.log_q:
-                self.log_q.put(("ERROR", msg))
-            return OperationResult.fail(ErrorCode.DEVICE_NOT_FOUND, msg)
+        """Fachada legacy para main.py y tests.
 
-        # Obtener o inferir Device
-        dev_props = self.device_mgr.get_device_props(serial) if self.device_mgr else {}
-        model = dev_props.get("model", "Android")
-        android_v = dev_props.get("android_version", 11)
-        if isinstance(android_v, str) and android_v.isdigit():
-            android_v = int(android_v)
-
-        device = Device(
+        La compilación del perfil y el lanzamiento viven en `StreamService`
+        (C1); este método sólo delega. La firma se conserva por compatibilidad.
+        """
+        return self._stream.start_legacy(
             serial=serial,
-            model=model,
-            android_sdk=android_v if isinstance(android_v, int) else 11,
+            profile_name=profile_name,
+            profile_data=profile_data,
+            device_mgr=self.device_mgr,
+            success_cb=success_cb,
         )
-
-        # Parsear perfil legacy
-        v_codec_str = profile_data.get("video_codec", "h264")
-        codec_enum = Codec.H264
-        try:
-            codec_enum = Codec(str(v_codec_str).lower())
-        except Exception:
-            pass
-
-        bitrate_int = 8_000_000
-        br_val = profile_data.get("bitrate")
-        if br_val:
-            try:
-                if "M" in str(br_val):
-                    bitrate_int = int(str(br_val).replace("M", "")) * 1_000_000
-                elif "k" in str(br_val):
-                    bitrate_int = int(str(br_val).replace("k", "")) * 1_000
-                else:
-                    bitrate_int = int(br_val)
-            except Exception:
-                pass
-
-        v_source = profile_data.get("video_source", "display")
-        camera_id = profile_data.get("camera_id")
-        camera_facing = profile_data.get("camera_facing")
-        otg_mode = bool(profile_data.get("otg_mode", False))
-        # "Solo audio": aceptado como flag nativo o vía el campo `no_video` del asistente.
-        video_enabled = not bool(profile_data.get("no_video", False))
-
-        extra_args_tuple: tuple[str, ...] = ()
-        extra_str = profile_data.get("extra_args", "")
-        if extra_str:
-            res_args = SecurityManager.validate_extra_arguments(extra_str)
-            if not res_args.success:
-                if self.log_q:
-                    self.log_q.put(("ERROR", f"[{serial}] {res_args.message}"))
-                return OperationResult.fail(res_args.error_code or ErrorCode.INVALID_INPUT, res_args.message)
-            raw_tokens = list(res_args.data or [])
-            filtered_tokens = []
-            idx = 0
-            while idx < len(raw_tokens):
-                tok = raw_tokens[idx]
-                if tok.startswith("--video-source="):
-                    v_source = tok.split("=", 1)[1]
-                elif tok == "--video-source" and idx + 1 < len(raw_tokens):
-                    v_source = raw_tokens[idx + 1]
-                    idx += 1
-                elif tok == "--otg":
-                    otg_mode = True
-                elif tok == "--no-video":
-                    # Promovido a atributo nativo: en la whitelist solo bloquea el vídeo.
-                    video_enabled = False
-                elif tok.startswith("--camera-id="):
-                    camera_id = tok.split("=", 1)[1]
-                elif tok == "--camera-id" and idx + 1 < len(raw_tokens):
-                    camera_id = raw_tokens[idx + 1]
-                    idx += 1
-                elif tok.startswith("--camera-facing="):
-                    camera_facing = tok.split("=", 1)[1]
-                elif tok == "--camera-facing" and idx + 1 < len(raw_tokens):
-                    camera_facing = raw_tokens[idx + 1]
-                    idx += 1
-                else:
-                    filtered_tokens.append(tok)
-                idx += 1
-            extra_args_tuple = tuple(filtered_tokens)
-
-        # Si v_source es "camera" y no hay camera_id ni camera_facing, default a "0" (trasera)
-        if v_source == "camera" and not camera_id and not camera_facing:
-            camera_id = "0"
-
-        # Sincronizar puertos pre-ocupados en self.sessions (ej. inyectados en tests/UI)
-        used_ports = {s.assigned_port for s in self.sessions.values() if hasattr(s, "assigned_port")}
-        for p in used_ports:
-            if hasattr(self._allocator, "_reserved"):
-                self._allocator._reserved.add(p)
-
-        port_res = self._allocator.acquire()
-        if not port_res.success:
-            return OperationResult.fail(ErrorCode.PORT_POOL_EXHAUSTED, port_res.message)
-        assigned_port = port_res.data
-
-        config = SessionConfig(
-            port=assigned_port,
-            codec=codec_enum,
-            resolution=str(profile_data.get("max_size", "1080")),
-            bit_rate=bitrate_int,
-            video_source=v_source,
-            max_fps=float(profile_data["max_fps"]) if profile_data.get("max_fps") else None,
-            camera_facing=camera_facing,
-            camera_id=str(camera_id) if camera_id is not None else None,
-            audio_source=profile_data.get("audio_source", "playback"),
-            turn_screen_off=bool(profile_data.get("turn_screen_off", True)),
-            stay_awake=bool(profile_data.get("stay_awake", True)),
-            extra_args=extra_args_tuple,
-            otg_mode=otg_mode,
-            video_enabled=video_enabled,
-        )
-
-        caps = DeviceCapabilities(
-            manufacturer=dev_props.get("manufacturer", ""),
-            platform=dev_props.get("platform", ""),
-            camera2_level="LIMITED",
-            supported_codecs=(),
-            sensor_orientation=0,
-            sdk_int=device.android_sdk,
-        )
-
-        launch_res = self._scrcpy.launch(config, device, caps)
-        if not launch_res.success:
-            self._allocator.release(assigned_port)
-            return OperationResult.fail(launch_res.error_code or ErrorCode.PROCESS_SPAWN_ERROR, launch_res.message)
-
-        proc = launch_res.data
-        sess = ScrcpySession(
-            serial, profile_name, proc, assigned_port=assigned_port,
-            config=config, device=device, caps=caps,
-        )
-        self.sessions[serial] = sess
-
-        if success_cb:
-            try:
-                success_cb()
-            except Exception:
-                pass
-
-        if self.log_q:
-            self.log_q.put(("INFO", f"[{serial}] Lanzado PID {proc.pid} en puerto {assigned_port} ({model})"))
-
-        return OperationResult.ok(message=f"Sesión iniciada para {model} ({serial}) en puerto {assigned_port}")
 
     def stop_session(self, serial: str) -> OperationResult[str]:
         if serial in self.sessions:

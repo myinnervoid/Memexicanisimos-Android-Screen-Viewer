@@ -49,7 +49,9 @@ class Device:
 class DeviceCapabilities:
     manufacturer: str
     platform: str
+    model: str = ""
     camera2_level: str = "LIMITED"
+
     supported_codecs: tuple[Codec, ...] = field(default_factory=tuple)
     sensor_orientation: int = 0
     sdk_int: int = 0

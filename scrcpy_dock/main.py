@@ -22,6 +22,7 @@ from .ui_tabs import UIBuilder
 from .ui_widgets import _recolor, Toast, Tooltip, DeviceTrustModal, SafeActionConfirmModal, TrustVaultDialog, TrustPromptModal
 from .security import SecurityManager
 from .state import UIState
+from .core.adb_engine import AdbEngine
 from .errors import ErrorCode, get_error_detail
 
 _PLAT = sys.platform
@@ -554,7 +555,7 @@ class ScrcpyDockApp:
 
             if hasattr(self, '_btn_mode_toggle'):
                 self._btn_mode_toggle.config(text="🗖 " + _("Vista Completa"), fg=C["blue"])
-            self._set_status(_("Modo Compacto activo (Ctrl+M para expandir)"), C["cyan"])
+            self._hint(_("Modo Compacto activo (Ctrl+M para expandir)"), C["cyan"])
         else:
             # Restaurar Vista Avanzada Completa
             self.is_advanced_view = True
@@ -579,14 +580,43 @@ class ScrcpyDockApp:
 
             if hasattr(self, '_btn_mode_toggle'):
                 self._btn_mode_toggle.config(text="🔲 " + _("Modo Compacto"), fg=C["text2"])
-            self._set_status(_("Vista Completa activa"), C["muted"])
+            self._hint(_("Vista Completa activa"), C["muted"])
 
     def _on_app_close(self):
         """Detiene sesiones, desactiva servicios y cierra la aplicación de forma limpia y completa."""
         self._exit()
 
     def _set_status(self, msg: str, color: str = None):
+        """Renderizador único de la barra de estado.
+
+        Es el ÚNICO punto que pinta texto en la barra: lo invoca
+        `_on_ui_state_change` (FSM) o `_hint` (mensajes informativos).
+        """
         self._status_lbl.config(text=msg, fg=color or C["muted"])
+
+    def _hint(self, msg: str, color: str = None):
+        """Mensaje informativo transitorio que NO representa un estado operativo.
+
+        Canal alternativo a la FSM, reservado a textos descriptivos (modo de
+        vista, selección de dispositivo, perfil activo) que no encajan en los
+        cinco estados canónicos. Todo mensaje de estado real debe pasar por
+        `self.ctx.state_machine`.
+        """
+        self._set_status(msg, color)
+
+    def _adb(self) -> AdbEngine:
+        """Motor ADB único de la aplicación (socket aislado, ADR-006).
+
+        Es el único camino permitido para hablar con `adb`: la UI ya no invoca
+        el binario directamente, así no se tumba el daemon compartido del
+        usuario ni se pierde el socket aislado. Todos los llamadores verifican
+        `self.ctx.adb` antes, y `AppContext` construye el motor junto con el
+        binario, por lo que aquí siempre existe.
+        """
+        eng = self.ctx.adb_engine
+        if eng is None:  # pragma: no cover - invariante de AppContext
+            raise RuntimeError("Motor ADB no disponible: instala adb primero")
+        return eng
 
     def _on_ui_state_change(self, state: UIState, message: str, error_code: Optional[ErrorCode] = None):
         """Receptor canónico del Autómata Finito de Interfaz."""
@@ -600,15 +630,45 @@ class ScrcpyDockApp:
         color = state_colors.get(state, C["muted"])
         if message:
             self._set_status(message, color)
+        if state == UIState.FAULT and error_code is not None:
+            self._log_error_remediation(error_code)
+
+    def _log_error_remediation(self, error_code: ErrorCode):
+        """Traduce un ErrorCode a título + acción de recuperación en la consola.
+
+        Cablea `errors.get_error_detail()` (antes importado y nunca usado) al
+        flujo de fallos de la FSM: el usuario recibe la remediación, no solo el
+        texto crudo del subproceso.
+        """
+        detail = get_error_detail(error_code)
+        spanish = get_language() == "es"
+        title = detail.title_es if spanish else detail.title_en
+        remediation = detail.remediation_es if spanish else detail.remediation_en
+        try:
+            self.ctx.log("ERROR", f"[{error_code.value}] {title}")
+            if remediation:
+                self.ctx.log("INFO", f"→ {remediation}")
+        except Exception:
+            pass
 
     # ── Utils & Dependencies ──────────────────────────────────────────
+    def _start_daemon_async(self):
+        """Arranca el daemon ADB por el motor (socket aislado, no el compartido)."""
+        def task():
+            eng = getattr(self.ctx, "adb_engine", None)
+            if eng is None:
+                return
+            res = eng.start_daemon()
+            self.ctx.log("INFO" if res.success else "ERROR", f"ADB daemon: {res.message}")
+        threading.Thread(target=task, daemon=True).start()
+
     def _check_deps(self):
         missing = []
         if not self.ctx.adb:
             missing.append("adb")
         else:
-            subprocess.Popen([self.ctx.adb, "start-server"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
             self.ctx.log("INFO", f"ADB   : {self.ctx.adb}")
+            self._start_daemon_async()
         if not self.ctx.scrcpy:
             missing.append("scrcpy")
         else:
@@ -659,7 +719,7 @@ class ScrcpyDockApp:
 
                 adb_path, scrcpy_path = find_portable_binaries()
                 if adb_path and scrcpy_path:
-                    self.ctx.adb = adb_path
+                    self.ctx.set_adb_binary(adb_path)
                     self.ctx.scrcpy = scrcpy_path
                     self.root.after(0, self._on_deps_installed_success)
                 else:
@@ -789,17 +849,17 @@ class ScrcpyDockApp:
         state = next((s for sr, mo, s in self.ctx.device_mgr.devices if sr == serial), "other")
         if state == "unauth":
             self.ui.refs['dev_info_lbl'].config(text=f"🟠 ⚠️  {serial}  —  ¡Acepta el permiso de depuración en la pantalla del teléfono!", fg=C["orange"])
-            self._set_status(_("⚠  Dispositivo no autorizado. Acepta el diálogo en el teléfono."), C["orange"])
+            self.ctx.state_machine.set_fault(_("⚠  Dispositivo no autorizado. Acepta el diálogo en el teléfono."), ErrorCode.DEVICE_UNAUTHORIZED)
         elif state == "offline":
             self.ui.refs['dev_info_lbl'].config(text=f"🔴  {serial}  —  El dispositivo está desconectado (offline). Reinicia ADB.", fg=C["red"])
-            self._set_status(_("⚠  Dispositivo offline. Desconecta y vuelve a conectar."), C["red"])
+            self.ctx.state_machine.set_fault(_("⚠  Dispositivo offline. Desconecta y vuelve a conectar."), ErrorCode.DEVICE_OFFLINE)
         elif state == "ok":
             if is_trusted:
                 self.ui.refs['dev_info_lbl'].config(text=f"🟢 🛡️  {alias}  ({serial})  —  Conectado y Autorizado.", fg=C["green"])
-                self._set_status(f"✔  {alias}  —  {serial}", C["green"])
+                self._hint(f"✔  {alias}  —  {serial}", C["green"])
             else:
                 self.ui.refs['dev_info_lbl'].config(text=f"🟢 ⚠️  {model}  ({serial})  —  Dispositivo no verificado en la bóveda.", fg=C["orange"])
-                self._set_status(f"⚠️  {model}  —  {serial} (No verificado)", C["orange"])
+                self._hint(f"⚠️  {model}  —  {serial} (No verificado)", C["orange"])
 
             assoc = self.ctx.cfg.get("device_associations", {}).get(serial)
             if assoc and assoc in self.ctx.profile_mgr.get_profiles():
@@ -829,11 +889,11 @@ class ScrcpyDockApp:
 
         target   = f"{ip}:{port}"
         self.ctx.log("ADB", f"Conectando a {target}…")
-        self._set_status(f"Conectando a {target}…", C["cyan"])
+        self.ctx.state_machine.set_pending(f"Conectando a {target}…")
         def task():
             try:
-                r = subprocess.run([self.ctx.adb, "connect", target], capture_output=True, text=True, timeout=8)
-                self.ctx.log("ADB", r.stdout.strip())
+                res_conn = self._adb().connect(target)
+                self.ctx.log("ADB", res_conn.message)
                 self.root.after(800, self._refresh_devices)
             except Exception as e:
                 self.ctx.log("ERROR", f"WiFi: {e}")
@@ -862,7 +922,7 @@ class ScrcpyDockApp:
             return
 
         self.ctx.log("ADB", f"Emparejando con {ip}:{port}…")
-        self._set_status(f"Emparejando con {ip}:{port}…", C["cyan"])
+        self.ctx.state_machine.set_pending(f"Emparejando con {ip}:{port}…")
 
         def task():
             ok, msg = SecurityManager.pair_device(self.ctx.adb, ip, port, code)
@@ -871,14 +931,14 @@ class ScrcpyDockApp:
                 # Auto-confiar en la bóveda
                 self.ctx.security_mgr.trust_device(f"{ip}:{port}", "Android WiFi", f"Android {ip}", save_config)
                 self.root.after(0, lambda: [
-                    self._set_status(_("Emparejamiento exitoso"), C["green"]),
+                    self.ctx.state_machine.set_success(_("Emparejamiento exitoso")),
                     Toast(self.root, f"✔ Emparejado con éxito con {ip}:{port}", "success"),
                     self._refresh_devices()
                 ])
             else:
                 self.ctx.log("ERROR", f"Error de emparejamiento: {msg}")
                 self.root.after(0, lambda: [
-                    self._set_status(_("Error al emparejar"), C["red"]),
+                    self.ctx.state_machine.set_fault(_("Error al emparejar"), ErrorCode.PAIRING_FAILED),
                     messagebox.showerror(_("Error al emparejar"), f"No se pudo emparejar con el dispositivo:\n\n{msg}")
                 ])
 
@@ -891,20 +951,20 @@ class ScrcpyDockApp:
             messagebox.showwarning(_("Sin dispositivo"), _("Selecciona un dispositivo activo en la lista primero."))
             return
         self.ctx.log("SEC", f"[{serial}] Cerrando puerto TCP/IP 5555 con 'adb usb'…")
-        self._set_status(_("Blindando dispositivo…"), C["orange"])
+        self.ctx.state_machine.set_pending(_("Blindando dispositivo…"))
         def task():
             ok, msg = SecurityManager.lockdown_device_tcpip(self.ctx.adb, serial)
             if ok:
                 self.ctx.log("OK", f"[{serial}] {msg}")
                 self.root.after(0, lambda: [
-                    self._set_status(_("✔ Puerto TCP/IP cerrado."), C["green"]),
+                    self.ctx.state_machine.set_success(_("✔ Puerto TCP/IP cerrado.")),
                     Toast(self.root, _("✔ Dispositivo blindado: Puerto TCP/IP cerrado."), "success"),
                     self._refresh_devices()
                 ])
             else:
                 self.ctx.log("ERROR", f"[{serial}] Lockdown: {msg}")
                 self.root.after(0, lambda: [
-                    self._set_status(_("Error al blindar"), C["red"]),
+                    self.ctx.state_machine.set_fault(_("Error al blindar"), ErrorCode.LOCKDOWN_FAILED),
                     messagebox.showwarning(_("Aviso"), f"No se pudo restaurar el modo USB:\n\n{msg}")
                 ])
         threading.Thread(target=task, daemon=True).start()
@@ -923,13 +983,13 @@ class ScrcpyDockApp:
                     self.ctx.log("SEC", f"Lockdown ejecutado en {n} dispositivo(s).")
                     self.root.after(0, lambda: [
                         self._refresh_devices(),
-                        self._set_status(_("🔒 Red blindada y puertos cerrados."), C["green"]),
+                        self.ctx.state_machine.set_success(_("🔒 Red blindada y puertos cerrados.")),
                         Toast(self.root, _("🔒 Red blindada: todas las sesiones detenidas y puertos cerrados."), "success")
                     ])
                 threading.Thread(target=task, daemon=True).start()
             else:
                 self._refresh_devices()
-                self._set_status(_("🔒 Red blindada."), C["green"])
+                self.ctx.state_machine.set_success(_("🔒 Red blindada."))
                 Toast(self.root, _("🔒 Todas las sesiones detenidas."), "success")
 
     def _toggle_safe_mode(self):
@@ -966,9 +1026,8 @@ class ScrcpyDockApp:
         self.ctx.log("ADB", f"[{serial}] TCP/IP 5555…")
         def task():
             try:
-                r = subprocess.run([self.ctx.adb, "-s", serial, "tcpip", "5555"],
-                                   capture_output=True, text=True, timeout=8)
-                self.ctx.log("ADB", r.stdout.strip())
+                r_tcp = self._adb().start_tcpip(serial, 5555)
+                self.ctx.log("ADB", r_tcp.message)
                 self.ctx.log(_("OK"), _("Puerto 5555 abierto. Desconecta el cable."))
                 self.root.after(0, lambda: messagebox.showinfo(
                     "TCP/IP habilitado",
@@ -986,27 +1045,24 @@ class ScrcpyDockApp:
             messagebox.showwarning("Sin dispositivo",
                                    "Selecciona un dispositivo en la lista primero.")
             return
-        self._set_status(_("Obteniendo IP del dispositivo…"), C["cyan"])
+        self.ctx.state_machine.set_pending(_("Obteniendo IP del dispositivo…"))
         def task():
             ip = None
             try:
                 # Método 1: ip route (funciona en la mayoría de romés)
-                r = subprocess.run(
-                    [self.ctx.adb, "-s", serial, "shell", "ip route"],
-                    capture_output=True, text=True, timeout=8)
-                for line in r.stdout.splitlines():
+                r = self._adb().shell(serial, "ip", "route", timeout=8)
+                for line in (r.data or "").splitlines():
                     m = re.search(r"src (\d+\.\d+\.\d+\.\d+)", line)
                     if m:
                         ip = m.group(1)
                         break
                 # Método 2: ifconfig wlan0
                 if not ip:
-                    r2 = subprocess.run(
-                        [self.ctx.adb, "-s", serial, "shell", "ifconfig", "wlan0"],
-                        capture_output=True, text=True, timeout=8)
-                    m2 = re.search(r"inet addr:(\d+\.\d+\.\d+\.\d+)", r2.stdout)
+                    r2 = self._adb().shell(serial, "ifconfig", "wlan0", timeout=8)
+                    out2 = r2.data or ""
+                    m2 = re.search(r"inet addr:(\d+\.\d+\.\d+\.\d+)", out2)
                     if not m2:
-                        m2 = re.search(r"inet (\d+\.\d+\.\d+\.\d+)", r2.stdout)
+                        m2 = re.search(r"inet (\d+\.\d+\.\d+\.\d+)", out2)
                     if m2:
                         ip = m2.group(1)
             except Exception as e:
@@ -1018,10 +1074,10 @@ class ScrcpyDockApp:
                     if entry:
                         entry.delete(0, tk.END)
                         entry.insert(0, ip)
-                    self._set_status(f"IP detectada: {ip}", C["green"])
+                    self.ctx.state_machine.set_success(f"IP detectada: {ip}")
                     Toast(self.root, f"IP del dispositivo: {ip}", "success")
                 else:
-                    self._set_status(_("No se detectó IP WiFi."), C["orange"])
+                    self._hint(_("No se detectó IP WiFi."), C["orange"])
                     Toast(self.root, _("No se pudo detectar la IP. ¿Está conectado por WiFi?"), "warning")
             self.root.after(0, apply)
         threading.Thread(target=task, daemon=True).start()
@@ -1053,7 +1109,7 @@ class ScrcpyDockApp:
         def task():
             try:
                 if code == "notifications":
-                    subprocess.run([self.ctx.adb, "-s", serial, "shell", "cmd", "statusbar", "expand-notifications"], capture_output=True, timeout=5)
+                    self._adb().shell(serial, "cmd", "statusbar", "expand-notifications", timeout=5)
                 elif code == "paste_text":
                     try:
                         text = self.root.clipboard_get()
@@ -1065,16 +1121,19 @@ class ScrcpyDockApp:
                             if self.ctx.security_mgr.is_safe_mode_enabled and len(clean_text) > 80:
                                 if not messagebox.askyesno(_("Confirmar"), f"¿Pegar texto ({len(clean_text)} caracteres) en el dispositivo '{serial}'?"):
                                     return
+                            # `adb shell` concatena argv con espacios, así que el
+                            # texto debe viajar YA entrecomillado (un solo token)
+                            # para que el shell del dispositivo no lo parta.
                             escaped_text = clean_text.replace("'", "'\\''")
-                            subprocess.run([self.ctx.adb, "-s", serial, "shell", "input", "text", f"'{escaped_text}'"], capture_output=True, timeout=5)
+                            self._adb().shell(serial, "input", "text", f"'{escaped_text}'", timeout=5)
                     except tk.TclError:
                         pass # Clipboard empty
                 elif code == "screen_on":
-                    subprocess.run([self.ctx.adb, "-s", serial, "shell", "input", "keyevent", "224"], capture_output=True, timeout=5)
+                    self._adb().shell(serial, "input", "keyevent", "224", timeout=5)
                 elif code == "screen_off":
-                    subprocess.run([self.ctx.adb, "-s", serial, "shell", "input", "keyevent", "223"], capture_output=True, timeout=5)
+                    self._adb().shell(serial, "input", "keyevent", "223", timeout=5)
                 else:
-                    subprocess.run([self.ctx.adb, "-s", serial, "shell", "input", "keyevent", str(code)], capture_output=True, timeout=5)
+                    self._adb().shell(serial, "input", "keyevent", str(code), timeout=5)
             except Exception as e:
                 self.ctx.log("ERROR", f"Keyevent {code}: {e}")
         threading.Thread(target=task, daemon=True).start()
@@ -1104,22 +1163,22 @@ class ScrcpyDockApp:
                 return
 
         self.ctx.log("ADB", f"[{serial}] Instalando APK: {apk_name}…")
-        self._set_status(f"Instalando {apk_name}…", C["cyan"])
+        self.ctx.state_machine.set_pending(f"Instalando {apk_name}…")
         Toast(self.root, f"Instalando {apk_name}...", "info")
         def task():
             try:
-                res = subprocess.run([self.ctx.adb, "-s", serial, "install", "-r", apk_path], capture_output=True, text=True, timeout=120)
-                output = (res.stdout or "") + (res.stderr or "")
-                if "Success" in output:
+                inst = self._adb().install(serial, apk_path)
+                output = inst.message or ""
+                if inst.success:
                     self.ctx.log("OK", f"[{serial}] Instalación exitosa: {apk_name}")
                     self.root.after(0, lambda: [
-                        self._set_status(f"✔ APK instalada: {apk_name}", C["green"]),
+                        self.ctx.state_machine.set_success(f"✔ APK instalada: {apk_name}"),
                         Toast(self.root, f"✔ APK instalada con éxito: {apk_name}", "success")
                     ])
                 else:
                     self.ctx.log("ERROR", f"[{serial}] Error al instalar {apk_name}: {output.strip()}")
                     self.root.after(0, lambda: [
-                        self._set_status(f"❌ Error al instalar APK", C["red"]),
+                        self.ctx.state_machine.set_fault(_("❌ Error al instalar APK"), ErrorCode.APK_INSTALL_FAILED),
                         messagebox.showerror("Error al instalar APK", f"No se pudo instalar {apk_name}:\n\n{output.strip()}")
                     ])
             except Exception as e:
@@ -1387,7 +1446,7 @@ class ScrcpyDockApp:
         name = self.ctx.active_profile.get()
         self.ctx.save_current_config()
         self._sync_profile_selection(name)
-        self._set_status(f"Perfil activo: {name}", C["cyan"])
+        self._hint(f"Perfil activo: {name}", C["cyan"])
 
     # ── Actions Tab ───────────────────────────────────────────────────
     def _start_otg_mode(self):
@@ -1479,11 +1538,11 @@ class ScrcpyDockApp:
                     existing_args = profile_data.get("extra_args", "")
                     profile_data["extra_args"] = f"{existing_args} {extra_var.get().strip()}".strip()
 
-            self._set_status(f"Iniciando sesión: {profile_name}...", C["green"])
+            self.ctx.state_machine.set_pending(f"Iniciando sesión: {profile_name}...")
             
             if profile_data.get("force_screen_off_keyevent") or (profile_data.get("audio_source") == "mic" and "--no-video" in profile_data.get("extra_args", "")):
                 self.ctx.log("ADB", f"[{serial}] keyevent 26…")
-                subprocess.Popen([self.ctx.adb,"-s",serial,"shell","input","keyevent","26"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                self._adb().shell(serial, "input", "keyevent", "26", timeout=5)
                 time.sleep(0.3)
 
             def on_started():
@@ -1513,16 +1572,20 @@ class ScrcpyDockApp:
             self.ctx.session_mgr.stop_all()
             self._refresh_table()
             self.ctx.log(_("WARNING"), _("Pánico: todas las sesiones cerradas."))
-            self._set_status(_("Todas las sesiones cerradas."), C["orange"])
+            self.ctx.state_machine.set_idle(_("Todas las sesiones cerradas."))
 
     def _restart_adb(self):
         if not self.ctx.adb: return
         self.ctx.log(_("ADB"), _("Reiniciando servidor ADB…"))
-        self._set_status(_("Reiniciando ADB…"), C["cyan"])
+        self.ctx.state_machine.set_pending(_("Reiniciando ADB…"))
         def task():
-            subprocess.run([self.ctx.adb, "kill-server"], capture_output=True)
+            kill = self._adb().kill_server()
+            if not kill.success:
+                self.ctx.log("ERROR", f"kill-server: {kill.message}")
             time.sleep(0.5)
-            subprocess.run([self.ctx.adb, "start-server"], capture_output=True)
+            start = self._adb().start_daemon()
+            if not start.success:
+                self.ctx.log("ERROR", f"start-server: {start.message}")
             self.ctx.log(_("OK"), _("Servidor ADB reiniciado."))
             self.root.after(600, self._refresh_devices)
         threading.Thread(target=task, daemon=True).start()
@@ -1546,7 +1609,7 @@ class ScrcpyDockApp:
         self._refresh_table()
         if res.success:
             self.ctx.log("INFO", f"[{serial}] Sesión detenida por el usuario.")
-            self._set_status(f"Sesión detenida: {serial}", C["orange"])
+            self.ctx.state_machine.set_idle(f"Sesión detenida: {serial}")
         else:
             messagebox.showwarning(_("Atención"), res.message)
 
@@ -1666,8 +1729,8 @@ class ScrcpyDockApp:
             sess = sessions.pop(serial)
             self.ctx.log("WARNING", f"[{serial}] Sesión terminada (PID {sess.pid}).")
             if self.ctx.active_device_serial == serial:
-                self.root.after(0, lambda: self._set_status(
-                    f"Sesión finalizada: {sess.profile_name}", C["orange"]))
+                self.root.after(0, lambda: self.ctx.state_machine.set_idle(
+                    f"Sesión finalizada: {sess.profile_name}"))
         if dead or sessions:
             self._refresh_table()
         self.root.after(2000, self._monitor_sessions)
@@ -1719,7 +1782,7 @@ class ScrcpyDockApp:
             except Exception: pass
             self.ctx.session_mgr.sessions.pop(serial, None)
             self._refresh_table()
-            self._set_status(f"Proceso forzado a cerrar: {serial}", C["red"])
+            self.ctx.state_machine.set_idle(f"Proceso forzado a cerrar: {serial}")
             Toast(self.root, f"Sesión {serial} cerrada forzosamente.", "warning")
 
     def _show_onboarding(self):

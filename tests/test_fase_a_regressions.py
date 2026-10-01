@@ -212,10 +212,13 @@ class _AppStub:
     """Sustituto mínimo de ScrcpyDockApp para probar handlers sin Tk."""
 
     def __init__(self, session_mgr, rows=(("SERIAL1", "Perfil", 123, "00:01", "RUN"),)):
+        from scrcpy_dock.state import UIStateMachine
+
+        self.state_machine = UIStateMachine()
         self.ui = types.SimpleNamespace(refs={"sess_tree": _FakeTree(list(rows))})
         self.ctx = types.SimpleNamespace(
             session_mgr=session_mgr, log=lambda *a, **k: None,
-            active_device_serial="SERIAL1",
+            active_device_serial="SERIAL1", state_machine=self.state_machine,
         )
         self.refreshed = 0
         self.status = []
@@ -224,7 +227,7 @@ class _AppStub:
     def _refresh_table(self):
         self.refreshed += 1
 
-    def _set_status(self, *a, **k):
+    def _hint(self, *a, **k):
         self.status.append(a)
 
 
@@ -240,8 +243,9 @@ class TestA2DetenerSesion(unittest.TestCase):
 
         smgr.stop_session.assert_called_once_with("SERIAL1")
         self.assertEqual(app.refreshed, 1)
-        self.assertTrue(app.status)
-        smgr.stop.assert_not_called() if hasattr(smgr, "stop") else None
+        from scrcpy_dock.state import UIState
+        self.assertEqual(app.state_machine.current_state, UIState.IDLE)
+        self.assertIn("SERIAL1", app.state_machine.message)
 
     def test_stop_selected_tolera_evento_de_tk(self):
         """El binding <Delete> invoca el handler con un evento."""

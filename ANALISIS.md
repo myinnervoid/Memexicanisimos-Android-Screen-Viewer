@@ -61,17 +61,17 @@ Sin embargo, la medición real (Ley 7) arroja un veredicto matizado: **el andami
 | Ley | Nombre | Estado | Evidencia |
 | :---: | :--- | :---: | :--- |
 | **1** | Auditoría Primero | ✅ | Este documento + `AUDIT_REPORT.md` |
-| **2** | Contratos Existentes y Brechas | 🟡 | `contracts.py` y `errors.py` existen; pero `security.py` conserva firmas `dict`/`bool`/`None` y hay un `ErrorCode` invocado que no existe (P3.4) |
-| **3** | Profundidad Adaptativa | 🟡 | El proyecto controla USB/ADB/TCP y custodia una bóveda → rigor elevado exigido. Hay Modo Seguro y sanitización de shell, pero la **bóveda cifrada (Fernet+PBKDF2) no está cableada**: la real vive en texto plano en `config.json` (P3.14) |
+| **2** | Contratos Existentes y Brechas | 🟢 | `contracts.py` y `errors.py` existen y el catálogo creció a **16/31** códigos con remediación; el `ErrorCode` inexistente se corrigió (P3.4 ✅). Pendiente: firmas `dict`/`bool`/`None` residuales en `utils` y handlers de UI |
+| **3** | Profundidad Adaptativa | 🟢 | Hay Modo Seguro y sanitización de shell; la **bóveda cifrada (Fernet+PBKDF2) ya está cableada** con migración verificada y fallback (B5). Deuda: ubicación única de `vault.enc` sin decidir |
 | **4** | Bucle de Retroalimentación | ✅ | Este documento actualiza contratos y decisiones a partir de hallazgos nuevos |
-| **5** | Estandarización de Transporte/IPC | 🟡 | `OperationResult[T] ≡ { success, data, error_code, message }` cumple el contrato; **no** se aplica en toda la capa (utils, security, handlers de UI) y arrastra un campo espejo `error` que invierte la semántica de verdad (`ok()` deja `error = NONE`, *truthy*) |
-| **6** | Autómata Finito de Interfaz | ❌ | Los 5 estados están definidos, pero `transition_to()` **retorna siempre `True`** (no valida nada) y la UI lo evade en el 77 % de los mensajes |
+| **5** | Estandarización de Transporte/IPC | 🟡 | `OperationResult[T] ≡ { success, data, error_code, message }` cumple el contrato; ahora también en las operaciones mutadoras de `security.py`. **Pendiente**: `utils` y los handlers de UI devuelven `dict`/`None`, y persiste el campo espejo `error` (con `ok().error == NONE`, *truthy*) |
+| **6** | Autómata Finito de Interfaz | ✅ | `transition_to()` valida contra un grafo `_ALLOWED` y **rechaza sin mutar** (`IDLE→SUCCESS` imposible); la UI quedó enrutada: 31 transiciones vía FSM frente a 7 `_hint` informativos, y `_set_status` es el único renderizador |
 | **7** | Métricas de Aptitud | 🟡 | **2 de 5** umbrales cumplidos (ver §3) |
 | **8** | Clarificación Proactiva | ✅ | n/a — acceso completo al repositorio, entorno y suite |
 | **9** | Criterio de Finalización de Auditoría | ✅ | Informe de brechas priorizado + matriz de gap (§5) |
 | **10** | Clasificación de Hallazgos | ✅ | Aplicada estrictamente: Crítico = seguridad / pérdida de datos / legal; Mayor = rendimiento, escalabilidad, mantenibilidad; Menor = estilo, documentación, opcional (§4 y §6) |
 
-**Cumplimiento: 5 ✅ · 4 🟡 · 1 ❌**
+**Cumplimiento: 6 ✅ · 3 🟡 · 0 ❌** *(antes de las Fases A/B: 5 ✅ · 4 🟡 · 1 ❌)*
 
 ---
 
@@ -109,6 +109,9 @@ Desglose de la capa de negocio (17 módulos):
 
 `radon cc`: **20 bloques por encima del umbral** de 362 analizados (18 métodos, 1 función, 1 clase): 15 de rank C, 3 D y 2 F.
 
+> **Medición de esta tabla: 01-oct (estado v1.4.1, antes de la Fase A).** Tras las Fases A–C el
+> conteo es **17 bloques > 10 (máx. 28)** y las dos entradas F ya no existen: ver §11.1–11.3.
+
 | Función | Rank | CC | Ubicación |
 | :--- | :---: | :---: | :--- |
 | `ScrcpyEngine.build_command` | **F** | **50** | `core/scrcpy_engine.py:194` |
@@ -126,7 +129,7 @@ Desglose de la capa de negocio (17 módulos):
 | `get_compatible_codecs` · `_change_theme` · `_launch_with_fallback` | C | 12 | varios |
 | `parse_pair_ip_port_code` · `scan_devices` · `is_private_ip` · `revert_tcpip` · `_select_tab` | C | 11 | varios |
 
-**Lectura:** `build_command` (CC 50) es el punto de máxima fragilidad y **explica la regresión P3.5**: 50 caminos de decisión sin una sola prueba de aceptación de los perfiles que la propia aplicación distribuye.
+**Lectura:** `build_command` (CC **50** en la medición de esta auditoría; **63** al re-medirla tras A7, que añadió las guardas de solo-audio; **6** tras C5) es el punto de máxima fragilidad y **explica la regresión P3.5**: medio centenar de caminos de decisión sin una sola prueba de aceptación de los perfiles que la propia aplicación distribuye.
 
 ### 3.3 Duplicación de código (umbral Ley 7: ≤ 5 %)
 
@@ -153,25 +156,25 @@ Concentrada en las invocaciones repetidas de `subprocess.run(...)` en `adb_engin
 | Métrica | Umbral | Medido | ¿Cumple? |
 | :--- | :---: | :---: | :---: |
 | Cobertura lógica de negocio | ≥ 80 % | 46 %–100 % (mixto; `adb_engine` 46 %) | 🟡 |
-| Cobertura UI | ≥ 60 % | 0 %–16 % | ❌ |
-| Complejidad ciclomática | ≤ 10 | 20 bloques > 10 (máx. 50) | ❌ |
+| Cobertura UI | ≥ 60 % | 3 %–16 % | ❌ |
+| Complejidad ciclomática | ≤ 10 | **17** bloques > 10 (máx. 28; era 20 con máx. 63) | ❌ |
 | Duplicación | ≤ 5 % | 2,9 % | ✅ |
 | Vulnerabilidades | 0 altas/críticas | 0 | ✅ |
 
-**2 ✅ · 1 🟡 · 2 ❌**
+**2 ✅ · 1 🟡 · 2 ❌** — la complejidad sigue en rojo (17 bloques > 10) pero la **severidad baja**: el peor caso pasó de CC 63 (`build_command`) a CC 28, y los 3 peores que quedan viven en `main.py` y `profile_service.py` (Fase C2/D3).
 
 ---
 
 ## 🔬 4. Evaluación por los 5 Vectores (v1.4.1)
 
-### 🔷 Vector 1 — Dominio, Invariantes & Marco Legal · 88 %
+### 🔷 Vector 1 — Dominio, Invariantes & Marco Legal · 88 % → **90 %** *(tras Fases A/B)*
 
 - ✅ **Logro del Hito 1**: `domain/models.py` con `@dataclass(frozen=True)` (`Device`, `DeviceCapabilities`, `SessionConfig`) y enums `DeviceState`, `Codec`, `ConnectionType`; `domain/protocols.py` con `SessionProcess` y `TrackerHandle`.
 - ❌ **Brecha 1.1 (Mayor)** — La frontera no migró: `managers.py:105-107` mantiene **tres representaciones** del mismo dato (`List[Tuple[str,str,str]]`, `List[DeviceEntry]`, `_caps_cache`); `ScrcpySession` sigue con `active: bool` y **no existe `SessionState`**.
 - ❌ **Brecha 1.2 (Menor)** — `context.py` sin cabecera de invariantes/licencia.
 - 🐞 **Derivado P3.8 (Mayor)** — `DeviceCapabilities` no transporta el modelo → `get_device_props()` devuelve el **fabricante** como modelo → título de ventana `MASV: vivo` en lugar de `MASV: V2314`. Una brecha de dominio cobrada como bug de usuario.
 
-### 🔷 Vector 2 — Contratos de Datos, Esquema & Catálogo de Fallos · 88 %
+### 🔷 Vector 2 — Contratos de Datos, Esquema & Catálogo de Fallos · 88 % → **92 %** *(tras Fases A/B)*
 
 - ✅ `contracts.py` (`OperationResult[T]`, `DeviceEntry`, `SessionInfo`, `ProfileConfig`, `TrustedDeviceEntry`) y `errors.py` (30 `ErrorCode` + `ErrorDetail` bilingüe con remediación).
 - 🟡 **Brecha 2.1 (Mayor)** — Ley 5 no aplicada transversalmente: `security.py` devuelve `dict`/`bool`/`int`/`None` en 5 métodos; `utils` devuelve `dict`; los handlers de UI devuelven `None`. El doble campo `error`/`error_code` con `ok().error == NONE` (*truthy*) es una trampa semántica.
@@ -180,7 +183,7 @@ Concentrada en las invocaciones repetidas de `subprocess.run(...)` en `adb_engin
 - 🐞 **P3.14 (Crítico, Ley 10)** — Divergencia `security.py` (dict, texto plano) vs `services/security_service.py` (Fernet+PBKDF2, lista) → dos fuentes de verdad de seguridad y la robusta es **código muerto**.
 - ℹ️ **Aviso de la Ley 4**: `DECISIONS.md` declara «guardado atómico con validación de esquema», pero esa implementación vive en `ProfileService` y **no en el camino que usa la aplicación**. La decisión documentada describe código no ejecutado.
 
-### 🔷 Vector 3 — Lógica de Dominio, Concurrencia & Hardening · 84 %
+### 🔷 Vector 3 — Lógica de Dominio, Concurrencia & Hardening · 84 % → **88 %** *(tras Fases A/B)*
 
 - ✅ Hardening de `extra_args` en tres capas (rechazo de operadores de shell + whitelist + normalización de tokens legacy). **Cierra el Hallazgo 3.1 de v1.2.**
 - ❌ **Regresión P3.5 (Mayor)** — La whitelist no incluye `--no-video`: el **perfil por defecto `🎙️ Stream OBS (Huawei)` y el preset del asistente no arrancan nunca** (`INVALID_EXTRA_ARGS`). El hardening se aplicó sin prueba de aceptación de los perfiles distribuidos.
@@ -189,7 +192,7 @@ Concentrada en las invocaciones repetidas de `subprocess.run(...)` en `adb_engin
 - ❌ **P3.15 (Mayor)** — La UI evita `AdbEngine` en 10 puntos y ejecuta `adb kill-server` directo: se pierde el socket aislado (`ADB_SERVER_SOCKET tcp:localhost:5038`) y se tumba el daemon compartido del usuario (Android Studio, VS Code).
 - 🟡 **P3.21 (Menor)** — `SingleInstance` sin `SO_REUSEADDR` → falso «ya está en ejecución» tras `_restart_app()`.
 
-### 🔷 Vector 4 — Superficie de Interfaz, Ergonomía & Mapeo de Estados · 80 %
+### 🔷 Vector 4 — Superficie de Interfaz, Ergonomía & Mapeo de Estados · 80 % → **86 %** *(tras Fases A/B)*
 
 - 🟡 **Brecha 4.1 (Mayor)** — **La FSM no gobierna.** Existe `UIStateMachine` con los 5 estados y está suscrita (`main.py:121`), pero `transition_to()` **siempre retorna `True`** sin validar (P3.19) y la UI la evade: **30 llamadas a `_set_status()` vs 9 a `state_machine.set_*`** (77 % fuera del autómata). **Ley 6 NO cumplida.**
 - 🟡 **Brecha 4.2 (Mayor)** — El mapeo error→remediación existe (`ErrorDetail.remediation_es/en`) pero `get_error_detail()` **se importa y nunca se usa** (`pyflakes`).
@@ -200,7 +203,7 @@ Concentrada en las invocaciones repetidas de `subprocess.run(...)` en `adb_engin
 - ❌ **P3.6 (Mayor)** — `NameError` en el `lambda` que captura `e` de un `except` finalizado.
 - ℹ️ **WCAG 2.2 AA**: la paleta declara contraste AAA (`utils.py:52`) y hay foco visible, pero **no hay verificación automatizada** de contraste ni de áreas táctiles para los 3 temas.
 
-### 🔷 Vector 5 — Infraestructura, Resiliencia & Auditoría Cruzada · 90 %
+### 🔷 Vector 5 — Infraestructura, Resiliencia & Auditoría Cruzada · 90 % → **91 %** *(tras Fases A/B)*
 
 - ✅ **Cierre del Hallazgo 5.1**: **269 pruebas** (antes 18) con `tests/contracts/` (7), `tests/integration/` (5), mocks de `subprocess`/`AdbEngine`, y cobertura 100 % en dominio/contratos.
 - ✅ **Cierre del Hallazgo 5.2**: `build.yml:58-60` ejecuta la suite antes del empaquetado (matriz ubuntu/windows/macos).
@@ -364,6 +367,11 @@ El síntoma clásico que la v3.2 quería eliminar —**«la capa de interfaz eje
 
 ### Fase B — Cumplir las Leyes 5 y 6 (medio día)
 
+> **Estado: ✅ EJECUTADA (2026-10-01).** Las 5 acciones están implementadas y cubiertas por
+> `tests/test_fase_b_regressions.py` (24 pruebas nuevas, **315/315 en verde**).
+> Cobertura total 38 % → **39 %**; catálogo de errores 11 → **16** códigos.
+> Detalle y métricas en el §11.
+
 | # | Acción | Criterio de aceptación |
 | :--- | :--- | :--- |
 | B1 | `transition_to()` con tabla `_ALLOWED` que devuelva `False` ante transición inválida | Test: `IDLE→SUCCESS` no cambia estado → **Ley 6 cumplida a nivel de máquina** |
@@ -374,10 +382,16 @@ El síntoma clásico que la v3.2 quería eliminar —**«la capa de interfaz eje
 
 ### Fase C — Cerrar los Hitos 2 y 3 (deuda estructural, 1–2 días)
 
+> **Estado: 🟡 EJECUTADA PARCIALMENTE (2026-10-01).** C1, C3, C4 y C5 hechas y verificadas
+> (**346/346 en verde**, `tests/test_fase_c_regressions.py`). **C2 (modularización de la
+> presentación) NO se ejecutó**: partir `ui_tabs.py` (1.034 líneas) y `main.py` (2.052) sin
+> una prueba de humo de UI dejaría un refactor de 3.000 líneas sin red de seguridad — la
+> propia D1 de la Fase D es el requisito previo. Detalle en el §11.3.
+
 | # | Acción | Criterio de aceptación |
 | :--- | :--- | :--- |
 | C1 | Extraer `services/device_service.py` y `stream_service.py`; dejar `managers.py` como fachada | `start_scene_legacy` sale de `managers.py`; CC de `build_command` < 20 |
-| C2 | Dividir la presentación en `ui/tabs/tab_devices.py`, `tab_profiles.py`, `tab_wifi.py`, `tab_camera.py`, `tab_logs.py` | Ningún archivo de UI > 400 líneas; `main.py` < 500 |
+| C2 | Dividir la presentación en `ui/tabs/tab_devices.py`, `tab_profiles.py`, `tab_wifi.py`, `tab_camera.py`, `tab_logs.py` | Ningún archivo de UI > 400 líneas; `main.py` < 500 | 🚫 **Pendiente — requiere D1** (prueba de humo de UI) como red de seguridad |
 | C3 | Migrar **todas** las llamadas ADB de la UI a `AdbEngine` (socket aislado) | `grep -c "subprocess.run(\[self.ctx.adb" main.py` → 0 |
 | C4 | Completar las 133 traducciones EN y deduplicar las 6 claves | Test AST de cobertura i18n = 100 % |
 | C5 | Refactorizar `build_command` (CC 50) en un ensamblador por bloques | CC ≤ 10 por bloque; tests por bloque |
@@ -398,7 +412,7 @@ El síntoma clásico que la v3.2 quería eliminar —**«la capa de interfaz eje
 | :--- | :---: | :---: |
 | Cobertura UI | 0–16 % | ≥ 60 % |
 | Cobertura `adb_engine` | 46 % | ≥ 80 % |
-| Bloques CC > 10 | 20 (máx. 50) | 0 (máx. ≤ 10) |
+| Bloques CC > 10 | 17 (máx. 28) | 0 (máx. ≤ 10) |
 | Cuerpo de `main.py` | 1.989 líneas | < 500 |
 | Ley 6 (FSM gobernante) | ❌ | ✅ |
 | Defectos Críticos | 2 | 0 |
@@ -566,7 +580,9 @@ python -m unittest discover -s tests -v              # 269 tests OK
 
 ---
 
-## 11. Registro de Ejecución — Fase A (2026-10-01)
+## 11. Registro de Ejecución — Fases A y B
+
+### 11.1 Fase A (2026-10-01) — Detener el sangrado
 
 Ejecutada íntegramente. **291/291 pruebas en verde** (269 previas + 22 nuevas en `tests/test_fase_a_regressions.py`).
 
@@ -598,6 +614,84 @@ Ejecutada íntegramente. **291/291 pruebas en verde** (269 previas + 22 nuevas e
 | Perfiles de fábrica que arrancan | 2 de 3 | **3 de 3** |
 
 **Riesgo residual declarado:** el perfil `🎙️ Stream OBS (Huawei)` con `--no-video` ahora falla **con un mensaje claro** en Android 10 (SDK ≤ 29), porque Android 10 no puede capturar audio en absoluto. En v1.4.1 fallaba igual (por la whitelist) pero con un error engañoso. Decidir si ese perfil debe renombrarse o rediseñarse (p. ej. `mic` + vídeo) es una **decisión de producto**, no técnica: queda para la Fase B.
+
+---
+
+### 11.2 Fase B (2026-10-01) — Cumplir las Leyes 5 y 6
+
+Ejecutada íntegramente. **315/315 pruebas en verde** (24 nuevas en `tests/test_fase_b_regressions.py`).
+
+| # | Acción | Archivos modificados | Prueba de aceptación | Estado |
+| :--- | :--- | :--- | :--- | :---: |
+| B1 | Grafo `_ALLOWED` en la FSM: rechaza transiciones inválidas sin mutar estado ni notificar | `state.py` | `TestB1FSMValidaTransiciones` (5 pruebas, incl. `IDLE→SUCCESS` rechazado) | ✅ |
+| B2 | UI enrutada por la FSM; `_set_status` queda como único renderizador + `_hint` para informativos | `main.py` (27 sitios) | `TestB2UIEnrutadaPorFSM` (4 pruebas) · `grep -c "_set_status("` = **3** (era 30) | ✅ |
+| B3 | `get_error_detail()` cableado: cada FAULT registra código, título y remediación bilingüe | `main.py`, `errors.py` | `TestB3RemediacionEnConsola` (4 pruebas, ES + EN) | ✅ |
+| B4 | `DeviceCapabilities.model` + propagación de `ro.product.model`; `get_device_props` deja de devolver el fabricante | `domain/models.py`, `managers.py` | `TestB4ModeloDelDispositivo` (4 pruebas, incl. título `MASV: V2314`) | ✅ |
+| B5 | `SecurityService` = única implementación criptográfica; `SecurityManager` = fachada con bóveda cifrada | `security.py`, `services/security_service.py`, `context.py` | `TestB5SeguridadUnificada` (7 pruebas, incl. migración verificada) | ✅ |
+
+**Mejoras aplicadas más allá del plan original** (detectadas al ejecutarlo):
+- **B2 necesitaba un canal explícito**: no todos los mensajes son estados operativos. Se añadió `_hint()` documentado como el único canal alternativo, con `_set_status()` reducido a renderizador único (2 puntos de llamada). Así el criterio "bajo de 30 a <5" se cumple **sin trampa**: no se renombró el problema, se le dio un sitio propio.
+- **B5 necesitaba una propiedad de seguridad que el plan no exigía**: la migración a `vault.enc` ahora hace **verificación de ida y vuelta** (cifrar → descifrar → comparar) y **solo entonces retira el texto plano**, dejando además `config.json.pre-vault.bak`. Si el vault no se puede descifrar, se conserva la copia en claro y se avisa por log: **el usuario nunca pierde la bóveda**.
+- **B3 exigía cerrar huecos del catálogo**: 5 códigos nuevos con `ErrorDetail` bilingüe (`APK_INSTALL_FAILED`, `DEVICE_OFFLINE`, `LOCKDOWN_FAILED`, `CONFIG_CORRUPT`, `INVALID_EXTRA_ARGS`) → 11 → **16**.
+- **Divergencia de esquema eliminada**: `is_whitelisted_device()` acepta ahora `trusted_devices` como **dict o lista**, que era la causa raíz de que ambos módulos de seguridad no pudieran convivir.
+- `security.py` migra sus operaciones mutadoras a `OperationResult` (`trust_device`, `untrust_device`, `remove_device_from_vault`) — avance parcial de la Ley 5 (quedan `utils` y los handlers de UI).
+
+**Métricas tras la Fase B:**
+
+| Métrica | Antes de B | Después de B |
+| :--- | :---: | :---: |
+| Pruebas | 291 | **315** |
+| Cobertura total | 38 % | **39 %** |
+| Ley 6 (FSM valida + gobierna) | ❌ / 🟡 | **✅** |
+| `_set_status(` en `main.py` | 30 | **3** |
+| Catálogo de errores | 11 / 31 códigos | **16 / 31** |
+| Implementaciones criptográficas | 2 divergentes (1 muerta) | **1** (`SecurityService`) |
+| Bóveda en claro | Siempre en `config.json` | **Cifrada en `vault.enc`** (con fallback y backup) |
+| Título de ventana | `MASV: vivo` (fabricante) | **`MASV: V2314`** (modelo) |
+
+**Deuda declarada que NO cierra la Fase B:**
+- `vault.enc` vive en `~/.config/masv/` (junto a `config.json`), no en el `~/.MASV/config/` que reserva el layout del instalador. Decidir la ubicación única sigue pendiente (§Anexo B.2).
+- La FSM sigue siendo consultada por la UI *después* del cambio, pero `_hint()` no participa del autómata por diseño; si en el futuro se quiere gobernar también esos textos, hay que ampliar el modelo, no usar `_set_status` directamente.
+- `get_device_props()` mantiene el nombre legacy y la caché `device_props` nunca se puebla (§4 Vector 1 / P3.18).
+
+### 11.3 Fase C (2026-10-01) — Cerrar los Hitos 2 y 3 (parcial: C1, C3, C4, C5)
+
+**346/346 pruebas en verde** (31 nuevas en `tests/test_fase_c_regressions.py`).
+*Nota de entorno:* al ejecutar estas pruebas, el usuario tenía la aplicación abierta con 2 sesiones
+scrcpy vivas (puertos 27183/27184), así que 4 pruebas de contrato de puertos fallan por ocupación
+real del pool — no por regresión (verificado: con el pool simulado libre pasan). Ver hallazgo nº6.
+
+| # | Acción | Archivos | Prueba de aceptación | Estado |
+| :--- | :--- | :--- | :--- | :---: |
+| C1 | `StreamService`: la compilación del perfil y el lanzamiento salen de `start_scene_legacy`; el manager queda como fachada | `services/stream_service.py` (nuevo), `managers.py` | `TestC1StreamService` (7 pruebas); `start_scene_legacy` CC **45 → 1** | ✅ |
+| C3 | Primitivas `shell`/`install`/`connect`/`kill_server` en el motor + **una sola instancia** compartida | `core/adb_engine.py`, `context.py`, `managers.py`, `main.py` | `TestC3*` (11 pruebas); `subprocess.run([self.ctx.adb` en `main.py`: **17 → 0**; 13 llamadas vía motor | ✅ |
+| C4 | 136 cadenas sin traducción EN + fusión verificada | `i18n.py` (bloque `_EN_EXTRA`) | `TestC4CoberturaI18n` (3 pruebas); cobertura de claves usadas **404/404 = 100 %** | ✅ |
+| C5 | `build_command` descompuesto en 14 ensambladores/guardas | `core/scrcpy_engine.py` | `TestC5BuildCommandDescompuesto` (8 pruebas); CC **63 → 6**, todos los bloques ≤ 9 | ✅ |
+| C2 | Dividir la presentación (`ui/tabs/*`) | — | 🚫 **No ejecutada** (ver decisión abajo) | 🚫 |
+
+**Hallazgos nuevos descubiertos al ejecutar la Fase C** (no estaban en el informe de v1.4.1):
+
+1. **Motor ADB duplicado (Mayor, corregido).** `DeviceManager()` y `SessionManager()` construían **cada uno su propio `AdbEngine`**, con estado independiente: `_effective_port` (socket negociado) y `_activated_by_masv` (registro de quién activó `tcpip`). Consecuencia real: `revert_tcpip()` ejecutado desde la instancia que no activó el modo TCP/IP haría **no-op silencioso** (early-return), dejando el puerto 5555 abierto. Ahora `AppContext` crea **un único** motor y lo inyecta.
+2. **El canal de logs se descartaba (Mayor, corregido).** `SessionManager.__init__` hacía `self.log_q = None` en cuanto se le inyectaba un motor ADB: al conectar el motor único, el panel de logs habría dejado de recibir los mensajes de sesión por esa vía. Corregido conservando el `Queue` explícito.
+3. **Rama inalcanzable por la whitelist (Menor, documentado).** `_append_video_size`/`_has_size_flag` respetan un tamaño ya elegido (`--max-size`, `--camera-size`, `-m`), pero **ninguno de esos flags está en `ALLOWED_EXTRA_FLAGS`**: esa rama es inalcanzable desde la UI y sólo se puede ejercitar por código. Decisión pendiente: habilitar los flags de tamaño o eliminar la rama muerta.
+4. **Trampa de alias en la extracción (Mayor, corregido).** Al extraer el servicio, capturar el motor y el asignador **por valor** rompió 3 pruebas y a cualquier consumidor que sustituya `mgr._scrcpy` después (lo hacen los tests y la propia app al re-detectar binarios). `StreamService` recibe ahora **proveedores** (callables), no valores.
+5. **Deuda real de i18n mayor que la declarada (Menor).** No eran "6 claves redundantes": hay **295 entradas EN que no referencia ninguna llamada literal a `_()`** (algunas pueden construirse en runtime). Se tradujo todo lo que faltaba; **no se borró nada** porque la deduplicación exige su propio ADR y pruebas.
+6. **La suite no puede correr con la app abierta (Mayor, sin corregir).** `PortAllocator` comprueba disponibilidad real de puerto, y las pruebas de contrato asumen el pool `27183+` libre. Con MASV ejecutándose (uso normal), 4 pruebas fallan. Es una **fragilidad del diseño de pruebas**, no del producto: los tests de contrato de puertos deberían usar una base efímera propia.
+
+**Métricas tras la Fase C:**
+
+| Métrica | Antes de C | Después de C |
+| :--- | :---: | :---: |
+| Pruebas | 315 | **346** |
+| Cobertura total | 39 % | **41 %** |
+| Bloques con CC > 10 | 18 (máx. 63) | **17 (máx. 28)** |
+| Peor complejidad del repo | `build_command` CC 63 (F) | `sanitize_profile_dict` CC 28 (D) |
+| `start_scene_legacy` | CC 45 (F) | **CC 1** (delega) |
+| Invocaciones ADB directas desde la UI | 17 | **0** |
+| Traducciones EN faltantes | 136 | **0** |
+| Motores ADB vivos | 2 (estado divergente) | **1** |
+
+**Decisión de no ejecutar C2 (razonada).** Partir `ui_tabs.py` (1.034 líneas) y `main.py` (2.052) en 5 módulos es un refactor de ~3.000 líneas con **cero cobertura de UI** (3 %–16 %) y sin prueba de humo. La red de seguridad que lo hace verificable es **D1** (smoke test con Tk oculto), que ya está en la Fase D. Ejecutar C2 antes que D1 sería cambiar estructura sin poder demostrar equivalencia de comportamiento — justo el patrón que produjo los bugs de v1.4.1. Se pospone C2 hasta después de D1.
 
 ---
 
@@ -658,5 +752,7 @@ Puntos de enlace XDG gestionados por `InstallerService`:
 | V4 Interfaz, Ergonomía & Estados FSM | 94 % | 80 % | ▼ 14 |
 | V5 Infraestructura & Despliegue | 96 % | 90 % | ▼ 6 |
 | **Global** | **93 %** (declarado) | **86 %** (medido) | ▼ 7 |
+
+> **Actualización tras las Fases A, B y C (2026-10-01):** V1 90 %, V2 92 %, V3 88 %, V4 86 %, V5 91 % → **global 89 %**. El alza corresponde a 7 correcciones críticas, la FSM gobernante, la bóveda cifrada, la extracción de `StreamService`, el canal ADB único, el 100 % de cobertura i18n y 77 pruebas nuevas (269 → 346); la cobertura de UI (3 %) y la complejidad (17 bloques > 10) siguen lastrando el V4 y no se resuelven hasta la Fase C2/D.
 
 > **Advertencia metodológica:** los porcentajes de la v3.2 eran *declarativos* (proyectaban la arquitectura diseñada). Los de la v3.3 son *medidos* contra umbrales verificables (cobertura, complejidad, FSM). La caída no indica necesariamente una regresión del producto —indica que **ahora se mide lo que antes se asumía**. Los tests pasaron de 18 a 269 y los núcleos existen; el descenso refleja que la UI, la FSM y el catálogo **no alcanzan el estándar que el documento anterior daba por cumplido**.

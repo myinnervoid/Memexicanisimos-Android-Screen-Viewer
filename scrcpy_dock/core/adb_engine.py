@@ -18,7 +18,7 @@ import os
 import subprocess
 import threading
 from pathlib import Path
-from typing import Callable, Optional
+from typing import Any, Callable, Optional
 
 from scrcpy_dock.contracts import OperationResult
 from scrcpy_dock.errors import ErrorCode
@@ -126,6 +126,16 @@ class AdbEngine:
     @property
     def effective_socket_port(self) -> int:
         return self._effective_port
+
+    def rebind(self, adb_binary) -> None:
+        """Re-apunta el motor a otro binario `adb`.
+
+        Se usa tras la instalación automática de dependencias. Invalida el
+        estado del daemon: el binario nuevo debe negociar su propio socket.
+        """
+        self._adb_binary = Path(adb_binary)
+        self._daemon_started = False
+        self._effective_port = 0
 
     # ─── Sesión A · start_daemon (ADR-006) ──────────────────────────────
     def start_daemon(self) -> OperationResult[int]:
@@ -457,6 +467,96 @@ class AdbEngine:
             return OperationResult.fail(ErrorCode.CONNECTION_REFUSED, msg)
 
         return OperationResult.ok(None, f"{serial} desconectado")
+
+    # ─── C3 · primitivas genéricas (la UI nunca invoca `adb` directo) ──
+    def _run(self, args: list[str], timeout: float = 10) -> OperationResult[Any]:
+        """Ejecuta `adb <args>` con el socket aislado y manejo uniforme de fallos."""
+        try:
+            proc = subprocess.run(
+                [str(self._adb_binary), *args],
+                capture_output=True,
+                text=True,
+                timeout=timeout,
+                env=self._env_with_socket(),
+            )
+        except FileNotFoundError as e:
+            return OperationResult.fail(ErrorCode.ADB_NOT_FOUND, str(e))
+        except subprocess.TimeoutExpired as e:
+            return OperationResult.fail(ErrorCode.ADB_SERVER_FAILED, f"timeout: {e}")
+        except OSError as e:
+            return OperationResult.fail(ErrorCode.ADB_SERVER_FAILED, str(e))
+        return OperationResult.ok(proc, "ejecutado")
+
+    def shell(
+        self, serial: str, *args: str,
+        timeout: float = 10,
+        error_code: ErrorCode = ErrorCode.PROCESS_CRASH,
+    ) -> OperationResult[str]:
+        """`adb -s <serial> shell <args...>`.
+
+        Cada argumento viaja como token de argv — sin `shell=True` ni quoting
+        manual — así que un texto con espacios, comillas o `;` llega intacto y
+        sin riesgo de inyección (el defecto que tenía la UI al escapar a mano).
+        """
+        res = self._run(["-s", serial, "shell", *args], timeout=timeout)
+        if not res.success:
+            return OperationResult.fail(res.error_code or ErrorCode.PROCESS_CRASH, res.message)
+        proc = res.data
+        assert proc is not None, "_run garantiza data cuando success"
+        out = (proc.stdout or "").strip()
+        if proc.returncode != 0:
+            return OperationResult.fail(
+                error_code, (proc.stderr or out or "shell falló").strip(),
+            )
+        return OperationResult.ok(out, out or "ok")
+
+    def install(self, serial: str, apk_path: str, timeout: float = 180) -> OperationResult[str]:
+        """`adb -s <serial> install -r <apk>` (ErrorCode.APK_INSTALL_FAILED)."""
+        res = self._run(["-s", serial, "install", "-r", apk_path], timeout=timeout)
+        if not res.success:
+            return OperationResult.fail(res.error_code or ErrorCode.APK_INSTALL_FAILED, res.message)
+        proc = res.data
+        assert proc is not None, "_run garantiza data cuando success"
+        out = (proc.stdout or "").strip()
+        # `adb install` suele devolver 0 aunque el paquete no se instale:
+        # el veredicto real está en stdout ("Failure [INSTALL_FAILED_...]").
+        if proc.returncode != 0 or "Failure" in out:
+            return OperationResult.fail(
+                ErrorCode.APK_INSTALL_FAILED, out or "instalación falló",
+            )
+        return OperationResult.ok(out, out or "instalado")
+
+    def connect(self, target: str, timeout: float = 8) -> OperationResult[str]:
+        """`adb connect <target>` donde `target` es 'host' o 'host:puerto'."""
+        host, _, port_s = target.rpartition(":")
+        if host and port_s.isdigit():
+            return self.connect_wifi(host, int(port_s))
+        return self.connect_wifi(target, 5555)
+
+    def kill_server(self) -> OperationResult[None]:
+        """`adb kill-server` sobre NUESTRO socket aislado.
+
+        Diferencia crítica frente a invocar el binario a pelo (P3.15): sin
+        `ADB_SERVER_SOCKET` este comando tumba el daemon **compartido** del
+        usuario (Android Studio, VS Code, `adb` en terminal). Aquí solo muere
+        el daemon de MASV en 5037/5038.
+        """
+        res = self._run(["kill-server"], timeout=10)
+        if not res.success:
+            return OperationResult.fail(res.error_code or ErrorCode.ADB_SERVER_FAILED, res.message)
+        proc = res.data
+        assert proc is not None, "_run garantiza data cuando success"
+        # El daemon ya no existe: invalidar el estado interno para que el
+        # siguiente start_daemon vuelva a negociar el puerto en vez de
+        # apuntar a un socket muerto.
+        self._daemon_started = False
+        self._effective_port = 0
+        if proc.returncode != 0:
+            return OperationResult.fail(
+                ErrorCode.ADB_SERVER_FAILED,
+                (proc.stderr or proc.stdout or "kill-server falló").strip(),
+            )
+        return OperationResult.ok(None, "daemon de MASV detenido")
 
     # ─── TODO-4d · tracker reactivo (ADR-008) ──────────────────────────
     def track_devices_async(

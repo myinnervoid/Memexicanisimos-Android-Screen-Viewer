@@ -193,54 +193,208 @@ class ScrcpyEngine:
         device: Device,
         caps: DeviceCapabilities,
     ) -> OperationResult[list[str]]:
-        """Construye argv completo de scrcpy con gobernanza de hardware."""
-        # 1. Guard cámara: requiere Android 12+ (SDK 31)
+        """Construye argv completo de scrcpy con gobernanza de hardware.
+
+        Descompuesto en ensambladores por bloque (C5): cada uno tiene una sola
+        responsabilidad y complejidad baja, de modo que tocar la gobernanza de
+        audio no obligue a releer la de cámara — ni a arrastrar 60 caminos
+        posibles en una única función.
+        """
+        is_camera = config.video_source == "camera" or "--video-source=camera" in config.extra_args
+        is_audio_only = (not config.video_enabled) or ("--no-video" in config.extra_args)
+
+        # Guardas de dominio: el primer bloque que detecta un problema corta.
+        for fallo in (
+            self._validate_source_guards(config, device),
+            self._validate_extra_args(config),
+            self._validate_stream_mode(config, device, is_camera, is_audio_only),
+        ):
+            if fallo is not None:
+                return fallo
+
+        effective_codec, effective_bitrate = self._governance_codec(caps, config)
+        bitrate_str = self._format_bitrate(effective_bitrate)
+
+        argv = self._base_argv(config, device, is_camera, is_audio_only)
+        if config.otg_mode:
+            argv.append("--otg")
+        else:
+            self._append_video_options(
+                argv, config, is_camera, is_audio_only, effective_codec, bitrate_str,
+            )
+            self._append_audio_options(argv, config, device)
+            self._append_fps_options(argv, config, is_audio_only)
+            self._append_camera_options(argv, config, is_audio_only)
+
+        self._append_hid_options(argv, config)
+        self._append_display_options(argv, config)
+        self._append_window_title(argv, config, device)
+        self._append_extra_args(argv, config)
+
+        return OperationResult.ok(argv, "comando construido exitosamente")
+
+    # ─── Ensambladores de build_command (C5 · un bloque, una responsabilidad) ───
+
+    def _base_argv(
+        self, config: SessionConfig, device: Device,
+        is_camera: bool, is_audio_only: bool,
+    ) -> list[str]:
+        argv = [str(self._scrcpy_binary)]
+        if device.serial:
+            argv.extend(["-s", device.serial])
+        if not is_camera and not config.otg_mode and not is_audio_only:
+            argv.append("--no-downsize-on-error")
+        return argv
+
+    def _append_video_options(
+        self, argv: list[str], config: SessionConfig, is_camera: bool,
+        is_audio_only: bool, codec: Codec, bitrate_str: str,
+    ) -> None:
+        if is_audio_only:
+            # Solo audio: prohibir el flujo de vídeo y omitir los flags de vídeo.
+            argv.extend(["--no-video", "--port", str(config.port)])
+            return
+        self._append_video_size(argv, config, is_camera)
+        argv.extend([
+            "--port", str(config.port),
+            "--video-codec", codec.value,
+            "--video-bit-rate", bitrate_str,
+            "--video-source", config.video_source,
+        ])
+
+    def _append_video_size(
+        self, argv: list[str], config: SessionConfig, is_camera: bool,
+    ) -> None:
+        """Traduce `resolution` a `--max-size`, con default seguro en cámara."""
+        res_str = str(config.resolution or "").strip()
+        if res_str and res_str.lower() != "native":
+            if "x" in res_str:
+                try:
+                    argv.extend(["--max-size", str(max(int(x) for x in res_str.split("x")))])
+                except ValueError:
+                    argv.extend(["--max-size", res_str])
+            else:
+                argv.extend(["--max-size", res_str])
+            return
+        if is_camera and not self._has_size_flag(config):
+            # En cámara, 'native' puede ser un sensor de 48MP/12MP (ej.
+            # 4608x3456) que desborda el encoder de hardware: default a 1920.
+            argv.extend(["--max-size", "1920"])
+
+    @staticmethod
+    def _has_size_flag(config: SessionConfig) -> bool:
+        return any(
+            t.startswith("--max-size") or t.startswith("--camera-size") or t == "-m"
+            for t in config.extra_args
+        )
+
+    @staticmethod
+    def _append_audio_options(
+        argv: list[str], config: SessionConfig, device: Device,
+    ) -> None:
+        """Gobernanza de audio (espejo y solo-audio; OTG no tiene flujo)."""
+        if device.android_sdk <= 29 or config.audio_source == "none":
+            argv.append("--no-audio")
+            return
+        a_src = "playback" if config.audio_source == "system" else config.audio_source
+        argv.extend(["--audio-source", a_src])
+
+    @staticmethod
+    def _append_fps_options(
+        argv: list[str], config: SessionConfig, is_audio_only: bool,
+    ) -> None:
+        if is_audio_only or config.max_fps is None:
+            return
+        fps_flag = "--camera-fps" if config.video_source == "camera" else "--max-fps"
+        argv.extend([fps_flag, f"{config.max_fps:g}"])
+
+    @staticmethod
+    def _append_camera_options(
+        argv: list[str], config: SessionConfig, is_audio_only: bool,
+    ) -> None:
+        """camera_id precede a camera_facing; sin vídeo no aplican."""
+        if is_audio_only or config.video_source != "camera":
+            return
+        if config.camera_id is not None:
+            argv.extend(["--camera-id", str(config.camera_id)])
+        elif config.camera_facing is not None:
+            argv.extend(["--camera-facing", config.camera_facing])
+
+    @staticmethod
+    def _append_hid_options(argv: list[str], config: SessionConfig) -> None:
+        if config.keyboard_mode:
+            argv.extend(["--keyboard", config.keyboard_mode])
+        if config.mouse_mode:
+            argv.extend(["--mouse", config.mouse_mode])
+
+    @staticmethod
+    def _append_display_options(argv: list[str], config: SessionConfig) -> None:
+        """Apagar pantalla del dispositivo y evitar suspensión (no en OTG)."""
+        if config.otg_mode:
+            return
+        if config.turn_screen_off and "--turn-screen-off" not in config.extra_args:
+            argv.append("--turn-screen-off")
+        if config.stay_awake and "--stay-awake" not in config.extra_args:
+            argv.append("--stay-awake")
+
+    def _append_window_title(
+        self, argv: list[str], config: SessionConfig, device: Device,
+    ) -> None:
+        if device.model and not self._has_title_flag(config):
+            argv.extend(["--window-title", f"MASV: {device.model}"])
+
+    @staticmethod
+    def _has_title_flag(config: SessionConfig) -> bool:
+        return any(
+            token == "--window-title" or token.startswith("--window-title=")
+            for token in config.extra_args
+        )
+
+    @staticmethod
+    def _append_extra_args(argv: list[str], config: SessionConfig) -> None:
+        """Inyecta extra_args ya validados, sin duplicar los del motor."""
+        for token in config.extra_args:
+            if token not in argv:
+                argv.append(token)
+
+    # ─── Guardas de dominio de build_command ──────────────────────────
+
+    @staticmethod
+    def _validate_source_guards(
+        config: SessionConfig, device: Device,
+    ) -> Optional[OperationResult[list[str]]]:
         if config.video_source == "camera" and device.android_sdk < 31:
             return OperationResult.fail(
                 ErrorCode.INVALID_INPUT,
                 f"Camera source requiere Android 12+ (SDK 31). Dispositivo: SDK {device.android_sdk}",
             )
+        return None
 
-        # 2. Validación estricta de extra_args contra ALLOWED_EXTRA_FLAGS
+    @staticmethod
+    def _validate_extra_args(config: SessionConfig) -> Optional[OperationResult[list[str]]]:
+        """Validación estricta de extra_args contra ALLOWED_EXTRA_FLAGS."""
         for token in config.extra_args:
-            flag_name = token.split("=", 1)[0]
-            if flag_name not in ALLOWED_EXTRA_FLAGS:
+            if token.split("=", 1)[0] not in ALLOWED_EXTRA_FLAGS:
                 return OperationResult.fail(
                     ErrorCode.INVALID_EXTRA_ARGS,
                     f"Flag no permitido en extra_args: {token}",
                 )
+        return None
 
-        # 3. Gobernanza Kirin (códec H264 forzado y bitrate clamp a 8M)
-        platform_lower = (caps.platform or "").lower()
-        manufacturer_lower = (caps.manufacturer or "").lower()
-        is_kirin = any(p in platform_lower for p in _KIRIN_PLATFORM_PREFIXES) or (
-            manufacturer_lower == "huawei" and platform_lower.startswith("kirin")
-        )
-
-        effective_codec = config.codec
-        effective_bitrate = config.bit_rate
-        if is_kirin:
-            effective_codec = Codec.H264
-            effective_bitrate = min(config.bit_rate, _KIRIN_MAX_BITRATE)
-
-        # Formateo de bitrate
-        bitrate_str = self._format_bitrate(effective_bitrate)
-
-        # 4. Construcción base de argv
-        argv = [str(self._scrcpy_binary)]
-        if device.serial:
-            argv.extend(["-s", device.serial])
-
-        is_camera = config.video_source == "camera" or "--video-source=camera" in config.extra_args
-        # Modo "solo audio" (--no-video): no existe flujo de vídeo que ajustar.
-        is_audio_only = (not config.video_enabled) or ("--no-video" in config.extra_args)
-
-        if is_audio_only and is_camera:
+    @staticmethod
+    def _validate_stream_mode(
+        config: SessionConfig, device: Device,
+        is_camera: bool, is_audio_only: bool,
+    ) -> Optional[OperationResult[list[str]]]:
+        """Coherencia del modo 'solo audio': sin vídeo debe quedar algún flujo."""
+        if not is_audio_only:
+            return None
+        if is_camera:
             return OperationResult.fail(
                 ErrorCode.INVALID_INPUT,
                 "El modo solo audio (--no-video) es incompatible con video_source='camera'.",
             )
-        if is_audio_only and device.android_sdk <= 29:
+        if device.android_sdk <= 29:
             # La captura de audio de scrcpy requiere Android 11+ (SDK 30).
             # Sin vídeo y sin audio no habría nada que reproducir.
             return OperationResult.fail(
@@ -248,103 +402,30 @@ class ScrcpyEngine:
                 "El modo solo audio requiere Android 11+ (SDK 30). "
                 f"Dispositivo: SDK {device.android_sdk}",
             )
-        if is_audio_only and config.audio_source == "none":
+        if config.audio_source == "none":
             return OperationResult.fail(
                 ErrorCode.INVALID_INPUT,
                 "Modo solo audio (--no-video) con audio_source='none' no reproduciría ningún flujo.",
             )
+        return None
 
-        if not is_camera and not config.otg_mode and not is_audio_only:
-            argv.append("--no-downsize-on-error")
+    # ─── Gobernanza de plataforma (Kirin) ─────────────────────────────
 
-        if config.otg_mode:
-            argv.append("--otg")
-        else:
-            if is_audio_only:
-                # Solo audio: prohibir el flujo de vídeo y omitir los flags de vídeo.
-                argv.extend(["--no-video", "--port", str(config.port)])
-            else:
-                if config.resolution:
-                    res_str = str(config.resolution).strip()
-                    if res_str.lower() != "native":
-                        if "x" in res_str:
-                            try:
-                                res_val = str(max(int(x) for x in res_str.split("x")))
-                                argv.extend(["--max-size", res_val])
-                            except ValueError:
-                                argv.extend(["--max-size", res_str])
-                        else:
-                            argv.extend(["--max-size", res_str])
-                    elif is_camera:
-                        # En modo cámara, 'native' puede ser un sensor de 48MP/12MP (ej. 4608x3456)
-                        # que desborda el encoder de hardware si no se limita. Default seguro a 1920.
-                        has_size = any(
-                            t.startswith("--max-size") or t.startswith("--camera-size") or t == "-m"
-                            for t in config.extra_args
-                        )
-                        if not has_size:
-                            argv.extend(["--max-size", "1920"])
-                elif is_camera:
-                    has_size = any(
-                        t.startswith("--max-size") or t.startswith("--camera-size") or t == "-m"
-                        for t in config.extra_args
-                    )
-                    if not has_size:
-                        argv.extend(["--max-size", "1920"])
-
-                argv.extend([
-                    "--port", str(config.port),
-                    "--video-codec", effective_codec.value,
-                    "--video-bit-rate", bitrate_str,
-                    "--video-source", config.video_source,
-                ])
-
-            # 5. Gobernanza de audio (aplica a espejo y a solo-audio; OTG no tiene flujo)
-            if device.android_sdk <= 29 or config.audio_source == "none":
-                argv.append("--no-audio")
-            else:
-                a_src = "playback" if config.audio_source == "system" else config.audio_source
-                argv.extend(["--audio-source", a_src])
-
-            # 6. Framerate adaptativo (solo si hay vídeo)
-            if config.max_fps is not None and not is_audio_only:
-                fps_flag = "--camera-fps" if config.video_source == "camera" else "--max-fps"
-                argv.extend([fps_flag, f"{config.max_fps:g}"])
-
-            # 7. Opciones de cámara (solo si hay vídeo; camera_id precede a camera_facing)
-            if config.video_source == "camera" and not is_audio_only:
-                if config.camera_id is not None:
-                    argv.extend(["--camera-id", str(config.camera_id)])
-                elif config.camera_facing is not None:
-                    argv.extend(["--camera-facing", config.camera_facing])
-
-        # HID mode extensions
-        if config.keyboard_mode:
-            argv.extend(["--keyboard", config.keyboard_mode])
-        if config.mouse_mode:
-            argv.extend(["--mouse", config.mouse_mode])
-
-        # 8. Opciones de display: apagar pantalla del dispositivo y evitar suspensión
-        if not config.otg_mode:
-            if config.turn_screen_off and "--turn-screen-off" not in config.extra_args:
-                argv.append("--turn-screen-off")
-            if config.stay_awake and "--stay-awake" not in config.extra_args:
-                argv.append("--stay-awake")
-
-        # 9. Título de ventana: inyectar f"MASV: {device.model}" si no se especificó en extra_args
-        has_custom_title = any(
-            token == "--window-title" or token.startswith("--window-title=")
-            for token in config.extra_args
+    @staticmethod
+    def _is_kirin(caps: DeviceCapabilities) -> bool:
+        platform_lower = (caps.platform or "").lower()
+        manufacturer_lower = (caps.manufacturer or "").lower()
+        return any(p in platform_lower for p in _KIRIN_PLATFORM_PREFIXES) or (
+            manufacturer_lower == "huawei" and platform_lower.startswith("kirin")
         )
-        if not has_custom_title and device.model:
-            argv.extend(["--window-title", f"MASV: {device.model}"])
 
-        # 10. Inyectar extra_args validados (sin duplicar los ya inyectados por el motor)
-        for token in config.extra_args:
-            if token not in argv:
-                argv.append(token)
-
-        return OperationResult.ok(argv, "comando construido exitosamente")
+    def _governance_codec(
+        self, caps: DeviceCapabilities, config: SessionConfig,
+    ) -> tuple[Codec, int]:
+        """Kirin: códec H.264 forzado y bitrate acotado a 8M."""
+        if self._is_kirin(caps):
+            return Codec.H264, min(config.bit_rate, _KIRIN_MAX_BITRATE)
+        return config.codec, config.bit_rate
 
     @staticmethod
     def _format_bitrate(n: int) -> str:

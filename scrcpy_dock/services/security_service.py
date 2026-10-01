@@ -240,20 +240,58 @@ class SecurityService:
                 f"JSON corrupto en vault descifrado: {e}",
             )
 
+    # ─── Persistencia de la bóveda cifrada (usada por SecurityManager) ──
+    VAULT_FILENAME = "vault.enc"
+
+    def save_vault(self, path: Path, data: dict[str, Any]) -> OperationResult[None]:
+        """Cifra `data` y lo escribe en `path` de forma atómica con permisos 0o600."""
+        enc = self.encrypt_vault(data)
+        if not enc.success or enc.data is None:
+            return OperationResult.fail(
+                enc.error_code or ErrorCode.UNKNOWN_ERROR,
+                f"no se pudo cifrar la bóveda: {enc.message}",
+            )
+        target = Path(path)
+        try:
+            target.parent.mkdir(parents=True, exist_ok=True)
+            tmp = target.with_suffix(target.suffix + ".tmp")
+            tmp.write_bytes(enc.data)
+            os.chmod(tmp, 0o600)
+            os.replace(tmp, target)
+        except OSError as e:
+            return OperationResult.fail(
+                ErrorCode.CONFIG_CORRUPT, f"escritura de la bóveda falló: {e}",
+            )
+        return OperationResult.ok(None, "bóveda cifrada guardada")
+
+    def load_vault(self, path: Path) -> OperationResult[dict[str, Any]]:
+        """Lee y descifra la bóveda. Ausente → dict vacío (no es error)."""
+        target = Path(path)
+        if not target.exists():
+            return OperationResult.ok({"trusted_devices": {}})
+        try:
+            blob = target.read_bytes()
+        except OSError as e:
+            return OperationResult.fail(
+                ErrorCode.CONFIG_CORRUPT, f"lectura de la bóveda falló: {e}",
+            )
+        return self.decrypt_vault(blob)
+
     # ─── TODO-S4 · is_whitelisted_device ─────────────────────────────
     def is_whitelisted_device(
         self, serial: str, vault: dict[str, Any],
     ) -> bool:
-        """True si `serial` está en vault['trusted_devices'].
+        """True si `serial` está en la bóveda de confianza.
 
-        Contrato:
-          - vault malformado → False (no lanza).
-          - vault vacío o sin clave 'trusted_devices' → False.
-          - Comparación case-sensitive sobre 'serial'.
+        Acepta las DOS formas de `trusted_devices` que convivían en el
+        proyecto (divergencia histórica): dict {serial: entry} y list[entry].
+        Así el mismo dato sirve para la fachada de UI y para el servicio.
         """
         if not isinstance(vault, dict):
             return False
         devices = vault.get("trusted_devices")
+        if isinstance(devices, dict):
+            return serial in devices
         if not isinstance(devices, list):
             return False
         for entry in devices:

@@ -51,13 +51,40 @@ class UIStateMachine:
         if listener in self._listeners:
             self._listeners.remove(listener)
 
+    # ── Grafo de transiciones válidas (Ley 6) ────────────────────────────────
+    # Una transición no listada se rechaza SIN mutar el estado ni notificar.
+    # Regla canónica: no se puede llegar a SUCCESS sin haber pasado por PENDING
+    # (y las auto-transiciones y la recuperación desde FAULT siempre se permiten).
+    _ALLOWED: Dict[UIState, frozenset] = {
+        UIState.IDLE:    frozenset({UIState.IDLE, UIState.PENDING, UIState.EMPTY, UIState.FAULT}),
+        UIState.PENDING: frozenset({UIState.PENDING, UIState.IDLE, UIState.SUCCESS,
+                                    UIState.EMPTY, UIState.FAULT}),
+        UIState.SUCCESS: frozenset({UIState.SUCCESS, UIState.IDLE, UIState.PENDING,
+                                    UIState.EMPTY, UIState.FAULT}),
+        UIState.EMPTY:   frozenset({UIState.EMPTY, UIState.IDLE, UIState.PENDING,
+                                    UIState.SUCCESS, UIState.FAULT}),
+        UIState.FAULT:   frozenset({UIState.FAULT, UIState.IDLE, UIState.PENDING,
+                                    UIState.SUCCESS, UIState.EMPTY}),
+    }
+
+    def can_transition_to(self, new_state: UIState) -> bool:
+        """True si el grafo permite ir del estado actual a `new_state`."""
+        return new_state in self._ALLOWED.get(self._state, frozenset())
+
     def transition_to(
         self,
         new_state: UIState,
         message: str = "",
         error_code: Optional[ErrorCode] = None
     ) -> bool:
-        """Aplica una transición de estado si es válida y notifica a los observadores."""
+        """Aplica la transición si el grafo la permite y notifica a los observadores.
+
+        Devuelve True si se aplicó; False si fue rechazada (el estado no cambia
+        y ningún observador recibe notificación).
+        """
+        if not self.can_transition_to(new_state):
+            return False
+
         self._previous_state = self._state
         self._state = new_state
         self._message = message
@@ -66,20 +93,20 @@ class UIStateMachine:
         self._notify_listeners()
         return True
 
-    def set_idle(self, message: str = "Listo"):
-        self.transition_to(UIState.IDLE, message=message)
+    def set_idle(self, message: str = "Listo") -> bool:
+        return self.transition_to(UIState.IDLE, message=message)
 
-    def set_pending(self, message: str = "Procesando..."):
-        self.transition_to(UIState.PENDING, message=message)
+    def set_pending(self, message: str = "Procesando...") -> bool:
+        return self.transition_to(UIState.PENDING, message=message)
 
-    def set_success(self, message: str = "Operación completada"):
-        self.transition_to(UIState.SUCCESS, message=message)
+    def set_success(self, message: str = "Operación completada") -> bool:
+        return self.transition_to(UIState.SUCCESS, message=message)
 
-    def set_empty(self, message: str = "No hay dispositivos conectados"):
-        self.transition_to(UIState.EMPTY, message=message)
+    def set_empty(self, message: str = "No hay dispositivos conectados") -> bool:
+        return self.transition_to(UIState.EMPTY, message=message)
 
-    def set_fault(self, message: str, error_code: ErrorCode = ErrorCode.UNKNOWN_ERROR):
-        self.transition_to(UIState.FAULT, message=message, error_code=error_code)
+    def set_fault(self, message: str, error_code: ErrorCode = ErrorCode.UNKNOWN_ERROR) -> bool:
+        return self.transition_to(UIState.FAULT, message=message, error_code=error_code)
 
     def _notify_listeners(self):
         for listener in self._listeners:

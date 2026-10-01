@@ -1,21 +1,45 @@
 import ipaddress
+import logging
+import os
 import re
 import shlex
 import subprocess
 import time
+from pathlib import Path
 from typing import Optional, Tuple, Dict, List
 from .contracts import OperationResult
 from .errors import ErrorCode
+from .services.security_service import SecurityService
+
+log = logging.getLogger(__name__)
+
 
 class SecurityManager:
     """Gestiona la bóveda de dispositivos confiables, validación de red,
 
     emparejamiento seguro (Android 11+) y blindaje de puertos TCP/IP.
+
+    Es la **fachada** que consume la UI. La criptografía de la bóveda NO se
+    implementa aquí: delega en `SecurityService` (única fuente de verdad), y
+    persiste el vault cifrado en `vault.enc` cuando se le pasa `vault_dir`.
     """
 
-    def __init__(self, cfg: dict):
+    def __init__(self, cfg: dict, vault_dir: Optional[str] = None):
         self.cfg = cfg
+        self._vault_dir = vault_dir
+        self._vault_path = os.path.join(vault_dir, SecurityService.VAULT_FILENAME) if vault_dir else None
+        self._crypto: Optional[SecurityService] = None
+        self._vault_broken = False
+        self._vault_encrypted = False
         self._ensure_security_config()
+
+        # Autoridad en memoria de la bóveda (permite retirar el texto plano
+        # sin que `setdefault` la recree vacía).
+        current = self.cfg["security"].get("trusted_devices")
+        self._trusted: Dict[str, dict] = dict(current) if isinstance(current, dict) else {}
+
+        if self._vault_path:
+            self._init_vault()
 
     def _ensure_security_config(self):
         if "security" not in self.cfg or not isinstance(self.cfg["security"], dict):
@@ -25,6 +49,110 @@ class SecurityManager:
         sec.setdefault("auto_lockdown_on_exit", True)
         sec.setdefault("trusted_devices", {})
         sec.setdefault("blocked_ips", [])
+        sec.setdefault("vault_encrypted", False)
+
+    # ── Bóveda cifrada (SecurityService es la única implementación criptográfica) ──
+
+    def _crypto_or_none(self) -> Optional[SecurityService]:
+        """Instancia SecurityService o None si el cifrado no está disponible."""
+        if self._vault_broken or not self._vault_dir:
+            return None
+        if self._crypto is None:
+            try:
+                self._crypto = SecurityService(
+                    salt_path=Path(self._vault_dir) / ".vault_salt",
+                )
+            except Exception as exc:  # pragma: no cover - depende del SO
+                log.warning("vault: cifrado no disponible (%s)", exc)
+                self._vault_broken = True
+                return None
+        return self._crypto
+
+    def _vault_payload(self) -> dict:
+        return {"schema_version": 1, "trusted_devices": dict(self._trusted)}
+
+    def _init_vault(self) -> None:
+        """Carga la bóveda cifrada o migra el texto plano existente."""
+        svc = self._crypto_or_none()
+        if svc is None:
+            return
+        path = Path(self._vault_path)
+        if path.exists():
+            res = svc.load_vault(path)
+            trusted = res.data.get("trusted_devices") if (res.success and isinstance(res.data, dict)) else None
+            if isinstance(trusted, dict):
+                self._trusted = trusted
+                self._vault_encrypted = True
+                return
+            log.warning("vault: no se pudo descifrar (%s); se conserva la config en claro", res.message)
+            return
+        if self.cfg["security"].get("vault_encrypted"):
+            log.warning("vault: se esperaba un vault cifrado en %s y no existe", path)
+        if self._trusted:
+            self._persist_vault()
+
+    def _persist_vault(self) -> bool:
+        """Cifra la bóveda y, SOLO si se puede releer idéntica, retira el texto plano."""
+        svc = self._crypto_or_none()
+        if svc is None or not self._vault_path:
+            return False
+        try:
+            Path(self._vault_dir).mkdir(parents=True, exist_ok=True)
+        except OSError as exc:
+            log.warning("vault: %s", exc)
+            return False
+
+        backup = self._backup_plaintext_config()
+        res = svc.save_vault(Path(self._vault_path), self._vault_payload())
+        if not res.success:
+            log.warning("vault: no se pudo escribir (%s)", res.message)
+            return False
+
+        # Verificación de ida y vuelta ANTES de retirar la copia en claro.
+        check = svc.load_vault(Path(self._vault_path))
+        if not check.success or not isinstance(check.data, dict) or \
+                check.data.get("trusted_devices") != self._trusted:
+            log.warning("vault: verificación fallida; se conserva la copia en claro")
+            return False
+
+        self._vault_encrypted = True
+        self.cfg["security"]["trusted_devices"] = {}
+        self.cfg["security"]["vault_encrypted"] = True
+        if backup:
+            log.info("vault: copia de seguridad previa en %s", backup)
+        return True
+
+    def _backup_plaintext_config(self) -> Optional[str]:
+        """Copia única de config.json antes de retirar la bóveda en claro.
+
+        Se deriva del directorio de la bóveda (en la app coincide con CONFIG_DIR),
+        evitando acoplarse a `utils.CONFIG_FILE`.
+        """
+        try:
+            import shutil
+            src = Path(self._vault_dir) / "config.json"
+            if not src.exists():
+                return None
+            bak = src.with_suffix(".json.pre-vault.bak")
+            if bak.exists():
+                return None
+            shutil.copy2(src, bak)
+            return str(bak)
+        except Exception:
+            return None
+
+    def _sync_vault(self, save_cb=None) -> None:
+        """Persiste la bóveda: cifrada si está disponible; si no, en config.json."""
+        if self._vault_path and self._persist_vault():
+            pass
+        else:
+            self.cfg["security"]["trusted_devices"] = dict(self._trusted)
+        if save_cb:
+            save_cb(self.cfg)
+
+    @property
+    def is_vault_encrypted(self) -> bool:
+        return self._vault_encrypted
 
     @property
     def is_safe_mode_enabled(self) -> bool:
@@ -105,26 +233,24 @@ class SecurityManager:
     # ── Bóveda de Dispositivos Confiables (Trusted Devices Vault) ───────────
 
     def get_trusted_devices(self) -> Dict[str, dict]:
-        self._ensure_security_config()
-        return self.cfg["security"]["trusted_devices"]
+        return self._trusted
 
     def is_trusted_device(self, serial: str) -> bool:
         """Determina si un serial específico está registrado y verificado en la bóveda de confianza."""
         if not serial:
             return False
-        trusted = self.get_trusted_devices()
-        dev = trusted.get(serial)
+        dev = self._trusted.get(serial)
         if dev and isinstance(dev, dict):
             return dev.get("is_trusted", False)
         return False
 
-    def trust_device(self, serial: str, model: str = "Android", alias: str = "", save_cb=None) -> dict:
+    def trust_device(self, serial: str, model: str = "Android", alias: str = "",
+                     save_cb=None) -> OperationResult[dict]:
         """Registra o actualiza un dispositivo como Confiable en la bóveda."""
-        self._ensure_security_config()
+        if not serial:
+            return OperationResult.fail(ErrorCode.INVALID_INPUT, "serial vacío")
         now = time.strftime("%Y-%m-%d %H:%M:%S")
-        trusted = self.cfg["security"]["trusted_devices"]
-        
-        entry = trusted.get(serial, {})
+        entry = dict(self._trusted.get(serial, {}))
         entry["serial"] = serial
         entry["model"] = model or entry.get("model", "Android")
         entry["alias"] = alias.strip() or entry.get("alias") or model or "Dispositivo Confiable"
@@ -132,33 +258,29 @@ class SecurityManager:
         entry["trusted_since"] = entry.get("trusted_since", now)
         entry["last_seen"] = now
 
-        trusted[serial] = entry
-        if save_cb:
-            save_cb(self.cfg)
-        return entry
+        self._trusted[serial] = entry
+        self._sync_vault(save_cb)
+        return OperationResult.ok(entry, f"{serial} en la bóveda")
 
-    def untrust_device(self, serial: str, save_cb=None):
-        """Elimina la condición de confianza de un dispositivo o lo borra de la lista."""
-        self._ensure_security_config()
-        trusted = self.cfg["security"]["trusted_devices"]
-        if serial in trusted:
-            trusted[serial]["is_trusted"] = False
-            if save_cb:
-                save_cb(self.cfg)
+    def untrust_device(self, serial: str, save_cb=None) -> OperationResult[None]:
+        """Elimina la condición de confianza de un dispositivo (conserva el alias)."""
+        if serial not in self._trusted:
+            return OperationResult.ok(None, f"{serial} no estaba en la bóveda (no-op)")
+        self._trusted[serial]["is_trusted"] = False
+        self._sync_vault(save_cb)
+        return OperationResult.ok(None, f"{serial} revocado")
 
-    def remove_device_from_vault(self, serial: str, save_cb=None):
-        """Elimina completamente un dispositivo de la bóveda."""
-        self._ensure_security_config()
-        trusted = self.cfg["security"]["trusted_devices"]
-        if serial in trusted:
-            del trusted[serial]
-            if save_cb:
-                save_cb(self.cfg)
+    def remove_device_from_vault(self, serial: str, save_cb=None) -> OperationResult[None]:
+        """Elimina completamente un dispositivo de la bóveda. Idempotente."""
+        if serial in self._trusted:
+            del self._trusted[serial]
+            self._sync_vault(save_cb)
+            return OperationResult.ok(None, f"{serial} eliminado de la bóveda")
+        return OperationResult.ok(None, f"{serial} no estaba en la bóveda (no-op)")
 
     def get_device_alias(self, serial: str, default_model: str = "Android") -> str:
         """Obtiene el alias amigable del dispositivo si existe, o el modelo."""
-        trusted = self.get_trusted_devices()
-        dev = trusted.get(serial)
+        dev = self._trusted.get(serial)
         if dev and dev.get("alias"):
             return dev["alias"]
         return default_model

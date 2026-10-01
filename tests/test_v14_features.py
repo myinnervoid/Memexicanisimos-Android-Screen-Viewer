@@ -49,7 +49,8 @@ class TestV14Features(unittest.TestCase):
         import scrcpy_dock.utils as utils
         with tempfile.TemporaryDirectory() as tmp:
             with patch.object(utils, "CONFIG_FILE", os.path.join(tmp, "config.json")), \
-                 patch.object(utils, "LOG_FILE", os.path.join(tmp, "masv.log")):
+                 patch.object(utils, "LOG_FILE", os.path.join(tmp, "masv.log")), \
+                 patch.object(utils, "CONFIG_DIR", tmp):
                 ctx = AppContext(self.root)
         self.assertIsNotNone(ctx.tether_engine)
         self.assertIsNotNone(ctx.tether_service)

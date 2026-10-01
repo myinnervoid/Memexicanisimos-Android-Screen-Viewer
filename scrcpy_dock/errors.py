@@ -49,6 +49,9 @@ class ErrorCode(str, Enum):
     PROCESS_TIMEOUT = "ERR_PROCESS_TIMEOUT"
     V4L2_LOOPBACK_ERROR = "ERR_V4L2_LOOPBACK_ERROR"
 
+    # Errores de Gestión de Aplicaciones
+    APK_INSTALL_FAILED = "ERR_APK_INSTALL_FAILED"
+
     # Errores de Configuración & Estado
     CONFIG_CORRUPT = "ERR_CONFIG_CORRUPT"
     PROFILE_NOT_FOUND = "ERR_PROFILE_NOT_FOUND"
@@ -165,6 +168,59 @@ ERROR_CATALOG: Dict[ErrorCode, ErrorDetail] = {
         description_en="The streaming process terminated with an error code.",
         remediation_es="Revisa los registros de la consola para ver los detalles del error.",
         remediation_en="Check the console logs for detailed error output."
+    ),
+    ErrorCode.APK_INSTALL_FAILED: ErrorDetail(
+        code=ErrorCode.APK_INSTALL_FAILED,
+        title_es="No se pudo instalar la APK",
+        title_en="APK installation failed",
+        description_es="ADB rechazó la instalación del paquete en el dispositivo.",
+        description_en="ADB rejected the package installation on the device.",
+        remediation_es="Comprueba que el APK es compatible con la versión de Android del teléfono "
+                       "y que la opción 'Instalar vía USB' está permitida en el dispositivo.",
+        remediation_en="Check that the APK is compatible with the phone's Android version and that "
+                       "'Install via USB' is allowed on the device."
+    ),
+    ErrorCode.DEVICE_OFFLINE: ErrorDetail(
+        code=ErrorCode.DEVICE_OFFLINE,
+        title_es="Dispositivo desconectado",
+        title_en="Device offline",
+        description_es="El teléfono perdió comunicación con el socket ADB.",
+        description_en="The phone lost communication with the ADB socket.",
+        remediation_es="Reconecta el cable USB, evita que el puerto suspenda la energía y pulsa "
+                       "'Reiniciar ADB'.",
+        remediation_en="Reconnect the USB cable, prevent the port from suspending power, and press "
+                       "'Restart ADB'."
+    ),
+    ErrorCode.LOCKDOWN_FAILED: ErrorDetail(
+        code=ErrorCode.LOCKDOWN_FAILED,
+        title_es="No se pudo cerrar el puerto TCP/IP",
+        title_en="Could not close the TCP/IP port",
+        description_es="El comando 'adb usb' no consiguió devolver el dispositivo a modo USB.",
+        description_en="The 'adb usb' command could not return the device to USB mode.",
+        remediation_es="Desconecta y vuelve a conectar el cable y reintenta el blindaje; si persiste, "
+                       "reinicia la depuración inalámbrica en el teléfono.",
+        remediation_en="Disconnect and reconnect the cable and retry the lockdown; if it persists, "
+                       "restart wireless debugging on the phone."
+    ),
+    ErrorCode.CONFIG_CORRUPT: ErrorDetail(
+        code=ErrorCode.CONFIG_CORRUPT,
+        title_es="Configuración corrupta",
+        title_en="Corrupted configuration",
+        description_es="El archivo de configuración o la bóveda no se pudieron leer.",
+        description_en="The configuration file or the vault could not be read.",
+        remediation_es="Restaura el archivo desde una copia o elimina config.json para regenerar los "
+                       "valores por defecto (se perderán los perfiles).",
+        remediation_en="Restore the file from a backup or delete config.json to regenerate defaults "
+                       "(profiles will be lost)."
+    ),
+    ErrorCode.INVALID_EXTRA_ARGS: ErrorDetail(
+        code=ErrorCode.INVALID_EXTRA_ARGS,
+        title_es="Argumento no permitido en el perfil",
+        title_en="Disallowed profile argument",
+        description_es="El perfil incluye una bandera que no está en la lista blanca de seguridad.",
+        description_en="The profile includes a flag that is not in the security whitelist.",
+        remediation_es="Edita el perfil y elimina los argumentos adicionales no permitidos.",
+        remediation_en="Edit the profile and remove the disallowed extra arguments."
     ),
 }
 
