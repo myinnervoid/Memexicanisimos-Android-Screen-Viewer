@@ -53,6 +53,24 @@ _DEVICE_STATE_MAP: dict[str, DeviceState] = {
 }
 
 
+# ADR-009 · Falsos negativos conocidos de `adb usb`: cerrar el socket TCP durante
+# la transición a USB hace que EMUI/Android 10 responda 'error: closed' con el
+# efecto ya conseguido. Se tratan como éxito funcional.
+_TRANSICION_DE_TRANSPORTE = (
+    "error: closed",
+    "connection reset by peer",
+    "device not found",
+)
+
+
+def _es_transicion_de_transporte(msg: str) -> bool:
+    """True si el error de `adb usb` es el falso negativo esperado de la transición."""
+    texto = msg.lower()
+    return any(m in texto for m in _TRANSICION_DE_TRANSPORTE) or (
+        "device" in texto and "not found" in texto
+    )
+
+
 class AdbEngine:
     """Wrapper robusto sobre el binario oficial `adb` de Platform-Tools."""
 
@@ -368,13 +386,7 @@ class AdbEngine:
             )
 
         try:
-            proc = subprocess.run(
-                [str(self._adb_binary), "-s", serial, "usb"],
-                capture_output=True,
-                text=True,
-                timeout=10,
-                env=self._env_with_socket(),
-            )
+            proc = self._adb_usb(serial)
         except FileNotFoundError as e:
             return OperationResult.fail(ErrorCode.ADB_NOT_FOUND, str(e))
         except subprocess.TimeoutExpired as e:
@@ -384,34 +396,34 @@ class AdbEngine:
 
         # Pase lo que pase, ya no consideramos el serial bajo control de MASV.
         self._activated_by_masv.discard(serial)
+        return self._resultado_de_revert(serial, proc)
 
-        if proc.returncode != 0:
-            msg = (proc.stderr or proc.stdout or "usb revert falló").strip()
-            # ADR-009 · Falso negativo conocido:
-            # `adb usb` cierra el socket TCP durante la transición a USB.
-            # EMUI/Android 10 devuelve 'error: closed' con el efecto deseado.
-            # Tratamos estos patrones como éxito funcional.
-            _TRANSPORT_TRANSITION_MARKERS = (
-                "error: closed",
-                "connection reset by peer",
-                "device not found",
+    def _adb_usb(self, serial: str):
+        """Ejecuta `adb -s <serial> usb`; deja que subprocess levante sus excepciones."""
+        return subprocess.run(
+            [str(self._adb_binary), "-s", serial, "usb"],
+            capture_output=True,
+            text=True,
+            timeout=10,
+            env=self._env_with_socket(),
+        )
+
+    def _resultado_de_revert(self, serial: str, proc) -> OperationResult[None]:
+        """Interpreta la salida de `adb usb`, con el falso negativo conocido de ADR-009."""
+        if proc.returncode == 0:
+            return OperationResult.ok(None, f"{serial} revertido a USB")
+
+        msg = (proc.stderr or proc.stdout or "usb revert falló").strip()
+        if _es_transicion_de_transporte(msg):
+            log.info(
+                "revert_tcpip(%s): transición de transporte (esperado) · %s",
+                serial,
+                msg,
             )
-            is_transition = any(m in msg.lower() for m in _TRANSPORT_TRANSITION_MARKERS) or (
-                "device" in msg.lower() and "not found" in msg.lower()
+            return OperationResult.ok(
+                None, f"{serial} revertido a USB (transición)",
             )
-            if is_transition:
-                log.info(
-                    "revert_tcpip(%s): transición de transporte (esperado) · %s",
-                    serial,
-                    msg,
-                )
-                return OperationResult.ok(
-                    None, f"{serial} revertido a USB (transición)",
-                )
-
-            return OperationResult.fail(ErrorCode.LOCKDOWN_FAILED, msg)
-
-        return OperationResult.ok(None, f"{serial} revertido a USB")
+        return OperationResult.fail(ErrorCode.LOCKDOWN_FAILED, msg)
 
     # ─── Sesión D · connect_wifi / disconnect_wifi ──────────────────────
     def connect_wifi(
@@ -602,6 +614,13 @@ class AdbEngine:
 # TODO-4e · _TrackerThread (implementación del hilo centinela)
 # ────────────────────────────────────────────────────────────────────
 
+# Sentinels de la lectura de `track-devices` (un payload siempre es str, así que
+# estos objetos no pueden confundirse con datos).
+_FIN_DE_LECTURA = object()      # EOF o cabecera truncada: se acabó la sesión
+_CABECERA_ILEGIBLE = object()   # cabecera no hexadecimal: reintentar sin avisar
+_SIN_DISPOSITIVOS = object()    # evento de longitud 0: avisar con lista vacía
+
+
 class _TrackerThread(threading.Thread):
     """Hilo daemon que corre `adb track-devices` y notifica vía callback.
 
@@ -694,9 +713,18 @@ class _TrackerThread(threading.Thread):
 
     def _run_once(self) -> bool:
         """Una sesión de `track-devices`. Devuelve True si salió por EOF limpio."""
-        proc: subprocess.Popen | None = None
+        proc = self._lanzar_track_devices()
+        if proc is None:
+            return False
         try:
-            proc = subprocess.Popen(
+            self._bucle_de_eventos(proc)
+        finally:
+            return self._cerrar_proceso(proc)
+
+    def _lanzar_track_devices(self):
+        """Lanza `adb track-devices`; devuelve el proceso, o None si no se pudo lanzar."""
+        try:
+            return subprocess.Popen(
                 [str(self._adb_binary), "track-devices"],
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
@@ -706,53 +734,65 @@ class _TrackerThread(threading.Thread):
             )
         except (FileNotFoundError, OSError) as e:
             log.error("track-devices no se pudo lanzar: %s", e)
-            return False
+            return None
+
+    def _bucle_de_eventos(self, proc) -> None:
+        """Consume eventos de `track-devices` hasta el fin del flujo o la parada pedida."""
+        while not self._stop_event.is_set():
+            evento = self._leer_evento(proc)
+            if evento is _FIN_DE_LECTURA:
+                return
+            if evento is _CABECERA_ILEGIBLE:
+                continue
+            # Evento vacío = "el dispositivo se quedó sin dispositivos".
+            self._notificar_dispositivos("" if evento is _SIN_DISPOSITIVOS else evento)
+
+    def _leer_evento(self, proc):
+        """Lee un evento completo: el payload, o uno de los tres sentinels de estado.
+
+        El protocolo es: 4 dígitos hexadecimales de longitud + payload de ese tamaño.
+        """
+        header = proc.stdout.read(4)
+        if not header:
+            return _FIN_DE_LECTURA
+        if len(header) < 4:
+            log.warning("track-devices: cabecera incompleta %r", header)
+            return _FIN_DE_LECTURA
 
         try:
-            while not self._stop_event.is_set():
-                # Leer cabecera de longitud: exactamente 4 dígitos hex (sin \n intermedio)
-                header = proc.stdout.read(4)
-                if not header:
-                    # EOF · adb track-devices murió
-                    break
-                if len(header) < 4:
-                    log.warning("track-devices: cabecera incompleta %r", header)
-                    break
+            payload_len = int(header, 16)
+        except ValueError:
+            log.warning("track-devices: cabecera inválida %r", header)
+            return _CABECERA_ILEGIBLE
 
-                try:
-                    payload_len = int(header, 16)
-                except ValueError:
-                    log.warning("track-devices: cabecera inválida %r", header)
-                    continue
+        if payload_len <= 0:
+            return _SIN_DISPOSITIVOS
 
-                if payload_len <= 0:
-                    # Evento "sin dispositivos" o vacío
-                    self._on_change([])
-                    continue
+        payload = proc.stdout.read(payload_len)
+        return payload if payload else _FIN_DE_LECTURA
 
-                payload = proc.stdout.read(payload_len)
-                if not payload:
-                    break
+    def _notificar_dispositivos(self, payload: str) -> None:
+        """Parsea el payload y avisa al escucha; si el escucha revienta, el hilo sigue."""
+        devices: list[Device] = []
+        for raw in payload.splitlines():
+            dev = self._parse_line(raw)
+            if dev is not None:
+                devices.append(dev)
 
-                devices: list[Device] = []
-                for raw in payload.splitlines():
-                    dev = self._parse_line(raw)
-                    if dev is not None:
-                        devices.append(dev)
+        try:
+            self._on_change(devices)
+        except Exception:
+            log.exception("on_change lanzó excepción")
 
-                try:
-                    self._on_change(devices)
-                except Exception:
-                    log.exception("on_change lanzó excepción")
-        finally:
-            # Asegurar limpieza del subprocess
-            if proc.poll() is None:
-                proc.terminate()
-                try:
-                    proc.wait(timeout=1.0)
-                except subprocess.TimeoutExpired:
-                    proc.kill()
-            return proc.returncode == 0
+    def _cerrar_proceso(self, proc) -> bool:
+        """Termina el proceso si sigue vivo y devuelve si salió limpio (código 0)."""
+        if proc.poll() is None:
+            proc.terminate()
+            try:
+                proc.wait(timeout=1.0)
+            except subprocess.TimeoutExpired:
+                proc.kill()
+        return proc.returncode == 0
 
     def stop(self, timeout: float = 2.0) -> None:
         """Detiene el hilo. Idempotente."""

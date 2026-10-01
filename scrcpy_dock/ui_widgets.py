@@ -477,53 +477,83 @@ class ProfileChipsView(tk.Frame):
         super().__init__(parent, bg=C["card2"], **kwargs)
 
     def set_profile(self, name: str, p: dict):
+        """Pinta los chips del perfil indicado, o el aviso si no hay ninguno."""
+        self._limpiar()
+        if not p:
+            self._aviso_sin_perfil()
+            return
+        self._encabezado(name)
+        self._pintar_chips(self._rejilla(), self._chips_del_perfil(p))
+
+    def _limpiar(self):
+        """Vacía el panel: Tk no reordena ni retira contenido por su cuenta."""
         for w in self.winfo_children():
             w.destroy()
 
-        if not p:
-            tk.Label(self, text=_("Selecciona un perfil para ver sus detalles."),
-                     bg=C["card2"], fg=C["muted"], font=FONT_SM).pack(padx=16, pady=20)
-            return
+    def _aviso_sin_perfil(self):
+        """Aviso cuando todavía no hay perfil seleccionado."""
+        tk.Label(self, text=_("Selecciona un perfil para ver sus detalles."),
+                 bg=C["card2"], fg=C["muted"], font=FONT_SM).pack(padx=16, pady=20)
 
+    def _encabezado(self, name: str):
+        """Cabecera con el nombre del perfil."""
         hdr = tk.Frame(self, bg=C["card2"])
         hdr.pack(fill="x", padx=12, pady=(10, 6))
         tk.Label(hdr, text=f"⚙️  {name}", bg=C["card2"],
                  fg=C["purple"], font=FONT_CARD).pack(side="left")
 
-        grid_frame = tk.Frame(self, bg=C["card2"])
-        grid_frame.pack(fill="both", expand=True, padx=8, pady=4)
-
-        chips_data = [
-            (_("📺 Resolución"), f"{p.get('max_size','Nativa')}p", C["blue"]),
-            (_("⚡ FPS máx"), f"{p.get('max_fps','60')} FPS", C["cyan"]),
-            (_("📊 Bitrate"), f"{p.get('bitrate','8M')}", C["purple"]),
-            (_("🎥 Códec"), f"{p.get('video_codec','H.264').upper()}", C["green"]),
-            (_("🔊 Audio"), f"{p.get('audio_source','playback')}", C["orange"]),
-            ("🌙 Pantalla Off","Sí" if p.get('turn_screen_off') else "No",
-             C["red"] if p.get('turn_screen_off') else C["muted"]),
-            ("☀️ Despierto",   "Sí" if p.get('stay_awake') else "No",
-             C["green"] if p.get('stay_awake') else C["muted"]),
-        ]
-        if p.get("no_video") or "--no-video" in p.get("extra_args",""):
-            chips_data.append(("🎙️ Solo Audio", "Sí", C["orange"]))
-        if p.get("force_screen_off_keyevent"):
-            chips_data.append(("🔑 EMUI Keyevent", "Sí", C["orange"]))
-        if p.get("extra_args"):
-            chips_data.append(("🧩 Extra Args", p.get("extra_args"), C["text2"]))
-
-        r, c = 0, 0
-        for label, val, color in chips_data:
-            chip = tk.Frame(grid_frame, bg=C["card"], padx=10, pady=6,
-                            highlightbackground=C["sep"], highlightthickness=1)
-            chip.grid(row=r, column=c, padx=5, pady=5, sticky="ew")
-            tk.Label(chip, text=label, bg=C["card"], fg=C["muted"], font=FONT_SM).pack(anchor="w")
-            tk.Label(chip, text=val,   bg=C["card"], fg=color,      font=FONT_UI_B).pack(anchor="w")
-            c += 1
-            if c > 2:
-                c = 0; r += 1
-
+    def _rejilla(self):
+        """Contenedor de los chips, en tres columnas de igual peso."""
+        rejilla = tk.Frame(self, bg=C["card2"])
+        rejilla.pack(fill="both", expand=True, padx=8, pady=4)
         for col_idx in range(3):
-            grid_frame.columnconfigure(col_idx, weight=1)
+            rejilla.columnconfigure(col_idx, weight=1)
+        return rejilla
+
+    @staticmethod
+    def _chip_booleano(etiqueta: str, activo, color_activo: str) -> tuple:
+        """Chip de Sí/No cuyo color depende del estado."""
+        return (etiqueta, "Sí" if activo else "No", color_activo if activo else C["muted"])
+
+    def _chips_del_perfil(self, p: dict) -> list:
+        """Metadatos del perfil convertidos en chips (etiqueta, valor, color)."""
+        return [
+            (_("📺 Resolución"), f"{p.get('max_size', 'Nativa')}p", C["blue"]),
+            (_("⚡ FPS máx"), f"{p.get('max_fps', '60')} FPS", C["cyan"]),
+            (_("📊 Bitrate"), f"{p.get('bitrate', '8M')}", C["purple"]),
+            (_("🎥 Códec"), f"{p.get('video_codec', 'H.264').upper()}", C["green"]),
+            (_("🔊 Audio"), f"{p.get('audio_source', 'playback')}", C["orange"]),
+            self._chip_booleano("🌙 Pantalla Off", p.get('turn_screen_off'), C["red"]),
+            self._chip_booleano("☀️ Despierto", p.get('stay_awake'), C["green"]),
+        ] + self._chips_condicionales(p)
+
+    def _chips_condicionales(self, p: dict) -> list:
+        """Chips que sólo aparecen con ciertas opciones del perfil."""
+        chips = []
+        if p.get("no_video") or "--no-video" in p.get("extra_args", ""):
+            chips.append(("🎙️ Solo Audio", "Sí", C["orange"]))
+        if p.get("force_screen_off_keyevent"):
+            chips.append(("🔑 EMUI Keyevent", "Sí", C["orange"]))
+        if p.get("extra_args"):
+            chips.append(("🧩 Extra Args", p.get("extra_args"), C["text2"]))
+        return chips
+
+    def _pintar_chips(self, rejilla, chips: list):
+        """Coloca los chips en la rejilla, de tres en tres."""
+        fila, columna = 0, 0
+        for etiqueta, valor, color in chips:
+            self._pintar_chip(rejilla, fila, columna, etiqueta, valor, color)
+            columna += 1
+            if columna > 2:
+                columna, fila = 0, fila + 1
+
+    def _pintar_chip(self, rejilla, fila: int, columna: int, etiqueta: str, valor, color: str):
+        """Un chip: la etiqueta arriba y el valor debajo."""
+        chip = tk.Frame(rejilla, bg=C["card"], padx=10, pady=6,
+                        highlightbackground=C["sep"], highlightthickness=1)
+        chip.grid(row=fila, column=columna, padx=5, pady=5, sticky="ew")
+        tk.Label(chip, text=etiqueta, bg=C["card"], fg=C["muted"], font=FONT_SM).pack(anchor="w")
+        tk.Label(chip, text=valor, bg=C["card"], fg=color, font=FONT_UI_B).pack(anchor="w")
 
 
 # ─────────────────────────────────────────────────────────────────────────────

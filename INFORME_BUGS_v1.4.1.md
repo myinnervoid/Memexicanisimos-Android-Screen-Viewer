@@ -771,6 +771,39 @@ declarada, para que nadie la olvide al añadir otra puerta hacia `_()`.
 
 ---
 
+### 3.34 🟡 Dos etiquetas de dispositivo se pintan en balde *(encontrado al escribir la caracterización de `_on_tab_changed`, 01-oct · 📄 DOCUMENTADO)*
+
+**Archivo**: `scrcpy_dock/ui/tabs/tab_actions.py:27`, `scrcpy_dock/ui/tabs/tab_controls.py:27`, `scrcpy_dock/main.py` (`_pintar_etiquetas_de_dispositivo`)
+
+Las etiquetas de dispositivo de las pestañas **Acciones** y **Controles** se construyen atadas a una
+variable Tk, no a un texto:
+
+```python
+    tab.refs['action_device_lbl'] = tk.Label(d_box, textvariable=tab.ctx.active_device, ...)
+```
+
+`_on_tab_changed` les asigna texto con `config(text=…)`, pero en Tk **gana la variable**: la
+asignación no se ve y `cget("text")` sigue devolviendo lo que dice `ctx.active_device`. Es decir,
+las dos etiquetas llevan desde antes del refactor recibiendo un pintado inerte (el nombre del
+dispositivo que sí ve el usuario lo escribe `ctx.select_device`, `main.py:975`).
+
+**Medido** (sonda sobre la app real):
+
+| Comprobación | Resultado |
+| :--- | :--- |
+| `cget("textvariable")` de `action_device_lbl` y `ctrl_device_lbl` | la misma que el combo simple (`PY_VAR0`) |
+| `_on_tab_changed()` con `active_device_serial="HWY9"` y alias "Mi Vivo" | el texto de la etiqueta sigue siendo `Sin dispositivo` |
+| tras `ctx.select_device("HWY9", "Mi Vivo (HWY9)")` | las dos etiquetas muestran `Mi Vivo (HWY9)` ✅ (camino real) |
+
+**Estado**: no corregido a propósito, porque la corrección es una decisión de producto, no técnica
+(hay dos opciones válidas): quitar el `config(text=…)` de esas dos etiquetas —son inertes, y
+eliminarlos deja el código más honesto— o quitar el `textvariable` para que gane el texto que calcula
+`_on_tab_changed` (entonces el nombre con serial se recalcula al cambiar de pestaña). Mientras no se
+decida, el comportamiento visible está caracterizado por
+`test_las_etiquetas_de_dispositivo_siguen_a_la_variable_compartida`.
+
+---
+
 ## 4. Cobertura de pruebas — brechas concretas
 
 Lo que **no** cubre la suite actual (269 tests) y permitió que los bugs anteriores pasaran:
@@ -865,15 +898,16 @@ sincronizados con el registro de ejecución de `ANALISIS.md` §11.
 
 | Métrica | Al redactar este informe | Tras Fases A–D (verificado) |
 | :--- | :---: | :---: |
-| Pruebas | 269 | **561** (561 OK con display · 44 skips y 0 errores sin display) |
+| Pruebas | 269 | **572** (572 OK con display · 50 skips y 0 errores sin display) |
 | Cobertura total | 35 % | **85 %** |
 | Cobertura `core/adb_engine.py` | 46 % | **100 %** |
 | Módulos de negocio bajo el 80 % | 4 | **0** (mínimo 81 %) |
 | Cobertura de la capa de pestañas | 0 % | **99 %** (`ui/tabs/`, 526 sentencias) |
 | Cobertura `ui_widgets.py` | 16 % | **94 %** (medido; la fase declaró 81,8 %) |
 | Cobertura UI (`ui_tabs.py`) | 0–3 % | **100 %** |
-| Bloques con CC > 10 | 20 (máx. 63) | **14 (máx. 18)** |
+| Bloques con CC > 10 | 20 (máx. 63) | **7** (máx. 18; los 7 sin red, ver §11.12 de `ANALISIS.md`) |
 | Bloques Rank D o F | 5 (3 D + 2 F) | **0** |
+| Mutaciones cazadas en los refactores (§11.12) | — | **8/8** (primera medición honesta: 4/8) |
 | Umbrales de la Ley 7 en rojo | 2 | **0** |
 | `ErrorCode` con `ErrorDetail` | 11 / 30 | **16 / 31** |
 | Literales `_()` sin traducción EN | 133 | **0** (425 claves vivas: 406 por literal + 19 por flujo) |

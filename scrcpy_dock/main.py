@@ -33,6 +33,34 @@ _PLAT = sys.platform
 APP_NAME = "Memexicanisimos Android Screen Viewer"
 APP_SHORT = "MASV"
 
+# ── Modo Compacto vs Vista Completa (Ctrl+M) ─────────────────────────────────
+# Antes vivían dentro de `_toggle_view`, mezclados con el flujo de control.
+_GEOMETRIA_COMPACTA = "500x620"
+_GEOMETRIA_COMPLETA = "880x680"
+_MINIMO_COMPACTO = (460, 560)
+_MINIMO_COMPLETO = (680, 520)
+# Widgets que el Modo Compacto oculta (los que existan).
+_OCULTOS_EN_COMPACTO = ("sidebar", "_sidebar_sep", "_brand_sub", "_btn_panic_lockdown")
+# Cómo se vuelven a colocar: (atributo, kwargs de pack, atributo tras el cual colocarlo).
+# Si el `before` no existe, el widget no se empaqueta (era el comportamiento original).
+_WIDGETS_DEL_MODO_COMPLETO = (
+    ("_brand_sub", {"side": "left", "pady": (2, 0)}, None),
+    ("_btn_panic_lockdown", {"side": "right", "padx": (6, 0)}, "_btn_safe_mode"),
+    ("sidebar", {"side": "left", "fill": "y"}, "main_content"),
+    ("_sidebar_sep", {"side": "left", "fill": "y"}, "main_content"),
+)
+_TEXTO_ATAJOS_COMPACTO = "Ctrl+M Completo · Ctrl+I Iniciar"
+_TEXTO_ATAJOS_COMPLETO = ("Ctrl+I Iniciar · Ctrl+R Refrescar · Ctrl+M Compacto · "
+                          "Ctrl+B Menú · Ctrl+H Ayuda")
+
+# ── Etiquetas de contexto que se refrescan al cambiar de pestaña ─────────────
+# Ojo: los textos van dentro de `_("…")` en el punto de uso, no en una tabla.
+# Metidos en una tabla, un escáner de literales los ve como claves muertas
+# (la trampa de P3.33) y una poda posterior borraría traducciones vivas.
+_REFS_DE_DISPOSITIVO = ("action_device_lbl", "ctrl_device_lbl")
+_REFS_DE_CONFIANZA = ("action_trust_lbl", "ctrl_trust_lbl", "simple_trust_lbl")
+_REFS_DE_PERFIL = ("action_profile_lbl", "ctrl_profile_lbl")
+
 class ScrcpyDockApp:
     def __init__(self, root: tk.Tk, single_instance: Any = None):
         self.root = root
@@ -530,61 +558,69 @@ class ScrcpyDockApp:
         self._on_tab_changed()
 
     def _toggle_view(self):
-        """Alterna entre Vista Avanzada Completa (con Sidebar y 880x680) y Modo Compacto (Mini-Dock 500x620)."""
+        """Alterna entre Vista Completa (sidebar, 880x680) y Modo Compacto (mini-dock 500x620)."""
         if self.is_advanced_view:
-            # Pasar a Modo Compacto (Mini-Dock)
-            self.is_advanced_view = False
-            self._saved_geometry = self.root.geometry()
-
-            # Ocultar barra lateral y separador
-            if hasattr(self, 'sidebar'):
-                self.sidebar.pack_forget()
-            if hasattr(self, '_sidebar_sep'):
-                self._sidebar_sep.pack_forget()
-
-            # Simplificar cabecera y pie para evitar recortes
-            if hasattr(self, '_brand_sub'):
-                self._brand_sub.pack_forget()
-            if hasattr(self, '_btn_panic_lockdown'):
-                self._btn_panic_lockdown.pack_forget()
-            if hasattr(self, '_footer_shortcuts_lbl'):
-                self._footer_shortcuts_lbl.config(text="Ctrl+M Completo · Ctrl+I Iniciar")
-
-            # Cambiar a Quick Cast
-            self._select_tab("quickcast")
-
-            # Redimensionar a tamaño compacto perfectamente calibrado
-            self.root.minsize(460, 560)
-            self.root.geometry("500x620")
-
-            if hasattr(self, '_btn_mode_toggle'):
-                self._btn_mode_toggle.config(text="🗖 " + _("Vista Completa"), fg=C["blue"])
-            self._hint(_("Modo Compacto activo (Ctrl+M para expandir)"), C["cyan"])
+            self._pasar_a_modo_compacto()
         else:
-            # Restaurar Vista Avanzada Completa
-            self.is_advanced_view = True
+            self._pasar_a_vista_completa()
 
-            # Restaurar cabecera y pie completos
-            if hasattr(self, '_brand_sub'):
-                self._brand_sub.pack(side="left", pady=(2, 0))
-            if hasattr(self, '_btn_panic_lockdown') and hasattr(self, '_btn_safe_mode'):
-                self._btn_panic_lockdown.pack(side="right", padx=(6, 0), before=self._btn_safe_mode)
-            if hasattr(self, '_footer_shortcuts_lbl'):
-                self._footer_shortcuts_lbl.config(text="Ctrl+I Iniciar · Ctrl+R Refrescar · Ctrl+M Compacto · Ctrl+B Menú · Ctrl+H Ayuda")
+    def _pasar_a_modo_compacto(self):
+        """Mini-dock: oculta barra lateral y cabecera, y encoge la ventana."""
+        self.is_advanced_view = False
+        self._saved_geometry = self.root.geometry()
 
-            # Restaurar barra lateral y separador antes del contenido principal
-            if hasattr(self, 'sidebar') and hasattr(self, 'main_content'):
-                self.sidebar.pack(side="left", fill="y", before=self.main_content)
-            if hasattr(self, '_sidebar_sep') and hasattr(self, 'main_content'):
-                self._sidebar_sep.pack(side="left", fill="y", before=self.main_content)
+        for nombre in _OCULTOS_EN_COMPACTO:
+            widget = getattr(self, nombre, None)
+            if widget is not None:
+                widget.pack_forget()
+        self._texto_de_atajos(_TEXTO_ATAJOS_COMPACTO)
 
-            geom = getattr(self, '_saved_geometry', "880x680")
-            self.root.minsize(680, 520)
-            self.root.geometry(geom)
+        self._select_tab("quickcast")
+        self.root.minsize(*_MINIMO_COMPACTO)
+        self.root.geometry(_GEOMETRIA_COMPACTA)
+        self._texto_del_boton_de_modo("🗖 " + _("Vista Completa"), C["blue"])
+        self._hint(_("Modo Compacto activo (Ctrl+M para expandir)"), C["cyan"])
 
-            if hasattr(self, '_btn_mode_toggle'):
-                self._btn_mode_toggle.config(text="🔲 " + _("Modo Compacto"), fg=C["text2"])
-            self._hint(_("Vista Completa activa"), C["muted"])
+    def _pasar_a_vista_completa(self):
+        """Restaura barra lateral, cabecera y la geometría previa."""
+        self.is_advanced_view = True
+
+        self._restaurar_widgets_del_modo_completo()
+        self._texto_de_atajos(_TEXTO_ATAJOS_COMPLETO)
+        self.root.minsize(*_MINIMO_COMPLETO)
+        self.root.geometry(getattr(self, "_saved_geometry", _GEOMETRIA_COMPLETA))
+        self._texto_del_boton_de_modo("🔲 " + _("Modo Compacto"), C["text2"])
+        self._hint(_("Vista Completa activa"), C["muted"])
+
+    def _restaurar_widgets_del_modo_completo(self):
+        """Reempaqueta los widgets del modo completo en su orden original.
+
+        Si el widget de referencia (`before`) no existe, el widget no se empaqueta:
+        era el comportamiento anterior y evita reordenar lo que no se puede ordenar.
+        """
+        for nombre, kwargs, antes in _WIDGETS_DEL_MODO_COMPLETO:
+            widget = getattr(self, nombre, None)
+            if widget is None:
+                continue
+            argumentos = dict(kwargs)
+            if antes:
+                referencia = getattr(self, antes, None)
+                if referencia is None:
+                    continue
+                argumentos["before"] = referencia
+            widget.pack(**argumentos)
+
+    def _texto_de_atajos(self, texto: str):
+        """Actualiza el pie con los atajos, si el widget existe."""
+        pie = getattr(self, "_footer_shortcuts_lbl", None)
+        if pie is not None:
+            pie.config(text=texto)
+
+    def _texto_del_boton_de_modo(self, texto: str, color: str):
+        """Actualiza el botón conmutador de modo, si el widget existe."""
+        boton = getattr(self, "_btn_mode_toggle", None)
+        if boton is not None:
+            boton.config(text=texto, fg=color)
 
     def _on_app_close(self):
         """Detiene sesiones, desactiva servicios y cierra la aplicación de forma limpia y completa."""
@@ -1691,39 +1727,49 @@ class ScrcpyDockApp:
             messagebox.showwarning(_("Atención"), res.message)
 
     def _on_tab_changed(self, event=None):
+        """Refresca las etiquetas de contexto (dispositivo, confianza y perfil activo)."""
         serial = self.ctx.active_device_serial
-        is_trusted = self.ctx.security_mgr.is_trusted_device(serial) if serial else False
-        trust_text = " [🛡️ Confiable]" if is_trusted else (" [⚠️ No Verificado]" if serial else "")
-        trust_color = C["green"] if is_trusted else C["orange"]
+        self._pintar_etiquetas_de_dispositivo(serial)
+        self._pintar_etiquetas_de_confianza(serial)
+        self._pintar_etiquetas_de_perfil()
 
-        if 'action_device_lbl' in self.ui.refs:
-            if serial:
-                alias = self.ctx.security_mgr.get_device_alias(serial)
-                self.ui.refs['action_device_lbl'].config(text=f"📱  {alias} ({serial})", fg=C["text"])
-            else:
-                self.ui.refs['action_device_lbl'].config(text=_("📱  Sin dispositivo seleccionado"), fg=C["muted"])
+    def _pintar_etiquetas_de_dispositivo(self, serial):
+        """Nombre del dispositivo (o el aviso de que no hay ninguno) en cada pestaña."""
+        if not serial:
+            self._pintar_etiqueta("action_device_lbl", _("📱  Sin dispositivo seleccionado"), C["muted"])
+            self._pintar_etiqueta("ctrl_device_lbl", _("📱  Sin dispositivo"), C["muted"])
+            return
 
-        if 'action_trust_lbl' in self.ui.refs:
-            self.ui.refs['action_trust_lbl'].config(text=trust_text, fg=trust_color)
+        alias = self.ctx.security_mgr.get_device_alias(serial)
+        texto = f"📱  {alias} ({serial})"
+        for ref in _REFS_DE_DISPOSITIVO:
+            self._pintar_etiqueta(ref, texto, C["text"])
 
-        if 'action_profile_lbl' in self.ui.refs:
-            self.ui.refs['action_profile_lbl'].config(text=f"⚙️  {self.ctx.active_profile.get()}", fg=C["cyan"])
+    def _pintar_etiqueta(self, ref: str, texto: str, color: str):
+        """Pinta una etiqueta si existe: no todos los refs están en todos los modos de vista."""
+        etiqueta = self.ui.refs.get(ref)
+        if etiqueta is not None:
+            etiqueta.config(text=texto, fg=color)
 
-        if 'ctrl_device_lbl' in self.ui.refs:
-            if serial:
-                alias = self.ctx.security_mgr.get_device_alias(serial)
-                self.ui.refs['ctrl_device_lbl'].config(text=f"📱  {alias} ({serial})", fg=C["text"])
-            else:
-                self.ui.refs['ctrl_device_lbl'].config(text=_("📱  Sin dispositivo"), fg=C["muted"])
+    def _pintar_etiquetas_de_confianza(self, serial):
+        """Sello de confianza del dispositivo activo, allí donde se muestre."""
+        texto, color = self._sello_de_confianza(serial)
+        for ref in _REFS_DE_CONFIANZA:
+            self._pintar_etiqueta(ref, texto, color)
 
-        if 'ctrl_trust_lbl' in self.ui.refs:
-            self.ui.refs['ctrl_trust_lbl'].config(text=trust_text, fg=trust_color)
+    def _sello_de_confianza(self, serial) -> tuple:
+        """(texto, color) del sello: verde si es de confianza; naranja si no, o si no hay."""
+        if not serial:
+            return "", C["orange"]
+        if self.ctx.security_mgr.is_trusted_device(serial):
+            return " [🛡️ Confiable]", C["green"]
+        return " [⚠️ No Verificado]", C["orange"]
 
-        if 'ctrl_profile_lbl' in self.ui.refs:
-            self.ui.refs['ctrl_profile_lbl'].config(text=f"⚙️  {self.ctx.active_profile.get()}", fg=C["cyan"])
-
-        if 'simple_trust_lbl' in self.ui.refs:
-            self.ui.refs['simple_trust_lbl'].config(text=trust_text, fg=trust_color)
+    def _pintar_etiquetas_de_perfil(self):
+        """Perfil activo en cada pestaña que lo muestre."""
+        perfil = f"⚙️  {self.ctx.active_profile.get()}"
+        for ref in _REFS_DE_PERFIL:
+            self._pintar_etiqueta(ref, perfil, C["cyan"])
 
     # ── Logging Tab ───────────────────────────────────────────────────
     def _pump_logs(self):

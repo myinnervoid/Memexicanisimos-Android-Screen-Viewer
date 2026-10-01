@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import ast
 import inspect
+import tkinter as tk
 import types
 import unittest
 from pathlib import Path
@@ -26,10 +27,40 @@ from scrcpy_dock.errors import ErrorCode
 from scrcpy_dock.main import ScrcpyDockApp
 from scrcpy_dock.services.profile_service import ProfileService
 
+from tests.ui_harness import app_en_prueba
+
+
+def _textos_de(widget) -> list:
+    """Todos los textos de las etiquetas de un árbol de widgets."""
+    textos = []
+    for hijo in widget.winfo_children():
+        if isinstance(hijo, tk.Label):
+            textos.append(str(hijo.cget("text")))
+        textos.extend(_textos_de(hijo))
+    return textos
+
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Guardián de complejidad (Ley 7): sin bloques D/E/F en todo el paquete
 # ─────────────────────────────────────────────────────────────────────────────
+
+# Bloques que TODAVÍA superan CC 10 (Ley 7 pide ≤ 10), por `archivo método`. Es
+# una lista blanca exacta, no un tope: cualquier bloque nuevo por encima de 10
+# hace fallar la prueba con su nombre, sin esperar a que la deuda se acumule.
+# Se compara sin número de línea a propósito: la línea cambia con cualquier
+# edición del archivo y convertiría el guardián en ruido.
+#
+# Los 7 que quedan son justamente los que **no tienen red de comportamiento**
+# (ver §11.12 de ANALISIS.md): se cubren antes de tocarlos.
+BLOQUES_PENDIENTES = [
+    "main.py _change_theme",
+    "main.py _select_tab",
+    "main.py _toggle_scene",
+    "main.py main",
+    "managers.py _launch_with_fallback",
+    "managers.py scan_devices",
+    "core/scrcpy_engine.py get_compatible_codecs",
+]
 
 class TestComplejidadSinBloquesD(unittest.TestCase):
     """Evita que la deuda ciclomática demolidа en la Fase D vuelva a crecer."""
@@ -41,26 +72,27 @@ class TestComplejidadSinBloquesD(unittest.TestCase):
         except ImportError:  # pragma: no cover
             self.skipTest("radon no instalado (dependencia de desarrollo)")
 
-        peores = []
-        for archivo in Path(scrcpy_dock.__file__).parent.rglob("*.py"):
-            arbol = ast.parse(archivo.read_text(encoding="utf-8"))
-            for bloque in cc_visit(arbol):
-                if not isinstance(bloque, Function):
+        peores, detalle = [], []
+        raiz = Path(scrcpy_dock.__file__).parent
+        for archivo in raiz.rglob("*.py"):
+            rel = archivo.relative_to(raiz).as_posix()
+            for bloque in cc_visit(ast.parse(archivo.read_text(encoding="utf-8"))):
+                if not isinstance(bloque, Function) or bloque.complexity <= 10:
                     continue
-                if bloque.complexity > 10:
-                    peores.append(
-                        f"{archivo.name}:{bloque.lineno} {bloque.name} CC={bloque.complexity}",
-                    )
+                peores.append(f"{rel} {bloque.name}")
+                detalle.append(f"{rel}:{bloque.lineno} {bloque.name} CC={bloque.complexity}")
 
-        # El umbral de la Ley 7 es ≤ 10; el rank D empieza en 21. Se exige el
-        # umbral duro (0 bloques > 10) para poder bajarlo a C más adelante.
+        # Umbral de la Ley 7 (≤ 10): el rank D empieza en 21. Se exige el umbral
+        # duro (0 bloques > 10) para poder bajarlo a C más adelante.
         self.assertEqual(
-            [p for p in peores if int(p.rsplit("CC=", 1)[1]) > 20], [],
-            f"bloques Rank D o peor: {peores}",
+            [d for d in detalle if int(d.rsplit("CC=", 1)[1]) > 20], [],
+            f"bloques Rank D o peor: {detalle}",
         )
-        self.assertLessEqual(
-            len(peores), 14,
-            f"los bloques > 10 volvieron a crecer ({len(peores)}): {peores}",
+        # Lista blanca, no un tope holgado: si aparece un bloque > 10 nuevo,
+        # esta prueba lo dice por su nombre en vez de esperar a que haya 15.
+        self.assertEqual(
+            sorted(peores), sorted(BLOQUES_PENDIENTES),
+            f"la lista de bloques > 10 cambió: {detalle}",
         )
 
     def test_los_tres_objetivos_de_la_fase_de_quedaron_planos(self):
@@ -440,6 +472,160 @@ class TestOnDevSelectDescompuesto(unittest.TestCase):
         event = types.SimpleNamespace(widget=combo)
 
         self.assertIsNone(ScrcpyDockApp._resolve_selected_device(app, event))
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# La red de los 7 refactores de complejidad: 4 mutaciones que sobrevivían
+# ─────────────────────────────────────────────────────────────────────────────
+#
+# Al descomponer los 7 bloques con cobertura se comprobó la red con mutaciones
+# deliberadas (`mutar_los_siete.py`): 4 de 8 sobrevivieron. Es decir, esos cuatro
+# métodos tenían **cobertura de líneas pero no anclaje de comportamiento**: se
+# podía invertir el conmutador de vista, cambiar el sello de confianza, comerse
+# un chip o dejar de cortar la sesión del tracker sin que fallara nada.
+#
+# Cada prueba de aquí mata una de esas mutaciones. Cobertura ≠ red.
+
+class TestRedDeCaracterizacionDeLosRefactores(unittest.TestCase):
+    """Ancla los comportamientos que la cobertura no sujetaba (medido por mutación)."""
+
+    @classmethod
+    def setUpClass(cls):
+        try:
+            cls.root = tk.Tk()
+            cls.root.withdraw()
+        except Exception:  # pragma: no cover - sin display
+            cls.root = None
+
+    @classmethod
+    def tearDownClass(cls):
+        if cls.root:
+            try:
+                cls.root.destroy()
+            except Exception:
+                pass
+
+    def setUp(self):
+        if not self.root:
+            self.skipTest("Tkinter sin display: el arnés de UI no puede correr")
+        self.sitio = app_en_prueba(self.root)
+        self.app = self.sitio.app
+
+    def tearDown(self):
+        if getattr(self, "sitio", None) is not None:
+            self.sitio.cerrar()
+
+    # Mutación que sobrevivía: invertir las ramas de `_toggle_view`.
+
+    def test_el_conmutador_de_vista_cambia_de_modo_y_vuelve(self):
+        app = self.app
+        app.is_advanced_view = True
+
+        app._toggle_view()
+
+        self.assertFalse(app.is_advanced_view, "el primer Ctrl+M debe pasar a Modo Compacto")
+        self.assertTrue(getattr(app, "_saved_geometry", ""),
+                        "debe recordar la geometría de la Vista Completa")
+
+        app._toggle_view()
+
+        self.assertTrue(app.is_advanced_view, "el segundo Ctrl+M debe volver a la Vista Completa")
+
+    # Mutación que sobrevivía: cambiar el sello de confianza.
+
+    def test_el_sello_de_confianza_dice_confiable_o_no_verificado(self):
+        app = self.app
+        app.ctx.active_device_serial = "HWY9"
+
+        with patch.object(app.ctx.security_mgr, "is_trusted_device", return_value=True):
+            app._on_tab_changed()
+        self.assertEqual(app.ui.refs["action_trust_lbl"].cget("text"), " [🛡️ Confiable]",
+                         "un dispositivo de confianza debe llevar el sello verde")
+
+        with patch.object(app.ctx.security_mgr, "is_trusted_device", return_value=False):
+            app._on_tab_changed()
+        self.assertEqual(app.ui.refs["action_trust_lbl"].cget("text"), " [⚠️ No Verificado]",
+                         "un dispositivo sin verificar debe avisarse, no callarse")
+
+        app.ctx.active_device_serial = None
+        app._on_tab_changed()
+        self.assertEqual(app.ui.refs["action_trust_lbl"].cget("text"), "",
+                         "sin dispositivo no hay sello que mostrar")
+
+    def test_las_etiquetas_de_dispositivo_siguen_a_la_variable_compartida(self):
+        """Las etiquetas de dispositivo y el combo simple comparten `ctx.active_device`.
+
+        Se caracteriza el camino que el usuario ve de verdad: la variable que mueve
+        `ctx.select_device`. El `config(text=…)` de `_on_tab_changed` sobre estas
+        dos etiquetas es **inerte** (están construidas con `textvariable`, que gana),
+        un resto que viene de antes del refactor.
+        """
+        app = self.app
+        variable = str(app.ui.refs["simple_dev_combo"].cget("textvariable"))
+        for ref in ("action_device_lbl", "ctrl_device_lbl"):
+            self.assertEqual(str(app.ui.refs[ref].cget("textvariable")), variable,
+                             f"{ref} debe seguir atada a la variable compartida")
+
+        app.ctx.select_device("HWY9", "Mi Vivo (HWY9)")
+        for ref in ("action_device_lbl", "ctrl_device_lbl"):
+            self.assertEqual(app.ui.refs[ref].cget("text"), "Mi Vivo (HWY9)")
+        self.assertEqual(app.ui.refs["simple_dev_combo"].get(), "Mi Vivo (HWY9)")
+
+        app.ctx.select_device(None, "Sin dispositivo")
+        self.assertEqual(app.ui.refs["action_device_lbl"].cget("text"), "Sin dispositivo")
+
+    # Mutación que sobrevivía: comerse el chip condicional del perfil.
+
+    def test_los_chips_del_perfil_incluyen_los_condicionales(self):
+        from scrcpy_dock.ui_widgets import ProfileChipsView
+
+        base = {"max_size": "1920", "max_fps": "60", "bitrate": "8M", "video_codec": "h264"}
+        vista = ProfileChipsView(self.root)
+
+        vista.set_profile("Perfil", dict(base))
+        textos = _textos_de(vista)
+        self.assertNotIn("🔑 EMUI Keyevent", textos, "sin el flag no debe aparecer el chip EMUI")
+        self.assertIn("📺 Resolución", textos)
+
+        vista.set_profile("Perfil", {**base, "force_screen_off_keyevent": True})
+        self.assertIn("🔑 EMUI Keyevent", _textos_de(vista),
+                      "con force_screen_off_keyevent el chip EMUI es obligatorio")
+
+        vista.set_profile("Perfil", {**base, "no_video": True})
+        self.assertIn("🎙️ Solo Audio", _textos_de(vista))
+
+        vista.set_profile("Perfil", {**base, "extra_args": "--camera-id=1"})
+        self.assertIn("--camera-id=1", _textos_de(vista))
+
+        vista.destroy()
+
+    def test_sin_perfil_avisa_en_vez_de_quedarse_vacio(self):
+        from scrcpy_dock.ui_widgets import ProfileChipsView
+
+        vista = ProfileChipsView(self.root)
+        vista.set_profile("", {})
+        self.assertTrue(any("Selecciona un perfil" in t for t in _textos_de(vista)))
+        vista.destroy()
+
+    # Mutación que sobrevivía: una cabecera truncada ya no cortaba la sesión.
+
+    def test_cabecera_truncada_corta_la_sesion_del_tracker(self):
+        """Con cabecera truncada NO se reintenta: si se reintentara, procesaría lo siguiente."""
+        from tests.test_adb_engine_hardening import _FakeTrackerProc, _tracker
+
+        payload = "HWY9\tdevice\n"
+        # Basura truncada + un evento válido detrás: si el tracker reintentara en
+        # vez de cortar, acabaría notificando ese dispositivo.
+        proc = _FakeTrackerProc(
+            chunks=["00", f"{len(payload):04x}", payload, ""], returncode=0,
+        )
+        tracker = _tracker()
+
+        with patch("subprocess.Popen", return_value=proc):
+            tracker._run_once()
+
+        self.assertEqual(tracker.cambios, [],
+                         "una cabecera truncada debe cortar la sesión, no reintentar")
 
 
 if __name__ == "__main__":

@@ -14,6 +14,27 @@ from .services.security_service import SecurityService
 log = logging.getLogger(__name__)
 
 
+# ── Validadores de red (usados por parse_pair_ip_port_code) ──────────────────
+
+
+def _codigo_de_pareo_valido(raw_code: str) -> bool:
+    """El código de emparejamiento de Android son exactamente 6 dígitos."""
+    return raw_code.isdigit() and len(raw_code) == 6
+
+
+def _puerto_en_rango(port_str: str) -> bool:
+    """Puerto TCP utilizable: numérico y dentro de [1, 65535]."""
+    return port_str.isdigit() and 1 <= int(port_str) <= 65535
+
+
+def _ip_normalizada(ip_str: str) -> Optional[str]:
+    """La IP en forma canónica, o `None` si no es una dirección válida."""
+    try:
+        return str(ipaddress.ip_address(ip_str))
+    except ValueError:
+        return None
+
+
 class SecurityManager:
     """Gestiona la bóveda de dispositivos confiables, validación de red,
 
@@ -195,32 +216,22 @@ class SecurityManager:
 
     @staticmethod
     def parse_pair_ip_port_code(raw_ip_port: str, raw_code: str) -> Optional[Tuple[str, str, str]]:
-        """Valida y estructura los datos para 'adb pair': IP, puerto (1-65535) y código numérico de 6 dígitos."""
+        """Valida y estructura los datos para 'adb pair': IP, puerto (1-65535) y código de 6 dígitos."""
         raw_ip_port = (raw_ip_port or "").strip()
         raw_code = (raw_code or "").strip()
 
-        if not raw_ip_port or not raw_code:
+        if not _codigo_de_pareo_valido(raw_code) or ":" not in raw_ip_port:
             return None
 
-        # El código de emparejamiento de Android es típicamente de 6 dígitos numéricos
-        if not (raw_code.isdigit() and len(raw_code) == 6):
+        ip_str, _, port_str = raw_ip_port.partition(":")
+        ip_str, port_str = ip_str.strip(), port_str.strip()
+        if not _puerto_en_rango(port_str):
             return None
 
-        if ":" not in raw_ip_port:
+        ip = _ip_normalizada(ip_str)
+        if ip is None:
             return None
-
-        parts = raw_ip_port.split(":", 1)
-        ip_str = parts[0].strip()
-        port_str = parts[1].strip()
-
-        if not port_str.isdigit() or not (1 <= int(port_str) <= 65535):
-            return None
-
-        try:
-            ip_obj = ipaddress.ip_address(ip_str)
-            return str(ip_obj), port_str, raw_code
-        except ValueError:
-            return None
+        return ip, port_str, raw_code
 
     @staticmethod
     def sanitize_text_input(text: str) -> str:

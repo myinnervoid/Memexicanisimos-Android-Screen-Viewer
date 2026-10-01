@@ -20,6 +20,7 @@
 38. [ADR-038: El Pipeline se Verifica en las Condiciones del Pipeline](#adr-038)
 39. [ADR-039: Ninguna Prueba Puede Escribir en los Datos del Usuario — y Hay un Guardián que lo Comprueba](#adr-039)
 40. [ADR-040: La Tabla de Traducciones es un Espejo del Código — y se Cuenta por Dos Vías](#adr-040)
+41. [ADR-041: La Cobertura no es la Red — los Refactores de Complejidad se Verifican Mutando](#adr-041)
 
 > ⚠️ **Hueco de trazabilidad detectado (2026-10-01):** el código cita **ADR-001 a ADR-031**
 > (`ADR-006/007/008/009` en `adb_engine`, `ADR-029` en `port_allocator`, `ADR-031` en
@@ -217,6 +218,19 @@
 
 ---
 
+<a name="adr-041"></a>
+### ADR-041: La Cobertura no es la Red — los Refactores de Complejidad se Verifican Mutando
+
+- **Contexto del Problema**: los 7 bloques de complejidad elegidos para demoler "tenían cobertura" (medida con `coverage`). Al comprobar esa red con 8 mutaciones deliberadas —cambios de comportamiento deliberados que *deberían* hacer fallar algo— **4 sobrevivieron**: se podía invertir el sentido del conmutador de vista (Ctrl+M hacía lo contrario), cambiar el sello de confianza, comerse el chip EMUI del perfil o dejar de cortar la sesión del tracker ante una cabecera truncada sin que fallara una sola prueba. La cobertura medía líneas ejecutadas, no contratos anclados.
+- **Decisión Adoptada**: (a) todo refactor de complejidad se verifica con **mutaciones** (al menos una por contrato relevante) y no se da por bueno hasta que todas se cazan; (b) las mutaciones supervivientes se convierten en **pruebas de caracterización** permanentes; (c) la herramienta de mutación **comprueba que sus pruebas corrieron** (falla si hay skips) — la primera pasada midió mal precisamente por esto; (d) los bloques que no tienen red no se tocan: se cubren primero.
+- **Consecuencias**:
+  - *Positivas*: la red de los 7 refactores pasó de 4/8 a **8/8** con 6 pruebas nuevas; suite 566 → 572. Los 4 huecos tapados eran exactamente los comportamientos que un futuro cambio de UI/seguridad habría roto en silencio.
+  - *Negativas*: la verificación de un refactor cuesta 9 pasadas de suite (~4 min) en vez de 1; hay que mantener el script de mutaciones y sus anclajes (texto exacto) al día.
+  - *Verificación*: `mutar_los_siete.py` (línea base verde **con 0 skips**, 8/8 cazadas); clase `TestRedDeCaracterizacionDeLosRefactores` en `tests/test_fase_d_regressions.py`.
+  - *Regla derivada*: un texto traducible **no se guarda en una tabla** — vive en la llamada a `_("…")`, o el escáner de i18n lo verá como clave muerta y una poda posterior borrará una traducción viva (pasó al escribir el refactor de `_on_tab_changed`; ver ADR-040 y P3.33).
+
+---
+
 ## ⚖️ Matriz de Trade-offs de Decisiones Técnicas
 
 | Decisión Técnica | Beneficio Directo | Costo / Penalización | Alternativa Descartada | Razón del Rechazo |
@@ -238,6 +252,8 @@
 | **Aislar y verificar (con guardián) que la suite no toca datos del usuario, en vez de confiar en la revisión** | La suite es segura en cualquier máquina; la pérdida de configuración se detecta automáticamente. | Un subproceso extra en la suite (~1,5 s) y una regla estática que respetar. | Documentar el aislamiento en la docstring del archivo de pruebas. | Es exactamente lo que falló: la docstring afirmaba el aislamiento y el archivo no lo hacía; se perdieron los perfiles del usuario. |
 | **Los widgets reciben `save_cb` en vez de guardar por su cuenta** | Un componente de interfaz no puede destruir la configuración del usuario, ni siquiera si le pasan un objeto incompleto. | Un parámetro más que propagar desde `main.py`. | Que el widget importe `save_config` y persista el `cfg` que le den. | Con un `cfg` parcial escribía una configuración incompleta sobre la real (P3.32). |
 | **Contar lo usado por dos vías (literal + flujo) en vez de sólo literales** | La poda no borra traducciones vivas; las cifras de i18n dejan de ser un subconteo. | Hay que declarar cada puerta nueva hacia `_()` en `VIAS_DE_FLUJO`. | Escanear sólo `_("literal")`. | Los 19 títulos de la FAQ llegan por variable: aparecían como huérfanos y se habrían borrado (P3.33). |
+| **Verificar cada refactor de complejidad mutando, no con la cobertura** | Distingue "se ejecutó" de "está anclado": cazó 4 huecos reales en los 7 bloques. | 9 pasadas de suite por refactor (~4 min) y mantener los anclajes del script. | Dar la cobertura de líneas por red suficiente. | Cuatro comportamientos (sentido del conmutador, sello de confianza, chip EMUI, corte del tracker) se podían romper sin que fallara nada (ADR-041). |
+| **No tocar los 7 bloques sin red hasta cubrirlos** | Se refactoriza con red debajo, no con fe. | Cerrar la Ley 7 lleva dos pasadas en vez de una. | Demoler los 14 de golpe porque la cobertura global es del 85 %. | `main()` tiene 57 líneas de arranque que ninguna prueba ejecuta: es el patrón que engendró los bugs de v1.4.1. |
 | **Que la tabla i18n sea un espejo exacto del código, con guardián** | Editar una traducción siempre surte efecto; no quedan entradas muertas ni cadenas sin traducir. | Mantener el escaneo y la lista de vías al día. | Dejar las 275 sobras «por si acaso» y confiar en la revisión. | Cada sobra es un cebo: la de P3.26 enmascaraba la traducción buena y nadie lo notó hasta que pyflakes la delató. |
 | **Sanitización de `extra_args` con lista de rechazo** | Prevención de ataques de inyección de comandos en perfiles compartidos. | Rechazo de scripts compuestos dentro del campo de argumentos. | Ejecutar mediante shell directo con permisos elevados. | Riesgo crítico de seguridad según la Ley Global 3. |
 | **Almacenamiento JSON plano con guardado atómico (`fsync` + `os.replace`)** | Cero dependencias de base de datos externa, portabilidad absoluta. | No apto para consultas relacionales masivas concurrentes. | SQLite / PostgreSQL embebido. | Sobrecomplejidad innecesaria para un gestor de configuración local de escritorio. |

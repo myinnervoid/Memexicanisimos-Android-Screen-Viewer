@@ -46,6 +46,29 @@ class TrustedDevice:
     added_at: float
 
 
+# ── Interpretación de direcciones IP (usada por is_private_ip) ───────────────
+
+
+def _sin_brackets_ipv6(host: str) -> str:
+    """Quita los corchetes del formato IPv6 entre corchetes: "[::1]" → "::1"."""
+    if host.startswith("[") and host.endswith("]"):
+        return host[1:-1]
+    return host
+
+
+def _direccion_no_utilizable(ip) -> bool:
+    """0.0.0.0/:: y el broadcast: `ipaddress` los acepta, pero no sirven para conectar."""
+    return ip.is_unspecified or (ip.version == 4 and str(ip) == "255.255.255.255")
+
+
+def _ip_o_none(candidate: str):
+    """El objeto `ipaddress` de la cadena, o `None` si no es una IP válida."""
+    try:
+        return ipaddress.ip_address(candidate)
+    except ValueError:
+        return None
+
+
 class SecurityService:
     """Servicio de seguridad transversal.
 
@@ -137,20 +160,13 @@ class SecurityService:
             cadenas vacías, espacios en blanco.
           - NUNCA lanza excepción: entrada inválida → False.
         """
-        if not host or not host.strip():
+        candidate = _sin_brackets_ipv6((host or "").strip())
+        if not candidate:
             return False
-        candidate = host.strip()
-        # Quitar brackets IPv6
-        if candidate.startswith("[") and candidate.endswith("]"):
-            candidate = candidate[1:-1]
-        try:
-            ip = ipaddress.ip_address(candidate)
-        except ValueError:
+        ip = _ip_o_none(candidate)
+        if ip is None or _direccion_no_utilizable(ip):
             return False
-        # Rechazar 0.0.0.0/:: y broadcast
-        if ip.is_unspecified or (ip.version == 4 and str(ip) == "255.255.255.255"):
-            return False
-        return ip.is_private or ip.is_loopback or ip.is_link_local
+        return any((ip.is_private, ip.is_loopback, ip.is_link_local))
 
     # ─── TODO-S2 · validate_wifi_endpoint ────────────────────────────
     def validate_wifi_endpoint(

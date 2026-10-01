@@ -183,7 +183,7 @@ La duplicación que queda son invocaciones de `subprocess.run(...)` en `adb_engi
 | Duplicación | ≤ 5 % | 1,4 % | ✅ |
 | Vulnerabilidades | 0 altas/críticas | 0 | ✅ |
 
-**4 ✅ · 1 🟡 · 0 ❌** — la Ley 7 de UI pasa a verde (con display: sin él, las 43 pruebas de UI se saltan y las cifras no significan nada). Queda un solo 🟡 en todo el proyecto: los 14 bloques de complejidad entre 11 y 18 (con 0 bloques rank D o F). Cobertura total del proyecto: 35 % → **85 %** (558 pruebas en verde).
+**4 ✅ · 1 🟡 · 0 ❌** — la Ley 7 de UI pasa a verde (con display: sin él, las 43 pruebas de UI se saltan y las cifras no significan nada). Queda un solo 🟡 en todo el proyecto: los **7** bloques de complejidad entre 11 y 18 (con 0 bloques rank D o F), que son exactamente los que **aún no tienen red de comportamiento** (§11.12). Cobertura total del proyecto: 35 % → **85 %** (572 pruebas en verde).
 
 ---
 
@@ -827,8 +827,11 @@ Con D1 como red de seguridad se atacaron los **tres últimos bloques Rank D** de
 
 **Resultado global:** el repositorio queda con **0 bloques Rank D o F** (antes 3 D y 2 F en la
 v1.4.1) y **14 bloques > 10**, todos Rank C y con máximo **18** (antes 20 bloques, máximo 63).
+De esos 14, **7 se demuelen en §11.12** (los que ya tienen red) y quedan 7 pendientes de
+cobertura.
 Un guardián permanente en `test_fase_d_regressions.py::TestComplejidadSinBloquesD` impide que
-vuelva a aparecer un bloque Rank D y falla si el recuento supera 14.
+vuelva a aparecer un bloque Rank D y compara los bloques > 10 contra una lista blanca exacta
+(actualizada en §11.12: ya no es "hasta 14", son los 7 con nombre y apellido).
 
 **Mejoras de diseño que trajo la descomposición** (no eran el objetivo, pero salieron):
 
@@ -1046,7 +1049,7 @@ siguen en verde.
 | `scrcpy_dock/ui_tabs.py` (+ `ui/tabs/`) | 98 % | **99 %** | ✅ |
 | `scrcpy_dock/ui_widgets.py` | 49 % | **81,8 %** | ✅ |
 
-**La Ley 7 de Cobertura de UI queda en ✅.** Con esto, **4 de los 5 umbrales de la Ley 7 están en VERDE** (Negocio ✅, UI ✅, Duplicación ✅, Vulnerabilidades ✅). El único aspecto en 🟡 es la complejidad residual (14 bloques entre 11 y 18, con **cero** bloques rank D o F).
+**La Ley 7 de Cobertura de UI queda en ✅.** Con esto, **4 de los 5 umbrales de la Ley 7 están en VERDE** (Negocio ✅, UI ✅, Duplicación ✅, Vulnerabilidades ✅). El único aspecto en 🟡 es la complejidad residual: **7 bloques** entre 11 y 18 (antes 14; ver §11.12), con **cero** bloques rank D o F.
 
 **Qué se cubrió y qué se corrigió:**
 1. **P3.27 (🔴, cazado y corregido):** `PillNavBar` enlazaba cada pastilla con una lambda que invocaba `self.select(tid, i)`, pero carecía del método `select()`, arrojando `AttributeError`. Se implementó `select(self, tab_id, idx=None)` con gestión de colores activos/inactivos y callback.
@@ -1119,13 +1122,15 @@ en un runner sin pantalla. Ver ADR-037 y ADR-038.
 | Cobertura total | 82 % | **85 %** |
 | `pyflakes` en el árbol | — | **exit 0** (era exit 1 con 55 hallazgos) |
 | Claves i18n duplicadas / sin traducir | 0 / 0 | **0 / 0** |
-| Bloques CC > 10 · Rank D/F | 14 · 0 | **14 · 0** |
+| Bloques CC > 10 · Rank D/F | 14 · 0 | **14 · 0** (→ **7 · 0** al cerrar §11.12) |
 | Pruebas que escriben en la config real | (no se sabía) | **0** — había **1**, corregida y con guardián |
 
-**Lo que sigue pendiente** (sin cambios respecto a lo que ya estaba declarado): las **294 claves i18n
-huérfanas**; los **14 bloques de complejidad** entre 11 y 18 (`_toggle_scene` 18, `_toggle_view` 17
-en `main.py`); D4 (exhaustividad de `ERROR_CATALOG` + contraste WCAG) y D5; y los ~26 ADR citados en
-el código y no escritos.
+**Lo que sigue pendiente** (actualizado tras §11.11 y §11.12): los **7 bloques de
+complejidad** entre 11 y 18 —`_toggle_scene` 18, `main` 15, `_launch_with_fallback` 12,
+`_change_theme` 12, `get_compatible_codecs` 12, `_select_tab` 11 y `scan_devices` 11— que
+son justo los que **no tienen red de comportamiento** (se cubren antes de demolerlos);
+D4 (exhaustividad de `ERROR_CATALOG` + contraste WCAG) y D5; y los ~26 ADR citados en el
+código y no escritos.
 
 ### 11.11 Poda de la tabla de traducciones (2026-10-01)
 
@@ -1159,6 +1164,71 @@ exige que la vía de flujo siga declarada en `VIAS_DE_FLUJO` — si alguien aña
 | Claves duplicadas | 0 | **0** |
 | Claves usadas sin traducción | 0 | **0** |
 | Pruebas | 561 | **566** |
+
+### 11.12 Demolición de los 7 bloques de complejidad con red (2026-10-01)
+
+Segunda parte de la Fase D: los 14 bloques > 10 se dividieron en dos grupos según su
+**red de comportamiento**, no según su cobertura de líneas.
+
+| # | Blanco | CC antes | CC después | Descomposición |
+| :-: | :--- | :-: | :-: | :--- |
+| 1 | `ScrcpyDockApp._toggle_view` | **17** | **2** | despachador + `_pasar_a_modo_compacto` / `_pasar_a_vista_completa`, con la tabla `_WIDGETS_DEL_MODO_COMPLETO` y `_restaurar_widgets_del_modo_completo` |
+| 2 | `ScrcpyDockApp._on_tab_changed` | **14** | **1** | tres pintores (`_pintar_etiquetas_de_dispositivo/_de_confianza/_de_perfil`) + `_pintar_etiqueta` y `_sello_de_confianza` |
+| 3 | `ProfileChipsView.set_profile` | **14** | **2** | `_chips_del_perfil` + `_chips_condicionales` + `_pintar_chips`/`_pintar_chip` y el auxiliar `_limpiar` |
+| 4 | `_TrackerThread._run_once` | **13** | **2** | `_lanzar_track_devices`, `_bucle_de_eventos`, `_leer_evento`, `_notificar_dispositivos`, `_cerrar_proceso` |
+| 5 | `AdbEngine.revert_tcpip` | **11** | **4** | `_adb_usb` + `_resultado_de_revert` + `_es_transicion_de_transporte` (marcadores ADR-009 elevados a constante de módulo) |
+| 6 | `SecurityManager.parse_pair_ip_port_code` | **11** | **7** | tres validadores independientes: `_codigo_de_pareo_valido`, `_puerto_en_rango`, `_ip_normalizada` |
+| 7 | `SecurityService.is_private_ip` | **11** | **5** | `_sin_brackets_ipv6`, `_ip_o_none`, `_direccion_no_utilizable` |
+
+**Resultado**: **14 → 7 bloques > 10** (máximo 18 → 18, pero ahora todos son los sin red),
+**0 Rank D/F**, y los 7 atacados quedan en Rank A/B (≤ 7). Suite **566 → 572 pruebas**.
+
+#### La red se midió mutando, no se declaró
+
+"Tiene cobertura" no es "está anclado". Antes de dar la demolición por buena se
+introdujeron **8 mutaciones deliberadas** (una por contrato relevante: invertir el
+conmutador de vista, cambiar el sello de confianza, comerse un chip, dejar de cortar
+la sesión del tracker, silenciar el falso negativo ADR-009, no descartar el serial,
+aceptar un PIN de 5 dígitos, aceptar `0.0.0.0` como privada) y se exigió que **alguna
+prueba las cazara**.
+
+| Medición | Cazadas | Lectura |
+| :--- | :-: | :--- |
+| 1.ª pasada | **4 / 8** | cuatro métodos con cobertura de líneas pero sin comportamiento anclado |
+| 2.ª pasada (tras tapar los huecos) | **8 / 8** | |
+
+Las 4 supervivientes eran reales y había que taparlas: se podía invertir el sentido del
+conmutador de vista, cambiar el sello de confianza, eliminar el chip EMUI del perfil o
+dejar de cortar la sesión ante una cabecera truncada **sin que fallara una sola prueba**
+(`tests/test_fase_d_regressions.py`, clase `TestRedDeCaracterizacionDeLosRefactores`,
+6 pruebas nuevas).
+
+> ⚠️ **La primera pasada fue un artefacto de la herramienta.** El script de mutación
+> sustituía el entorno del subproceso y, al faltar `XAUTHORITY`, las pruebas de UI se
+> **saltaban en silencio** (y un `skip` no es un fallo): los "4 supervivientes" de la
+> primera medición no lo eran. El script corregido hereda el entorno y **aborta si hay
+> 0 skips en la línea base**. Lección medida: una medición que no comprueba que sus
+> pruebas corrieron no es una medición.
+
+#### Lo que queda (los 7 sin red) — segundo lote, en este orden
+
+| Bloque | CC | Líneas sin cubrir |
+| :--- | :-: | :--- |
+| `main()` (entrada con `--install`/`--uninstall`/`--help`) | 15 | **57** |
+| `ScrcpyDockApp._toggle_scene` | 18 | 11 |
+| `DeviceManager.scan_devices` | 11 | 14 |
+| `SessionManager._launch_with_fallback` | 12 | 5 |
+| `ScrcpyEngine.get_compatible_codecs` | 12 | 1 |
+| `ScrcpyDockApp._change_theme` | 12 | 1 |
+| `ScrcpyDockApp._select_tab` | 11 | 1 |
+
+Se **cubren primero y se demuelen después**: tocar `main()` (57 líneas de arranque sin
+ejecutar nunca en pruebas) es exactamente el patrón que engendró los bugs de v1.4.1.
+
+**Guardián actualizado**: `TestComplejidadSinBloquesD` ya no tolera "hasta 14 bloques";
+ahora compara contra una **lista blanca exacta** (`BLOQUES_PENDIENTES`) por
+`archivo método`. Verificado que muerde: inyectando un bloque CC 25 en `utils.py`, la
+prueba falla y lo nombra.
 
 ---
 
