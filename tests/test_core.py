@@ -2,6 +2,7 @@ import unittest
 import os
 import json
 import tempfile
+from unittest.mock import patch
 from scrcpy_dock.utils import parse_ip_port, _extract_serial, load_config, save_config
 from scrcpy_dock.managers import ProfileManager, SessionManager
 from scrcpy_dock.i18n import _translations, get_language, set_language
@@ -39,10 +40,39 @@ class TestUtils(unittest.TestCase):
         self.assertEqual(serial, "192.168.1.50:5555")
 
     def test_atomic_save_config(self):
-        test_cfg = {"test_key": "test_value_123"}
-        save_config(test_cfg)
-        loaded = load_config()
+        """Escribe en un CONFIG_FILE temporal; NUNCA en la config real del usuario.
+
+        Regresión: esta prueba llamaba a save_config() sobre ~/.config/masv/config.json
+        real y borraba los perfiles y la bóveda del usuario.
+        """
+        import scrcpy_dock.utils as utils
+
+        real_config = utils.CONFIG_FILE
+        real_before = None
+        if os.path.exists(real_config):
+            with open(real_config, "rb") as fh:
+                real_before = fh.read()
+
+        with tempfile.TemporaryDirectory() as tmp:
+            with patch.object(utils, "CONFIG_FILE", os.path.join(tmp, "config.json")), \
+                 patch.object(utils, "LOG_FILE", os.path.join(tmp, "masv.log")):
+                save_config({"test_key": "test_value_123"})
+                loaded = load_config()
+
         self.assertEqual(loaded.get("test_key"), "test_value_123")
+
+        # La configuración real del usuario debe quedar intacta.
+        if real_before is None:
+            self.assertFalse(
+                os.path.exists(real_config),
+                f"la suite creó la config real del usuario: {real_config}",
+            )
+        else:
+            with open(real_config, "rb") as fh:
+                self.assertEqual(
+                    fh.read(), real_before,
+                    f"la suite modificó la config real del usuario: {real_config}",
+                )
 
 class TestProfileManager(unittest.TestCase):
     def setUp(self):

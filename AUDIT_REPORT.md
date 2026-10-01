@@ -154,7 +154,7 @@ Este documento contiene **dos rondas de auditoría**:
 | Artefacto | Estado | Nota |
 | :--- | :---: | :--- |
 | `scrcpy_dock/contracts.py` | ✅ Creado | Con `OperationResult`, `DeviceEntry`, `SessionInfo`, `ProfileConfig`, `TrustedDeviceEntry` |
-| `scrcpy_dock/errors.py` | ✅ Creado | 30 `ErrorCode`; `ERROR_CATALOG` detalla 13 |
+| `scrcpy_dock/errors.py` | ✅ Creado | 30 `ErrorCode`; `ERROR_CATALOG` detalla 11 |
 | `scrcpy_dock/state.py` | ✅ Creado | `UIState` + `UIStateMachine` (sin validación de transiciones) |
 | `DECISIONS.md` | ✅ Creado | Registro de ADR y matriz de trade-offs |
 | `tests/test_contracts.py` | ✅ Creado | + `tests/contracts/` (7 suites de contrato) |
@@ -191,7 +191,7 @@ Este documento contiene **dos rondas de auditoría**:
 `errors.py` define 30 códigos y `ErrorDetail` bilingüe (`title_es/en`, `description_es/en`, `remediation_es/en`) más `get_error_detail()` con fallback seguro para códigos desconocidos.
 
 **Deuda:**
-- `ERROR_CATALOG` sólo detalla **13 de los 30** códigos.
+- `ERROR_CATALOG` sólo detalla **11 de los 30** códigos.
 - `BLOCKED_IP_ACCESS`, `DEVICE_OFFLINE` y `V4L2_LOOPBACK_ERROR` están definidos y **no se usan en ningún punto**.
 - Existe un código **invocado pero inexistente**: `ErrorCode.INTERNAL_ERROR` (`services/security_service.py:207`), que convierte una ruta de error en `AttributeError` (bug **P3.4**).
 

@@ -31,7 +31,16 @@ class _SessionInfo:
 class ScrcpySession:
     """Envoltorio de sesión activa para compatibilidad con UI y observadores."""
 
-    def __init__(self, serial: str, profile_name: str, proc: Any, assigned_port: int = 27183):
+    def __init__(
+        self,
+        serial: str,
+        profile_name: str,
+        proc: Any,
+        assigned_port: int = 27183,
+        config: Any = None,
+        device: Any = None,
+        caps: Any = None,
+    ):
         self.serial = serial
         self.profile_name = profile_name
         self.process = proc
@@ -39,6 +48,10 @@ class ScrcpySession:
         self.assigned_port = assigned_port
         self.active = True
         self.t0 = time.time()
+        # Contexto preservado para poder reconstruir el argv ("Copiar comando scrcpy").
+        self.config = config
+        self.device = device
+        self.caps = caps
 
     def uptime(self) -> str:
         s = int(time.time() - self.t0)
@@ -125,6 +138,21 @@ class DeviceManager:
                 "connection_type": "WIFI" if ":" in serial else "USB",
             }
         return {}
+
+    def get_device_model(self, serial: str) -> str:
+        """Devuelve el modelo real del dispositivo (ro.product.model) por serial.
+
+        Prioriza `device_entries` (poblado desde `adb devices -l`), que es la
+        única fuente fiable: `get_device_props()` no transporta el modelo
+        (devuelve el fabricante). Devuelve "" si no se conoce.
+        """
+        for entry in self.device_entries:
+            if entry.serial == serial and entry.model:
+                return entry.model
+        for s, model, state in self.devices:
+            if s == serial and state == "ok" and model:
+                return model
+        return ""
 
     def get_capabilities(self, serial: str) -> Optional[DeviceCapabilities]:
         """Obtiene capacidades de hardware cacheadas resolviendo con get_properties una sola vez."""
@@ -275,6 +303,28 @@ class SessionManager:
             return sess.to_session_info()
         return None
 
+    def build_command_for(self, serial: str) -> OperationResult[list[str]]:
+        """Reconstruye el argv de scrcpy de una sesión activa.
+
+        Usado por la UI para "Copiar comando scrcpy" sin acceder a los
+        internals del motor. Requiere que la sesión conserve su contexto
+        (`config`, `device`, `caps`), que se guarda al lanzarla.
+        """
+        sess = self.sessions.get(serial)
+        if sess is None:
+            return OperationResult.fail(
+                ErrorCode.DEVICE_NOT_FOUND, f"No hay sesión activa para {serial}",
+            )
+        config = getattr(sess, "config", None)
+        device = getattr(sess, "device", None)
+        caps = getattr(sess, "caps", None)
+        if config is None or device is None or caps is None:
+            return OperationResult.fail(
+                ErrorCode.INVALID_INPUT,
+                "La sesión no conserva su configuración; no se puede reconstruir el comando.",
+            )
+        return self._scrcpy.build_command(config, device, caps)
+
     def start_scene(self, *args, **kwargs) -> OperationResult[Any]:
         """Punto de entrada: despacha entre nueva API hexagonal y API legacy."""
         if len(args) >= 2 and isinstance(args[0], Device):
@@ -307,6 +357,7 @@ class SessionManager:
             stay_awake=bool(getattr(profile, "stay_awake", True)),
             extra_args=tuple(getattr(profile, "extra_args", ())),
             otg_mode=bool(getattr(profile, "otg_mode", False)),
+            video_enabled=bool(getattr(profile, "video_enabled", True)),
         )
 
         # 3. Resolver DeviceCapabilities
@@ -477,6 +528,8 @@ class SessionManager:
         camera_id = profile_data.get("camera_id")
         camera_facing = profile_data.get("camera_facing")
         otg_mode = bool(profile_data.get("otg_mode", False))
+        # "Solo audio": aceptado como flag nativo o vía el campo `no_video` del asistente.
+        video_enabled = not bool(profile_data.get("no_video", False))
 
         extra_args_tuple: tuple[str, ...] = ()
         extra_str = profile_data.get("extra_args", "")
@@ -498,6 +551,9 @@ class SessionManager:
                     idx += 1
                 elif tok == "--otg":
                     otg_mode = True
+                elif tok == "--no-video":
+                    # Promovido a atributo nativo: en la whitelist solo bloquea el vídeo.
+                    video_enabled = False
                 elif tok.startswith("--camera-id="):
                     camera_id = tok.split("=", 1)[1]
                 elif tok == "--camera-id" and idx + 1 < len(raw_tokens):
@@ -542,6 +598,7 @@ class SessionManager:
             stay_awake=bool(profile_data.get("stay_awake", True)),
             extra_args=extra_args_tuple,
             otg_mode=otg_mode,
+            video_enabled=video_enabled,
         )
 
         caps = DeviceCapabilities(
@@ -559,7 +616,10 @@ class SessionManager:
             return OperationResult.fail(launch_res.error_code or ErrorCode.PROCESS_SPAWN_ERROR, launch_res.message)
 
         proc = launch_res.data
-        sess = ScrcpySession(serial, profile_name, proc, assigned_port=assigned_port)
+        sess = ScrcpySession(
+            serial, profile_name, proc, assigned_port=assigned_port,
+            config=config, device=device, caps=caps,
+        )
         self.sessions[serial] = sess
 
         if success_cb:

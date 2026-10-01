@@ -348,7 +348,7 @@ p { color: red; }
 
 * `managers.py:260` — `ScrcpyEngine(..., Path("/usr/local/share/scrcpy/scrcpy-server"))`: ruta **hardcodeada** y el `server_jar` **nunca se usa** (scrcpy 4.x embebe el servidor).
 * `ScrcpyEngine.verify_server_version()` y `_compare_versions()` (`scrcpy_engine.py:103-165`) — implementados y **nunca invocados**; ADR-014 (control de versión cliente/servidor) queda sin efecto.
-* `errors.py` — `ERROR_CATALOG` cubre **13 de 30** códigos; `BLOCKED_IP_ACCESS`, `DEVICE_OFFLINE`, `V4L2_LOOPBACK_ERROR` **nunca se usan**.
+* `errors.py` — `ERROR_CATALOG` cubre **11 de 30** códigos; `BLOCKED_IP_ACCESS`, `DEVICE_OFFLINE`, `V4L2_LOOPBACK_ERROR` **nunca se usan**.
 * `contracts.py:22` — `OperationResult` mantiene **dos campos espejo** `error` y `error_code` (sincronizados en `__post_init__`); la duplicidad invita a bugs (`if res.error:` es siempre *truthy* porque `ok()` lo deja en `ErrorCode.NONE`).
 * `managers.py:105,107` — `self.devices`, `self.device_props`: `device_props` nunca se puebla (siempre cae al `get_capabilities`).
 * `pyflakes`: 20+ imports sin usar en `ui_tabs.py`, `ui_widgets.py`, `main.py`, `i18n.py` (`import json`, `import os`, `webbrowser`, `_recolor`, `SafeActionConfirmModal`, `get_error_detail`, `_card_button`…).
@@ -471,7 +471,7 @@ PY
 
 * LOC Python analizadas: **12.364** (53 ficheros; `main.py` 1.989, `ui_widgets.py` 1.201, `ui_tabs.py` 1.034, `adb_engine.py` 661, `i18n.py` 610, `managers.py` 592).
 * Archivos más grandes: `main.py` (97 KB), `ui_tabs.py` (67 KB), `i18n.py` (61 KB), `ui_widgets.py` (58 KB).
-* `ErrorCode`: 30 definidos / 29 usados / **1 usado-inexistente** (`INTERNAL_ERROR`) / 13 con `ErrorDetail` en catálogo / 3 definidos sin uso.
+* `ErrorCode`: 30 definidos / 29 usados / **1 usado-inexistente** (`INTERNAL_ERROR`, corregido en Fase A) / 11 con `ErrorDetail` en catálogo / 3 definidos sin uso.
 * Claves i18n EN: 563; literales `_()` sin traducción: **133**; claves duplicadas: **6**.
 * Tests: 269 (`unittest`), 0 que importen `scrcpy_dock.main`.
 

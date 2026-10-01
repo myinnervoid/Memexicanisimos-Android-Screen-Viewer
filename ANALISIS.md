@@ -107,7 +107,7 @@ Desglose de la capa de negocio (17 módulos):
 
 ### 3.2 Complejidad ciclomática (umbral Ley 7: ≤ 10)
 
-`radon cc`: **19 funciones/métodos por encima del umbral** (distribución A=51, B=7, C=12, D=4, F=2, +1 clase C).
+`radon cc`: **20 bloques por encima del umbral** de 362 analizados (18 métodos, 1 función, 1 clase): 15 de rank C, 3 D y 2 F.
 
 | Función | Rank | CC | Ubicación |
 | :--- | :---: | :---: | :--- |
@@ -131,6 +131,7 @@ Desglose de la capa de negocio (17 módulos):
 ### 3.3 Duplicación de código (umbral Ley 7: ≤ 5 %)
 
 **2,9 %** — 24 bloques de ≥ 6 líneas normalizadas repetidos; 252 líneas de 8.769. ✅ **Cumple.**
+*(Medición propia por bloques normalizados, no herramienta estándar de duplicación; sirve como orden de magnitud.)*
 Concentrada en las invocaciones repetidas de `subprocess.run(...)` en `adb_engine.py` (los mismos `capture_output/text/timeout/env` ×6), candidata natural a un helper único `_run_adb()`.
 
 ### 3.4 Mantenibilidad (radon MI)
@@ -153,7 +154,7 @@ Concentrada en las invocaciones repetidas de `subprocess.run(...)` en `adb_engin
 | :--- | :---: | :---: | :---: |
 | Cobertura lógica de negocio | ≥ 80 % | 46 %–100 % (mixto; `adb_engine` 46 %) | 🟡 |
 | Cobertura UI | ≥ 60 % | 0 %–16 % | ❌ |
-| Complejidad ciclomática | ≤ 10 | 19 bloques > 10 (máx. 50) | ❌ |
+| Complejidad ciclomática | ≤ 10 | 20 bloques > 10 (máx. 50) | ❌ |
 | Duplicación | ≤ 5 % | 2,9 % | ✅ |
 | Vulnerabilidades | 0 altas/críticas | 0 | ✅ |
 
@@ -174,7 +175,7 @@ Concentrada en las invocaciones repetidas de `subprocess.run(...)` en `adb_engin
 
 - ✅ `contracts.py` (`OperationResult[T]`, `DeviceEntry`, `SessionInfo`, `ProfileConfig`, `TrustedDeviceEntry`) y `errors.py` (30 `ErrorCode` + `ErrorDetail` bilingüe con remediación).
 - 🟡 **Brecha 2.1 (Mayor)** — Ley 5 no aplicada transversalmente: `security.py` devuelve `dict`/`bool`/`int`/`None` en 5 métodos; `utils` devuelve `dict`; los handlers de UI devuelven `None`. El doble campo `error`/`error_code` con `ok().error == NONE` (*truthy*) es una trampa semántica.
-- 🟡 **Brecha 2.2 (Mayor)** — `ERROR_CATALOG` detalla **13 de 30** códigos; 3 definidos sin uso; y **P3.4**: `ErrorCode.INTERNAL_ERROR` se invoca sin existir (`services/security_service.py:207`) → `AttributeError` que enmascara el error original de cifrado.
+- 🟡 **Brecha 2.2 (Mayor)** — `ERROR_CATALOG` detalla **11 de 30** códigos; 3 definidos sin uso; y **P3.4**: `ErrorCode.INTERNAL_ERROR` se invoca sin existir (`services/security_service.py:207`) → `AttributeError` que enmascara el error original de cifrado.
 - ❌ **Brecha 2.3 (Mayor, agravada)** — `utils.load_config()` sigue sin validar tipos (un `"profiles": []` se conserva tal cual) y ahora **comparte subdicts con `DEFAULT_CONFIG`** por copia superficial (P3.11): guardar un perfil contamina los valores de fábrica del proceso.
 - 🐞 **P3.14 (Crítico, Ley 10)** — Divergencia `security.py` (dict, texto plano) vs `services/security_service.py` (Fernet+PBKDF2, lista) → dos fuentes de verdad de seguridad y la robusta es **código muerto**.
 - ℹ️ **Aviso de la Ley 4**: `DECISIONS.md` declara «guardado atómico con validación de esquema», pero esa implementación vive en `ProfileService` y **no en el camino que usa la aplicación**. La decisión documentada describe código no ejecutado.
@@ -219,7 +220,7 @@ Concentrada en las invocaciones repetidas de `subprocess.run(...)` en `adb_engin
 | V1 | `DeviceCapabilities.model` | Ausente | Bug funcional P3.8 | Mayor | Añadir campo y propagar `ro.product.model` |
 | V1 | Cabecera legal/invariantes en `context.py` | Ausente | Hallazgo 1.2 de v1.2 sigue abierto | Menor | Añadir cabecera + invariantes |
 | V2 | `contracts.py` · `OperationResult[T]` | ✅ Creado y usado en core/services | No transversal (security/utils/UI) | Mayor | Migrar `security.py`; exponer solo `OperationResult` |
-| V2 | Catálogo `ErrorCode` completo | 30 códigos; catálogo detalla 13; 1 invocado inexistente | P3.4 rompe el contrato | Mayor | `INTERNAL_ERROR`→`UNKNOWN_ERROR`; cubrir 17 códigos |
+| V2 | Catálogo `ErrorCode` completo | 30 códigos; catálogo detalla 11; 1 invocado inexistente | P3.4 rompe el contrato | Mayor | `INTERNAL_ERROR`→`UNKNOWN_ERROR`; cubrir los 19 restantes |
 | V2 | Validación de esquema de config | Sin validar tipos + alias mutable | P3.11 + brecha 2.3 | Mayor | Cablear `ProfileService` a la UI (o validar + `deepcopy`) |
 | V2/V3 | Una sola fuente de verdad de seguridad | `security.py` (plano) vs `security_service.py` (cifrado, muerto) | P3.14 — privacidad | **Crítico** | Cablear `SecurityService` (Fernet+PBKDF2) y retirar el duplicado |
 | V3 | Whitelist de `extra_args` coherente | Bloquea `--no-video` (perfil por defecto) | P3.5 — regresión | Mayor | Añadir `--no-video` / `SessionConfig.video_enabled` |
@@ -345,7 +346,11 @@ El síntoma clásico que la v3.2 quería eliminar —**«la capa de interfaz eje
 ## 🚀 9. Plan de Evolución (Fase 2 del Motor)
 
 ### Fase A — Detener el sangrado (1–2 h)
-*Objetivo: eliminar los 2 Críticos y la pérdida de datos.*
+*Objetivo: eliminar el Crítico de pérdida de datos (P3.7) y los 7 fallos funcionales de arranque/handler (P3.1–P3.6). El segundo Crítico (P3.14, bóveda cifrada) se cierra en la Fase B (B5).*
+
+> **Estado: ✅ EJECUTADA (2026-10-01).** Las 7 acciones están implementadas y cubiertas por
+> `tests/test_fase_a_regressions.py` (22 pruebas nuevas, 291/291 en verde).
+> Cobertura total 35 % → 38 %; `ui_tabs.py` 0 % → 3 %. Detalle en el §11.
 
 | # | Acción | Criterio de aceptación |
 | :--- | :--- | :--- |
@@ -393,7 +398,7 @@ El síntoma clásico que la v3.2 quería eliminar —**«la capa de interfaz eje
 | :--- | :---: | :---: |
 | Cobertura UI | 0–16 % | ≥ 60 % |
 | Cobertura `adb_engine` | 46 % | ≥ 80 % |
-| Bloques CC > 10 | 19 (máx. 50) | 0 (máx. ≤ 10) |
+| Bloques CC > 10 | 20 (máx. 50) | 0 (máx. ≤ 10) |
 | Cuerpo de `main.py` | 1.989 líneas | < 500 |
 | Ley 6 (FSM gobernante) | ❌ | ✅ |
 | Defectos Críticos | 2 | 0 |
@@ -558,6 +563,41 @@ grep -n "return True" scrcpy_dock/state.py           # state.py:67
 # Ley 9 · Suite
 python -m unittest discover -s tests -v              # 269 tests OK
 ```
+
+---
+
+## 11. Registro de Ejecución — Fase A (2026-10-01)
+
+Ejecutada íntegramente. **291/291 pruebas en verde** (269 previas + 22 nuevas en `tests/test_fase_a_regressions.py`).
+
+| # | Acción | Archivos modificados | Prueba de aceptación | Estado |
+| :--- | :--- | :--- | :--- | :---: |
+| A1 | Aislar la config real en tests | `tests/test_core.py`, `tests/test_v14_features.py` | `TestA1AislamientoDeConfig::test_la_suite_no_escribe_la_config_real` (compara bytes antes/después) | ✅ |
+| A2 | Consolidar `_stop_selected` (era duplicado y llamaba a `SessionManager.stop()`, inexistente) | `main.py` | `TestA2DetenerSesion` (3 pruebas: usa `stop_session`, tolera evento de Tk, sin selección no rompe) | ✅ |
+| A3 | Reconstruir el comando vía motor | `main.py`, `managers.py` | `TestA3CopiarComando` (4 pruebas, incl. `build_command_for` y guarda anti-`_build_cmd`) | ✅ |
+| A4 | Implementar `DeviceManager.get_device_model()` | `managers.py` | `TestA4ModeloDeDispositivo` (4 pruebas) | ✅ |
+| A5 | `ErrorCode.INTERNAL_ERROR` → `UNKNOWN_ERROR` | `services/security_service.py` | `TestA5CatalogoDeErrores` (3 pruebas, incl. auditoría AST de todo `ErrorCode.*` referenciado) | ✅ |
+| A6 | Materializar la variable del `except` antes del `lambda` | `main.py` | `TestA6DiferidoSeguro` (guarda por `inspect.getsource`) | ✅ |
+| A7 | Modo solo audio correcto + whitelist única | `domain/models.py`, `core/scrcpy_engine.py`, `managers.py` | `TestA7PerfilesYAudioSolo` (6 pruebas, incl. "todo perfil de `DEFAULT_CONFIG` construye un comando válido") | ✅ |
+
+**Mejoras aplicadas más allá del plan original** (detectadas al revisarlo):
+- `ALLOWED_EXTRA_FLAGS` estaba **duplicada** en `domain/models.py` y `core/scrcpy_engine.py`: ahora es fuente única.
+- El modo solo audio **no inyecta** flags de vídeo (`--video-codec`, `--max-size`, `--video-source`) y `--no-video` no se duplica en el argv.
+- Guardas de dominio nuevas: solo audio + `camera` → `INVALID_INPUT`; solo audio en Android ≤ 10 → `INVALID_INPUT` con mensaje explícito (en Android 10 no hay captura de audio: `--no-video --no-audio` no reproduciría nada).
+- `SessionManager.build_command_for(serial)`: API pública que evita que la UI acceda a `_scrcpy` (interno).
+
+**Métricas tras la Fase A:**
+
+| Métrica | Antes | Después |
+| :--- | :---: | :---: |
+| Pruebas | 269 | **291** |
+| Cobertura total | 35 % | **38 %** |
+| Cobertura `ui_tabs.py` | 0 % | 3 % |
+| `pyflakes` "undefined name 'e'" | 1 | **0** |
+| Códigos `ErrorCode` referenciados que no existen | 1 | **0** |
+| Perfiles de fábrica que arrancan | 2 de 3 | **3 de 3** |
+
+**Riesgo residual declarado:** el perfil `🎙️ Stream OBS (Huawei)` con `--no-video` ahora falla **con un mensaje claro** en Android 10 (SDK ≤ 29), porque Android 10 no puede capturar audio en absoluto. En v1.4.1 fallaba igual (por la whitelist) pero con un error engañoso. Decidir si ese perfil debe renombrarse o rediseñarse (p. ej. `mic` + vídeo) es una **decisión de producto**, no técnica: queda para la Fase B.
 
 ---
 

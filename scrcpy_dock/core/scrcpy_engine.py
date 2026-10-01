@@ -15,6 +15,7 @@ from typing import Callable, Optional
 from scrcpy_dock.contracts import OperationResult
 from scrcpy_dock.errors import ErrorCode
 from scrcpy_dock.domain.models import (
+    ALLOWED_EXTRA_FLAGS,
     Codec,
     Device,
     DeviceCapabilities,
@@ -35,14 +36,9 @@ _CODECS_BY_SDK = (
     (21, (Codec.H264,)),
 )
 
-# Whitelist de flags extra (ADR-013 · Opción A estricta)
-ALLOWED_EXTRA_FLAGS = frozenset({
-    "--no-control",
-    "--power-off-on-close",
-    "--show-touches",
-    "--stay-awake",
-    "--window-title",
-})
+# Whitelist de flags extra (ADR-013 · Opción A estricta).
+# Fuente única de verdad: scrcpy_dock.domain.models.ALLOWED_EXTRA_FLAGS.
+# (Antes estaba duplicada aquí y en domain/models, con riesgo de divergir.)
 
 # Timeouts adaptativos de detección de fallo (ADR-011)
 _CODEC_FAILURE_TIMEOUT_SDK_LOW = 5.0    # android_sdk <= 29
@@ -236,61 +232,87 @@ class ScrcpyEngine:
             argv.extend(["-s", device.serial])
 
         is_camera = config.video_source == "camera" or "--video-source=camera" in config.extra_args
-        if not is_camera and not config.otg_mode:
+        # Modo "solo audio" (--no-video): no existe flujo de vídeo que ajustar.
+        is_audio_only = (not config.video_enabled) or ("--no-video" in config.extra_args)
+
+        if is_audio_only and is_camera:
+            return OperationResult.fail(
+                ErrorCode.INVALID_INPUT,
+                "El modo solo audio (--no-video) es incompatible con video_source='camera'.",
+            )
+        if is_audio_only and device.android_sdk <= 29:
+            # La captura de audio de scrcpy requiere Android 11+ (SDK 30).
+            # Sin vídeo y sin audio no habría nada que reproducir.
+            return OperationResult.fail(
+                ErrorCode.INVALID_INPUT,
+                "El modo solo audio requiere Android 11+ (SDK 30). "
+                f"Dispositivo: SDK {device.android_sdk}",
+            )
+        if is_audio_only and config.audio_source == "none":
+            return OperationResult.fail(
+                ErrorCode.INVALID_INPUT,
+                "Modo solo audio (--no-video) con audio_source='none' no reproduciría ningún flujo.",
+            )
+
+        if not is_camera and not config.otg_mode and not is_audio_only:
             argv.append("--no-downsize-on-error")
 
         if config.otg_mode:
             argv.append("--otg")
         else:
-            if config.resolution:
-                res_str = str(config.resolution).strip()
-                if res_str.lower() != "native":
-                    if "x" in res_str:
-                        try:
-                            res_val = str(max(int(x) for x in res_str.split("x")))
-                            argv.extend(["--max-size", res_val])
-                        except ValueError:
+            if is_audio_only:
+                # Solo audio: prohibir el flujo de vídeo y omitir los flags de vídeo.
+                argv.extend(["--no-video", "--port", str(config.port)])
+            else:
+                if config.resolution:
+                    res_str = str(config.resolution).strip()
+                    if res_str.lower() != "native":
+                        if "x" in res_str:
+                            try:
+                                res_val = str(max(int(x) for x in res_str.split("x")))
+                                argv.extend(["--max-size", res_val])
+                            except ValueError:
+                                argv.extend(["--max-size", res_str])
+                        else:
                             argv.extend(["--max-size", res_str])
-                    else:
-                        argv.extend(["--max-size", res_str])
+                    elif is_camera:
+                        # En modo cámara, 'native' puede ser un sensor de 48MP/12MP (ej. 4608x3456)
+                        # que desborda el encoder de hardware si no se limita. Default seguro a 1920.
+                        has_size = any(
+                            t.startswith("--max-size") or t.startswith("--camera-size") or t == "-m"
+                            for t in config.extra_args
+                        )
+                        if not has_size:
+                            argv.extend(["--max-size", "1920"])
                 elif is_camera:
-                    # En modo cámara, 'native' puede ser un sensor de 48MP/12MP (ej. 4608x3456)
-                    # que desborda el encoder de hardware si no se limita. Default seguro a 1920.
                     has_size = any(
                         t.startswith("--max-size") or t.startswith("--camera-size") or t == "-m"
                         for t in config.extra_args
                     )
                     if not has_size:
                         argv.extend(["--max-size", "1920"])
-            elif is_camera:
-                has_size = any(
-                    t.startswith("--max-size") or t.startswith("--camera-size") or t == "-m"
-                    for t in config.extra_args
-                )
-                if not has_size:
-                    argv.extend(["--max-size", "1920"])
 
-            argv.extend([
-                "--port", str(config.port),
-                "--video-codec", effective_codec.value,
-                "--video-bit-rate", bitrate_str,
-                "--video-source", config.video_source,
-            ])
+                argv.extend([
+                    "--port", str(config.port),
+                    "--video-codec", effective_codec.value,
+                    "--video-bit-rate", bitrate_str,
+                    "--video-source", config.video_source,
+                ])
 
-            # 5. Gobernanza de audio: SDK <= 29 o audio_source="none" fuerza --no-audio
+            # 5. Gobernanza de audio (aplica a espejo y a solo-audio; OTG no tiene flujo)
             if device.android_sdk <= 29 or config.audio_source == "none":
                 argv.append("--no-audio")
             else:
                 a_src = "playback" if config.audio_source == "system" else config.audio_source
                 argv.extend(["--audio-source", a_src])
 
-            # 6. Framerate adaptativo
-            if config.max_fps is not None:
+            # 6. Framerate adaptativo (solo si hay vídeo)
+            if config.max_fps is not None and not is_audio_only:
                 fps_flag = "--camera-fps" if config.video_source == "camera" else "--max-fps"
                 argv.extend([fps_flag, f"{config.max_fps:g}"])
 
-            # 7. Opciones de cámara (camera_id tiene precedencia sobre camera_facing)
-            if config.video_source == "camera":
+            # 7. Opciones de cámara (solo si hay vídeo; camera_id precede a camera_facing)
+            if config.video_source == "camera" and not is_audio_only:
                 if config.camera_id is not None:
                     argv.extend(["--camera-id", str(config.camera_id)])
                 elif config.camera_facing is not None:
@@ -317,8 +339,10 @@ class ScrcpyEngine:
         if not has_custom_title and device.model:
             argv.extend(["--window-title", f"MASV: {device.model}"])
 
-        # 10. Inyectar extra_args validados
-        argv.extend(config.extra_args)
+        # 10. Inyectar extra_args validados (sin duplicar los ya inyectados por el motor)
+        for token in config.extra_args:
+            if token not in argv:
+                argv.append(token)
 
         return OperationResult.ok(argv, "comando construido exitosamente")
 

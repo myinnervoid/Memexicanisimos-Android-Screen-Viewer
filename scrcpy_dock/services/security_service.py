@@ -204,7 +204,7 @@ class SecurityService:
             return OperationResult.ok(encrypted)
         except Exception as e:
             return OperationResult.fail(
-                ErrorCode.INTERNAL_ERROR,
+                ErrorCode.UNKNOWN_ERROR,
                 f"Error al cifrar vault: {e}",
             )
 

@@ -61,6 +61,8 @@ class DeviceCapabilities:
 
 ALLOWED_EXTRA_FLAGS = {
     "--no-control",
+    "--no-video",
+    "--no-audio",
     "--power-off-on-close",
     "--show-touches",
     "--stay-awake",
@@ -85,3 +87,5 @@ class SessionConfig:
     otg_mode: bool = False
     keyboard_mode: Optional[str] = None
     mouse_mode: Optional[str] = None
+    video_enabled: bool = True
+

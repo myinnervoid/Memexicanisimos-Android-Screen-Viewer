@@ -42,7 +42,15 @@ class TestV14Features(unittest.TestCase):
     def test_app_context_tether_service(self):
         if not self.root:
             self.skipTest("Tkinter display not available")
-        ctx = AppContext(self.root)
+        # AppContext llama a load_config()/save_config(): aislar del HOME real.
+        import os
+        import tempfile
+        from unittest.mock import patch
+        import scrcpy_dock.utils as utils
+        with tempfile.TemporaryDirectory() as tmp:
+            with patch.object(utils, "CONFIG_FILE", os.path.join(tmp, "config.json")), \
+                 patch.object(utils, "LOG_FILE", os.path.join(tmp, "masv.log")):
+                ctx = AppContext(self.root)
         self.assertIsNotNone(ctx.tether_engine)
         self.assertIsNotNone(ctx.tether_service)
 

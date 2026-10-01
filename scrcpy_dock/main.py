@@ -664,8 +664,11 @@ class ScrcpyDockApp:
                     self.root.after(0, self._on_deps_installed_success)
                 else:
                     self.root.after(0, lambda: Toast(self.root, _("No se pudo completar la instalación automática."), "error"))
-            except Exception as e:
-                self.root.after(0, lambda: Toast(self.root, f"Error en instalación: {e}", "error"))
+            except Exception as exc:
+                # `as exc` se borra al salir del except: hay que materializarlo
+                # en una variable estable antes de diferirlo con root.after().
+                err_msg = f"Error en instalación: {exc}"
+                self.root.after(0, lambda msg=err_msg: Toast(self.root, msg, "error"))
 
         threading.Thread(target=task, daemon=True).start()
 
@@ -1524,16 +1527,28 @@ class ScrcpyDockApp:
             self.root.after(600, self._refresh_devices)
         threading.Thread(target=task, daemon=True).start()
 
-    def _stop_selected(self):
+    def _stop_selected(self, _=None):
+        """Detiene la sesión seleccionada en la tabla (o invocada por el atajo Supr).
+
+        Firma tolerante a evento: el binding <Delete> de Tk invoca con un evento.
+        Debe existir UNA sola definición (antes había dos, y la activa llamaba
+        a SessionManager.stop(), que no existe).
+        """
         tree = self.ui.refs['sess_tree']
         sel = tree.selection()
         if not sel:
-            messagebox.showwarning(_("Atención"), _("Selecciona una sesión en la tabla."))
             return
-        serial = tree.item(sel[0], "values")[0]
-        self.ctx.session_mgr.stop_session(serial)
+        vals = tree.item(sel[0], "values")
+        if not vals:
+            return
+        serial = str(vals[0])
+        res = self.ctx.session_mgr.stop_session(serial)
         self._refresh_table()
-        self.ctx.log("INFO", f"[{serial}] Sesión detenida.")
+        if res.success:
+            self.ctx.log("INFO", f"[{serial}] Sesión detenida por el usuario.")
+            self._set_status(f"Sesión detenida: {serial}", C["orange"])
+        else:
+            messagebox.showwarning(_("Atención"), res.message)
 
     def _on_tab_changed(self, event=None):
         serial = self.ctx.active_device_serial
@@ -1657,21 +1672,6 @@ class ScrcpyDockApp:
             self._refresh_table()
         self.root.after(2000, self._monitor_sessions)
 
-    def _stop_selected(self, _=None):
-        """Detiene la sesión seleccionada en la tabla (o invocada por atajo Supr)."""
-        tree = self.ui.refs['sess_tree']
-        sel  = tree.selection()
-        if not sel:
-            return
-        vals = tree.item(sel[0], 'values')
-        if not vals:
-            return
-        serial = str(vals[0])
-        self.ctx.session_mgr.stop(serial)
-        self.ctx.log("INFO", f"[{serial}] Sesión detenida por el usuario.")
-        self._refresh_table()
-        self._set_status(f"Sesión detenida: {serial}", C["orange"])
-
     def _sess_context_menu(self, event):
         """Menú contextual (clic derecho) en la tabla de sesiones."""
         tree = self.ui.refs['sess_tree']
@@ -1703,13 +1703,13 @@ class ScrcpyDockApp:
             menu.grab_release()
 
     def _copy_sess_cmd(self, serial: str):
-        sess = self.ctx.session_mgr.sessions.get(serial)
-        if not sess:
+        """Copia el argv real de la sesión, reconstruido por el motor."""
+        res = self.ctx.session_mgr.build_command_for(serial)
+        if not res.success or not res.data:
+            Toast(self.root, res.message or _("No se pudo reconstruir el comando."), "warning")
             return
-        p = self.ctx.profile_mgr.get_profiles().get(sess.profile_name, {})
-        cmd = self.ctx.session_mgr._build_cmd(self.ctx.scrcpy, serial, p)
         self.root.clipboard_clear()
-        self.root.clipboard_append(" ".join(cmd))
+        self.root.clipboard_append(" ".join(res.data))
         Toast(self.root, _("Comando copiado al portapapeles"), "success")
 
     def _force_kill_sess(self, serial: str):
