@@ -1565,20 +1565,8 @@ class ScrcpyDockApp:
     def _start_otg_mode(self):
         """Inicia una sesión de control USB directo por hardware (HID) con teclado y ratón sin ventana de video."""
         serial = self.ctx.active_device_serial
-        if not serial:
-            messagebox.showwarning(_("Sin dispositivo"), _("Selecciona un dispositivo en la pestaña Dispositivo."))
-            self._nb.select(2)
+        if not self._dispositivo_listo_para_la_escena(serial, critico=False):
             return
-
-        if self.ctx.security_mgr.is_safe_mode_enabled and not self.ctx.security_mgr.is_trusted_device(serial):
-            alias = self.ctx.security_mgr.get_device_alias(serial)
-            model = self.ctx.device_mgr.get_device_model(serial) or "Android"
-            modal = TrustPromptModal(self.root, serial, model, alias, self.ctx.security_mgr, self.ctx.cfg, save_config)
-            if not modal.result or modal.result == "cancel":
-                return
-            if modal.result == "trust":
-                save_config(self.ctx.cfg)
-                self._on_dev_select()
 
         otg_cfg = {
             "extra_args": "--otg",
@@ -1621,52 +1609,109 @@ class ScrcpyDockApp:
                 messagebox.showerror(_("Error"), res.message)
 
     def _toggle_scene(self):
+        """Inicia o detiene la transmisión del dispositivo seleccionado."""
         serial = self.ctx.active_device_serial
-        if not serial:
-            messagebox.showerror(_("Sin dispositivo"), _("Selecciona un dispositivo en la pestaña Dispositivo."))
-            self._nb.select(2) # Fallback to device tab which is index 2 now
+        if not self._dispositivo_listo_para_la_escena(serial):
             return
-
-        # Verificación de seguridad si Modo Seguro está activo
-        if self.ctx.security_mgr.is_safe_mode_enabled and not self.ctx.security_mgr.is_trusted_device(serial):
-            alias = self.ctx.security_mgr.get_device_alias(serial)
-            model = self.ctx.device_mgr.get_device_model(serial) or "Android"
-            modal = TrustPromptModal(self.root, serial, model, alias, self.ctx.security_mgr, self.ctx.cfg, save_config)
-            if not modal.result or modal.result == "cancel":
-                return
-            if modal.result == "trust":
-                save_config(self.ctx.cfg)
-                self._on_dev_select()
 
         if serial in self.ctx.session_mgr.sessions:
             self._stop_current()
-        else:
-            profile_name = self.ctx.active_profile.get()
-            profile_data = dict(self.ctx.cfg["profiles"].get(profile_name, {}))
+            return
 
-            # Incorporar argumentos adicionales si estamos en Vista Simple
-            if hasattr(self, 'is_advanced_view') and not self.is_advanced_view:
-                extra_var = self.ui.refs.get('simple_extra_cmd_var')
-                if extra_var and extra_var.get().strip():
-                    existing_args = profile_data.get("extra_args", "")
-                    profile_data["extra_args"] = f"{existing_args} {extra_var.get().strip()}".strip()
+        self._arrancar_escena(serial)
 
-            self.ctx.state_machine.set_pending(f"Iniciando sesión: {profile_name}...")
-            
-            if profile_data.get("force_screen_off_keyevent") or (profile_data.get("audio_source") == "mic" and "--no-video" in profile_data.get("extra_args", "")):
-                self.ctx.log("ADB", f"[{serial}] keyevent 26…")
-                self._adb().shell(serial, "input", "keyevent", "26", timeout=5)
-                time.sleep(0.3)
+    def _dispositivo_listo_para_la_escena(self, serial, critico: bool = True) -> bool:
+        """Comprueba que hay dispositivo y que el Modo Seguro lo aprueba.
 
-            def on_started():
-                self._refresh_table()
-                self._nb.select(0) # Select Actions tab
-                self.ctx.state_machine.set_success(f"✔ Transmisión activa: {profile_name}")
+        `critico` distingue el aviso de "sin dispositivo" de arrancar una sesión
+        (error) del de Modo OTG (aviso): la diferencia venía de antes y se conserva.
+        """
+        if not serial:
+            self._avisar_sin_dispositivo(critico)
+            return False
 
-            self.ctx.state_machine.set_pending(f"Iniciando sesión: {profile_name}...")
-            res = self.ctx.session_mgr.start_scene(serial, profile_name, profile_data, on_started)
-            if not res.success:
-                self.ctx.state_machine.set_fault(res.message, res.error_code or ErrorCode.PROCESS_SPAWN_ERROR)
+        if self._requiere_confirmacion_de_confianza(serial):
+            return self._pedir_confianza(serial)
+        return True
+
+    def _avisar_sin_dispositivo(self, critico: bool = True):
+        """Avisa de que no hay dispositivo y lleva a la pestaña Dispositivo."""
+        aviso = messagebox.showerror if critico else messagebox.showwarning
+        aviso(_("Sin dispositivo"),
+              _("Selecciona un dispositivo en la pestaña Dispositivo."))
+        self._nb.select(2)
+
+    def _requiere_confirmacion_de_confianza(self, serial) -> bool:
+        """True si el Modo Seguro está activo y el dispositivo no es de confianza."""
+        return (self.ctx.security_mgr.is_safe_mode_enabled
+                and not self.ctx.security_mgr.is_trusted_device(serial))
+
+    def _pedir_confianza(self, serial) -> bool:
+        """Muestra el aviso de confianza. True si el usuario autoriza el arranque.
+
+        Cerrar el aviso sin elegir o cancelar NO equivale a confiar.
+        """
+        alias = self.ctx.security_mgr.get_device_alias(serial)
+        model = self.ctx.device_mgr.get_device_model(serial) or "Android"
+        modal = TrustPromptModal(self.root, serial, model, alias,
+                                 self.ctx.security_mgr, self.ctx.cfg, save_config)
+        if not modal.result or modal.result == "cancel":
+            return False
+        if modal.result == "trust":
+            save_config(self.ctx.cfg)
+            self._on_dev_select()
+        return True
+
+    def _arrancar_escena(self, serial):
+        """Arranca la sesión de scrcpy con el perfil activo."""
+        profile_name, profile_data = self._perfil_para_arrancar()
+
+        self.ctx.state_machine.set_pending(f"Iniciando sesión: {profile_name}...")
+        self._parches_previos_al_arranque(serial, profile_data)
+
+        def on_started():
+            self._refresh_table()
+            self._nb.select(0)   # pestaña Acciones
+            self.ctx.state_machine.set_success(f"✔ Transmisión activa: {profile_name}")
+
+        res = self.ctx.session_mgr.start_scene(serial, profile_name, profile_data, on_started)
+        if not res.success:
+            self.ctx.state_machine.set_fault(
+                res.message, res.error_code or ErrorCode.PROCESS_SPAWN_ERROR,
+            )
+
+    def _perfil_para_arrancar(self) -> tuple:
+        """(nombre, datos) del perfil activo, con los argumentos del mini-dock si toca."""
+        profile_name = self.ctx.active_profile.get()
+        profile_data = dict(self.ctx.cfg["profiles"].get(profile_name, {}))
+
+        if hasattr(self, "is_advanced_view") and not self.is_advanced_view:
+            extra = self._extras_de_la_vista_simple()
+            if extra:
+                previos = profile_data.get("extra_args", "")
+                profile_data["extra_args"] = f"{previos} {extra}".strip()
+        return profile_name, profile_data
+
+    def _extras_de_la_vista_simple(self) -> str:
+        """Argumentos escritos en el mini-dock (vacío si no hay campo)."""
+        var = self.ui.refs.get("simple_extra_cmd_var")
+        return var.get().strip() if var else ""
+
+    def _parches_previos_al_arranque(self, serial, profile_data):
+        """Manda el keyevent 26 antes de arrancar cuando el perfil lo necesita."""
+        if not self._necesita_keyevent_previo(profile_data):
+            return
+        self.ctx.log("ADB", f"[{serial}] keyevent 26…")
+        self._adb().shell(serial, "input", "keyevent", "26", timeout=5)
+        time.sleep(0.3)
+
+    @staticmethod
+    def _necesita_keyevent_previo(profile_data: dict) -> bool:
+        """EMUI no apaga la pantalla por su cuenta; el micrófono sin vídeo necesita el empujón."""
+        if profile_data.get("force_screen_off_keyevent"):
+            return True
+        return (profile_data.get("audio_source") == "mic"
+                and "--no-video" in profile_data.get("extra_args", ""))
 
     def _stop_current(self):
         serial = self.ctx.active_device_serial
@@ -2137,66 +2182,98 @@ def _make_tray_icon(size: int = 64):
     d.text(((size - tw) // 2, (size - th) // 2 - 2), text, fill="#FFFFFF", font=font)
     return img
 
-def main():
-    if "--install" in sys.argv:
-        from .services.installer_service import InstallerService
-        from pathlib import Path
-        import shutil
-        svc = InstallerService()
-        svc.ensure_layout()
-        is_frozen = getattr(sys, 'frozen', False)
-        exe_src = Path(sys.executable if is_frozen else os.path.abspath(sys.argv[0])).resolve()
-        target_exe = svc.bin_dir / "MASV"
+def _cli_install(argv) -> int:
+    """Instala MASV en el sistema (`--install`). Devuelve el código de salida."""
+    from .services.installer_service import InstallerService
 
-        if is_frozen and exe_src != target_exe.resolve():
-            try:
-                shutil.copy2(exe_src, target_exe)
-                target_exe.chmod(0o755)
-                exe_to_reg = target_exe
-            except Exception:
-                exe_to_reg = exe_src
-        else:
-            exe_to_reg = exe_src
+    svc = InstallerService()
+    svc.ensure_layout()
+    exe_to_reg = _copiar_al_sistema(svc, argv[0])
+    res = _escribir_lanzador(svc, exe_to_reg, _icono_a_registrar())
 
-        icon_path = Path(__file__).parent.parent / "assets" / "logo.png"
-        if is_frozen and hasattr(sys, '_MEIPASS'):
-            icon_path = Path(sys._MEIPASS) / "assets" / "logo.png"
-        
-        target_icon = svc.assets_dir / "logo.png"
-        if icon_path.exists():
-            try:
-                shutil.copy2(icon_path, target_icon)
-                res = svc.write_desktop_entry(exe_to_reg, target_icon)
-            except Exception:
-                res = svc.write_desktop_entry(exe_to_reg, icon_path)
-        else:
-            res = svc.write_desktop_entry(exe_to_reg, exe_to_reg)
+    if not res.success:
+        print(f"[MASV] Error al instalar: {res.message}")
+        return 1
 
-        if res.success:
-            print("[MASV] Instalación completada con éxito.")
-            print(f"[MASV] Enlace en terminal: {svc.bin_symlink_path}")
-            print(f"[MASV] Acceso de escritorio: {svc.desktop_entry_path}")
-            sys.exit(0)
-        else:
-            print(f"[MASV] Error al instalar: {res.message}")
-            sys.exit(1)
+    print("[MASV] Instalación completada con éxito.")
+    print(f"[MASV] Enlace en terminal: {svc.bin_symlink_path}")
+    print(f"[MASV] Acceso de escritorio: {svc.desktop_entry_path}")
+    return 0
 
-    if "--uninstall" in sys.argv:
-        from .services.installer_service import InstallerService
-        svc = InstallerService()
-        purge = "--purge" in sys.argv
-        res = svc.uninstall(purge=purge)
-        if res.success:
-            msg = "[MASV] Desinstalación completada con éxito."
-            if purge:
-                msg += " (Configuraciones y datos purgados)."
-            print(msg)
-            sys.exit(0)
-        else:
-            print(f"[MASV] Error al desinstalar: {res.message}")
-            sys.exit(1)
 
-    single_inst = SingleInstance()
+def _copiar_al_sistema(svc, programa):
+    """Copia el ejecutable a la carpeta gestionada cuando vamos empaquetados.
+
+    Fuera del empaquetado (o si ya se está ejecutando el binario instalado) se
+    registra el ejecutable actual. Si la copia falla, la instalación sigue
+    adelante con el original en vez de abortar.
+    """
+    import shutil
+    from pathlib import Path
+
+    congelado = getattr(sys, "frozen", False)
+    origen = Path(sys.executable if congelado else os.path.abspath(programa)).resolve()
+    if not congelado:
+        return origen
+
+    destino = svc.bin_dir / "MASV"
+    if origen == destino.resolve():
+        return origen
+    try:
+        shutil.copy2(origen, destino)
+        destino.chmod(0o755)
+        return destino
+    except Exception:
+        return origen
+
+
+def _icono_a_registrar():
+    """El logo a registrar: dentro del bundle cuando vamos empaquetados."""
+    from pathlib import Path
+
+    if getattr(sys, "frozen", False) and hasattr(sys, "_MEIPASS"):
+        return Path(sys._MEIPASS) / "assets" / "logo.png"
+    return Path(__file__).parent.parent / "assets" / "logo.png"
+
+
+def _escribir_lanzador(svc, exe_path, icono):
+    """Copia el logo a la carpeta gestionada y escribe el `.desktop`.
+
+    Sin logo, el lanzador se registra usando el propio ejecutable como icono.
+    Si la copia del logo falla, se registra el original.
+    """
+    import shutil
+
+    if not icono.exists():
+        return svc.write_desktop_entry(exe_path, exe_path)
+
+    destino_icono = svc.assets_dir / "logo.png"
+    try:
+        shutil.copy2(icono, destino_icono)
+        return svc.write_desktop_entry(exe_path, destino_icono)
+    except Exception:
+        return svc.write_desktop_entry(exe_path, icono)
+
+
+def _cli_uninstall(purge: bool) -> int:
+    """Desinstala MASV (`--uninstall`); con `--purge` borra también los datos."""
+    from .services.installer_service import InstallerService
+
+    res = InstallerService().uninstall(purge=purge)
+    if not res.success:
+        print(f"[MASV] Error al desinstalar: {res.message}")
+        return 1
+
+    msg = "[MASV] Desinstalación completada con éxito."
+    if purge:
+        msg += " (Configuraciones y datos purgados)."
+    print(msg)
+    return 0
+
+
+def _run_gui(single_inst=None) -> None:
+    """Arranca la interfaz: cerrojo de instancia única, ventana y bucle de eventos."""
+    single_inst = single_inst or SingleInstance()
     if not single_inst.acquire():
         messagebox.showwarning("MASV",
                                "La aplicación ya está en ejecución.\nBusca el icono en la bandeja del sistema.")
@@ -2211,6 +2288,22 @@ def main():
         root.mainloop()
     finally:
         single_inst.release()
+
+
+def main(argv=None):
+    """Punto de entrada: instalación/desinstalación por CLI, o arranque de la GUI.
+
+    `argv` es inyectable para poder caracterizar el arranque; sin argumento usa
+    `sys.argv` (comportamiento de siempre).
+    """
+    argv = sys.argv if argv is None else argv
+
+    if "--install" in argv:
+        sys.exit(_cli_install(argv))
+    if "--uninstall" in argv:
+        sys.exit(_cli_uninstall("--purge" in argv))
+
+    _run_gui()
 
 if __name__ == "__main__":
     main()

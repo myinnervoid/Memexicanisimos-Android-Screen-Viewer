@@ -804,6 +804,42 @@ decida, el comportamiento visible está caracterizado por
 
 ---
 
+### 3.35 🟡 La comprobación de Modo Seguro estaba duplicada en dos handlers *(encontrado al descomponer `_toggle_scene`, 01-oct · ✅ CORREGIDO)*
+
+**Archivo**: `scrcpy_dock/main.py` (`_toggle_scene` y `_start_otg_mode`)
+
+El mismo bloque —"¿hay dispositivo?" + "¿el Modo Seguro lo aprueba?"— estaba **copiado literalmente** en
+los dos handlers (18 líneas idénticas, incluido el modal de confianza y el `save_config`):
+
+```python
+        if self.ctx.security_mgr.is_safe_mode_enabled and not self.ctx.security_mgr.is_trusted_device(serial):
+            alias = self.ctx.security_mgr.get_device_alias(serial)
+            model = self.ctx.device_mgr.get_device_model(serial) or "Android"
+            modal = TrustPromptModal(...)
+            if not modal.result or modal.result == "cancel":
+                return
+            if modal.result == "trust":
+                save_config(self.ctx.cfg)
+                self._on_dev_select()
+```
+
+Dos consecuencias, la segunda medida:
+
+1. **Riesgo de arreglo a medias**: cualquier corrección de seguridad (por ejemplo, tratar un cierre sin
+   respuesta como no autorizado) hay que recordar hacerla en los dos sitios.
+2. **Ya habían divergido sin que nadie lo notara**: `_toggle_scene` avisaba de "sin dispositivo" con
+   `showerror` y `_start_otg_mode` con `showwarning` — la misma condición con dos severidades distintas.
+
+**Corrección**: el guardián vive ahora en un solo sitio (`_dispositivo_listo_para_la_escena`, con
+`_avisar_sin_dispositivo`, `_requiere_confirmacion_de_confianza` y `_pedir_confianza`), y los dos
+handlers lo invocan. La diferencia de severidad **se conserva** (parámetro `critico`), porque cambiarla
+sería un cambio de interfaz y no de estructura; queda como decisión de producto pendiente: ¿tiene
+sentido que falte el dispositivo sea error al arrancar una sesión y sólo aviso en Modo OTG?
+
+Efecto colateral medido: `_start_otg_mode` baja de CC 10 a **3** sin buscarlo.
+
+---
+
 ## 4. Cobertura de pruebas — brechas concretas
 
 Lo que **no** cubre la suite actual (269 tests) y permitió que los bugs anteriores pasaran:
@@ -898,16 +934,16 @@ sincronizados con el registro de ejecución de `ANALISIS.md` §11.
 
 | Métrica | Al redactar este informe | Tras Fases A–D (verificado) |
 | :--- | :---: | :---: |
-| Pruebas | 269 | **572** (572 OK con display · 50 skips y 0 errores sin display) |
+| Pruebas | 269 | **597** (597 OK con display · 62 skips y 0 errores sin display) |
 | Cobertura total | 35 % | **85 %** |
 | Cobertura `core/adb_engine.py` | 46 % | **100 %** |
 | Módulos de negocio bajo el 80 % | 4 | **0** (mínimo 81 %) |
 | Cobertura de la capa de pestañas | 0 % | **99 %** (`ui/tabs/`, 526 sentencias) |
 | Cobertura `ui_widgets.py` | 16 % | **94 %** (medido; la fase declaró 81,8 %) |
 | Cobertura UI (`ui_tabs.py`) | 0–3 % | **100 %** |
-| Bloques con CC > 10 | 20 (máx. 63) | **7** (máx. 18; los 7 sin red, ver §11.12 de `ANALISIS.md`) |
+| Bloques con CC > 10 | 20 (máx. 63) | **5** (máx. 12; los 5 sin red, ver §11.12–11.13 de `ANALISIS.md`) |
 | Bloques Rank D o F | 5 (3 D + 2 F) | **0** |
-| Mutaciones cazadas en los refactores (§11.12) | — | **8/8** (primera medición honesta: 4/8) |
+| Mutaciones cazadas en los refactores (§11.12–11.13) | — | **8/8** y **12/12** (primera medición: 4/8) |
 | Umbrales de la Ley 7 en rojo | 2 | **0** |
 | `ErrorCode` con `ErrorDetail` | 11 / 30 | **16 / 31** |
 | Literales `_()` sin traducción EN | 133 | **0** (425 claves vivas: 406 por literal + 19 por flujo) |

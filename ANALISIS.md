@@ -183,7 +183,7 @@ La duplicación que queda son invocaciones de `subprocess.run(...)` en `adb_engi
 | Duplicación | ≤ 5 % | 1,4 % | ✅ |
 | Vulnerabilidades | 0 altas/críticas | 0 | ✅ |
 
-**4 ✅ · 1 🟡 · 0 ❌** — la Ley 7 de UI pasa a verde (con display: sin él, las 43 pruebas de UI se saltan y las cifras no significan nada). Queda un solo 🟡 en todo el proyecto: los **7** bloques de complejidad entre 11 y 18 (con 0 bloques rank D o F), que son exactamente los que **aún no tienen red de comportamiento** (§11.12). Cobertura total del proyecto: 35 % → **85 %** (572 pruebas en verde).
+**4 ✅ · 1 🟡 · 0 ❌** — la Ley 7 de UI pasa a verde (con display: sin él, 62 pruebas se saltan y las cifras no significan nada). Queda un solo 🟡 en todo el proyecto: los **5** bloques de complejidad entre 11 y 12 (con 0 bloques rank D o F), que son exactamente los que **aún no tienen red de comportamiento** (§11.12–11.13). Cobertura total del proyecto: 35 % → **85 %** (597 pruebas en verde; `main.py` 61 → **68 %**).
 
 ---
 
@@ -831,7 +831,7 @@ De esos 14, **7 se demuelen en §11.12** (los que ya tienen red) y quedan 7 pend
 cobertura.
 Un guardián permanente en `test_fase_d_regressions.py::TestComplejidadSinBloquesD` impide que
 vuelva a aparecer un bloque Rank D y compara los bloques > 10 contra una lista blanca exacta
-(actualizada en §11.12: ya no es "hasta 14", son los 7 con nombre y apellido).
+(actualizada en §11.12 y §11.13: ya no es "hasta 14", son los 5 con nombre y apellido).
 
 **Mejoras de diseño que trajo la descomposición** (no eran el objetivo, pero salieron):
 
@@ -1049,7 +1049,7 @@ siguen en verde.
 | `scrcpy_dock/ui_tabs.py` (+ `ui/tabs/`) | 98 % | **99 %** | ✅ |
 | `scrcpy_dock/ui_widgets.py` | 49 % | **81,8 %** | ✅ |
 
-**La Ley 7 de Cobertura de UI queda en ✅.** Con esto, **4 de los 5 umbrales de la Ley 7 están en VERDE** (Negocio ✅, UI ✅, Duplicación ✅, Vulnerabilidades ✅). El único aspecto en 🟡 es la complejidad residual: **7 bloques** entre 11 y 18 (antes 14; ver §11.12), con **cero** bloques rank D o F.
+**La Ley 7 de Cobertura de UI queda en ✅.** Con esto, **4 de los 5 umbrales de la Ley 7 están en VERDE** (Negocio ✅, UI ✅, Duplicación ✅, Vulnerabilidades ✅). El único aspecto en 🟡 es la complejidad residual: **5 bloques** entre 11 y 12 (eran 14; ver §11.12 y §11.13), con **cero** bloques rank D o F.
 
 **Qué se cubrió y qué se corrigió:**
 1. **P3.27 (🔴, cazado y corregido):** `PillNavBar` enlazaba cada pastilla con una lambda que invocaba `self.select(tid, i)`, pero carecía del método `select()`, arrojando `AttributeError`. Se implementó `select(self, tab_id, idx=None)` con gestión de colores activos/inactivos y callback.
@@ -1125,9 +1125,9 @@ en un runner sin pantalla. Ver ADR-037 y ADR-038.
 | Bloques CC > 10 · Rank D/F | 14 · 0 | **14 · 0** (→ **7 · 0** al cerrar §11.12) |
 | Pruebas que escriben en la config real | (no se sabía) | **0** — había **1**, corregida y con guardián |
 
-**Lo que sigue pendiente** (actualizado tras §11.11 y §11.12): los **7 bloques de
-complejidad** entre 11 y 18 —`_toggle_scene` 18, `main` 15, `_launch_with_fallback` 12,
-`_change_theme` 12, `get_compatible_codecs` 12, `_select_tab` 11 y `scan_devices` 11— que
+**Lo que sigue pendiente** (actualizado tras §11.11, §11.12 y §11.13): los **5 bloques de
+complejidad** que quedan —`_launch_with_fallback` 12, `_change_theme` 12,
+`get_compatible_codecs` 12, `_select_tab` 11 y `scan_devices` 11— que
 son justo los que **no tienen red de comportamiento** (se cubren antes de demolerlos);
 D4 (exhaustividad de `ERROR_CATALOG` + contraste WCAG) y D5; y los ~26 ADR citados en el
 código y no escritos.
@@ -1182,6 +1182,7 @@ Segunda parte de la Fase D: los 14 bloques > 10 se dividieron en dos grupos seg�
 
 **Resultado**: **14 → 7 bloques > 10** (máximo 18 → 18, pero ahora todos son los sin red),
 **0 Rank D/F**, y los 7 atacados quedan en Rank A/B (≤ 7). Suite **566 → 572 pruebas**.
+(Los dos primeros del segundo lote —`main` y `_toggle_scene`— caen en §11.13, que deja el tablero en **5**.)
 
 #### La red se midió mutando, no se declaró
 
@@ -1210,7 +1211,11 @@ dejar de cortar la sesión ante una cabecera truncada **sin que fallara una sola
 > 0 skips en la línea base**. Lección medida: una medición que no comprueba que sus
 > pruebas corrieron no es una medición.
 
-#### Lo que queda (los 7 sin red) — segundo lote, en este orden
+#### Lo que queda (los 7 sin red) — segundo lote, por orden de riesgo
+
+Los dos primeros (`main()` y `_toggle_scene()`) se demolieron en **§11.13**; de este cuadro quedan
+cinco (más `scan_devices`, que en esta medición salió con 14 líneas sin cubrir).
+
 
 | Bloque | CC | Líneas sin cubrir |
 | :--- | :-: | :--- |
@@ -1229,6 +1234,79 @@ ejecutar nunca en pruebas) es exactamente el patrón que engendró los bugs de v
 ahora compara contra una **lista blanca exacta** (`BLOQUES_PENDIENTES`) por
 `archivo método`. Verificado que muerde: inyectando un bloque CC 25 en `utils.py`, la
 prueba falla y lo nombra.
+
+### 11.13 Demolición de los 2 bloques más peligrosos: `main()` y `_toggle_scene()` (2026-10-01)
+
+El primer lote de la Fase 2 ataca por riesgo, no por tamaño: `main()` (15) tenía **57 líneas de
+arranque que ninguna prueba ejecutaba** y `_toggle_scene()` (18) es el corazón operativo del producto.
+
+| Blanco | CC antes | CC después | Descomposición |
+| :--- | :-: | :-: | :--- |
+| `main()` | **15** | **4** | despachador + `_cli_install` / `_cli_uninstall` / `_run_gui`, con `_copiar_al_sistema`, `_icono_a_registrar` y `_escribir_lanzador` |
+| `ScrcpyDockApp._toggle_scene` | **18** | **3** | orquestador + `_dispositivo_listo_para_la_escena`, `_avisar_sin_dispositivo`, `_requiere_confirmacion_de_confianza`, `_pedir_confianza`, `_arrancar_escena`, `_perfil_para_arrancar`, `_extras_de_la_vista_simple`, `_parches_previos_al_arranque`, `_necesita_keyevent_previo` |
+
+**Resultado**: **7 → 5 bloques > 10**, máximo 18 → 12 (todos Rank C), y los dos objetivos en Rank A.
+`main.py` pasa de **61-62 % → 68 %** de cobertura. Suite **572 → 597**. Y de propina,
+`_start_otg_mode` baja de CC 10 a **3** al compartir el guardián (ver P3.35 en `INFORME_BUGS`).
+
+#### La red del arranque se escribió con el `argv` inyectable
+
+`main()` no se podía caracterizar sin ejecutar el proceso, así que el primer cambio —**antes** de tocar
+la lógica— fue `main(argv=None)`: lee `argv` o, sin argumento, `sys.argv`. Ese cambio no altera el
+comportamiento y hace ejecutables las ramas de CLI desde la suite. Sobre él se escribieron **25 pruebas**:
+`--install` (congelado con copia de binario y logo, sin congelar, copia fallida, fallo del `.desktop`),
+`--uninstall`/`--purge`, prioridad de banderas, `argv` por defecto, arranque normal (la app **cuelga del
+`root`**, el `mainloop` corre y el cerrojo se libera), segunda instancia y liberación del cerrojo aunque
+el bucle reviente. Trece de ellas corren **sin pantalla**, así que blindan justo lo que el CI headless
+no podía mirar.
+
+#### 12 mutaciones, medidas antes y después
+
+Se midió la red **antes** de refactorizar (sobre el código original) y se volvió a medir **después**,
+re-anclando las mismas mutaciones al código nuevo:
+
+| Medición | Cazadas |
+| :--- | :-: |
+| Antes de refactorizar (red nueva sobre el código original) | **12/12** |
+| Después de refactorizar (mismas mutaciones, anclajes nuevos) | **12/12** |
+
+Mutaciones relevantes que la red caza: desinstalar con `--purge` sin pedirlo, reportar como éxito una
+instalación fallida, invertir el cerrojo de instancia única, no liberarlo, **no** colgar la app del
+`root` (el defecto que documenta el propio comentario del código), llevar a la pestaña equivocada, tratar
+como aprobación un aviso de Modo Seguro cerrado sin responder, pasar el perfil por referencia (los extras
+del mini-dock acabarían escritos en la configuración), no reportar el fallo de arranque y conmutar
+"detener" por "arrancar otra".
+
+> 🧭 **Dos "supervivientes" que no eran huecos de la red, y por qué importa distinguirlo.**
+> 1. La primera mutación del aviso de confianza era **equivalente**: con `cancel` el código ya había
+>    retornado antes, así que la rama mutada era inalcanzable. Al moverla al chequeo que sí decide
+>    apareció un hueco **real**: cerrar el aviso sin elegir no tenía prueba propia.
+> 2. La del keyevent también era equivalente *para ese fixture*: el perfil de fábrica de OBS cumple las
+>    **dos** condiciones del `or` (`audio_source="mic"` y `--no-video`), así que anular una seguía
+>    mandando el keyevent. Se tapó caracterizando el predicado con cada camino por separado
+>    (`TestRedDeParchesPrevios`, 5 casos, sin Tk).
+>
+> Un mutante equivalente no dice "falta prueba": dice "esta mutación no toca lo que se observa".
+> Saber cuál de las dos cosas es, es la mitad del trabajo.
+
+#### Un guardián que se rompe al mejorar el código está mal escrito
+
+Dos guardianes permanentes se pusieron rojos sin que hubiera ningún defecto: el de P3.3 exigía que el
+**texto** del handler contuviera `get_device_model` (el código se había movido a un ayudante) y el de
+complejidad comparaba contra una lista de 7 bloques. Se han reescrito siguiendo **relaciones** y no
+texto: el de P3.3 recorre ahora toda la cadena de ayudantes exigiendo que cada `self._algo(` exista
+(es más fuerte que antes) y el de complejidad usa una lista blanca exacta por `archivo método`. Ver
+ADR-042.
+
+#### Lo que queda (5 bloques, todos sin red)
+
+| Bloque | CC | Líneas sin cubrir |
+| :--- | :-: | :--- |
+| `DeviceManager.scan_devices` | 11 | 14 |
+| `SessionManager._launch_with_fallback` | 12 | 5 |
+| `ScrcpyDockApp._change_theme` | 12 | 1 |
+| `ScrcpyEngine.get_compatible_codecs` | 12 | 1 |
+| `ScrcpyDockApp._select_tab` | 11 | 1 |
 
 ---
 

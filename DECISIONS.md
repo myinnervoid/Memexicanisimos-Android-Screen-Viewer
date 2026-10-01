@@ -21,6 +21,7 @@
 39. [ADR-039: Ninguna Prueba Puede Escribir en los Datos del Usuario — y Hay un Guardián que lo Comprueba](#adr-039)
 40. [ADR-040: La Tabla de Traducciones es un Espejo del Código — y se Cuenta por Dos Vías](#adr-040)
 41. [ADR-041: La Cobertura no es la Red — los Refactores de Complejidad se Verifican Mutando](#adr-041)
+42. [ADR-042: Los Guardianes de Regresión Siguen la Cadena de Ayudantes, no el Texto del Método](#adr-042)
 
 > ⚠️ **Hueco de trazabilidad detectado (2026-10-01):** el código cita **ADR-001 a ADR-031**
 > (`ADR-006/007/008/009` en `adb_engine`, `ADR-029` en `port_allocator`, `ADR-031` en
@@ -228,6 +229,18 @@
   - *Negativas*: la verificación de un refactor cuesta 9 pasadas de suite (~4 min) en vez de 1; hay que mantener el script de mutaciones y sus anclajes (texto exacto) al día.
   - *Verificación*: `mutar_los_siete.py` (línea base verde **con 0 skips**, 8/8 cazadas); clase `TestRedDeCaracterizacionDeLosRefactores` en `tests/test_fase_d_regressions.py`.
   - *Regla derivada*: un texto traducible **no se guarda en una tabla** — vive en la llamada a `_("…")`, o el escáner de i18n lo verá como clave muerta y una poda posterior borrará una traducción viva (pasó al escribir el refactor de `_on_tab_changed`; ver ADR-040 y P3.33).
+
+---
+
+<a name="adr-042"></a>
+### ADR-042: Los Guardianes de Regresión Siguen la Cadena de Ayudantes, no el Texto del Método
+
+- **Contexto del Problema**: al descomponer `_toggle_scene` y `main()`, dos guardianes permanentes se pusieron rojos **sin que hubiera ningún defecto**: uno exigía que el código fuente del handler contuviera `get_device_model` (P3.3) y el otro comparaba la lista de bloques > 10. El primero miraba *dónde* vivía el código en vez de *qué* garantizaba; el segundo era un tope holgado que ya no reflejaba el estado real. Un guardián que se rompe al mejorar la estructura enseña a ignorarlo (o peor: a revertir la mejora).
+- **Decisión Adoptada**: (a) los guardianes que inspeccionan código se escriben sobre **relaciones** (todo `self._algo(` de la cadena de ayudantes debe existir; los bloques > 10 deben ser **exactamente** esta lista blanca), no sobre el texto de un método concreto; (b) al extraer un ayudante hay que **actualizar el guardián en el mismo cambio**, siguiendo la cadena; (c) los umbrales holgados se sustituyen por listas blancas explícitas por `archivo método` (sin número de línea, que cambia en cada edición).
+- **Consecuencias**:
+  - *Positivas*: el guardián de P3.3 es ahora **más fuerte** que antes (recorre la cadena entera y nombra el método que falta); el de complejidad falla en cuanto aparece un bloque nuevo por su nombre; ninguno depende de dónde vive el código.
+  - *Negativas*: hay que mantener la lista blanca a mano (a cambio de que el fallo sea autoexplicativo), y los anclajes de mutación deben re-escribirse tras cada refactor.
+  - *Verificación*: guardián de complejidad re-verificado inyectando un bloque CC 25 en `utils.py` (falla y lo nombra); guardián de P3.3 verificado con la cadena de 6 métodos; 12/12 mutaciones cazadas tras el refactor.
 
 ---
 

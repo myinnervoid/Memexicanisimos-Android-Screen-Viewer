@@ -14,14 +14,20 @@ from __future__ import annotations
 
 import ast
 import inspect
+import io
+import os
+import sys
+import tempfile
 import tkinter as tk
 import types
 import unittest
+from contextlib import redirect_stdout
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import scrcpy_dock
 import scrcpy_dock.main as main_mod
+from scrcpy_dock.contracts import OperationResult
 from scrcpy_dock.domain.models import Codec
 from scrcpy_dock.errors import ErrorCode
 from scrcpy_dock.main import ScrcpyDockApp
@@ -55,8 +61,6 @@ def _textos_de(widget) -> list:
 BLOQUES_PENDIENTES = [
     "main.py _change_theme",
     "main.py _select_tab",
-    "main.py _toggle_scene",
-    "main.py main",
     "managers.py _launch_with_fallback",
     "managers.py scan_devices",
     "core/scrcpy_engine.py get_compatible_codecs",
@@ -626,6 +630,456 @@ class TestRedDeCaracterizacionDeLosRefactores(unittest.TestCase):
 
         self.assertEqual(tracker.cambios, [],
                          "una cabecera truncada debe cortar la sesión, no reintentar")
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# La red de los 2 bloques más peligrosos: `main()` (CC 15) y `_toggle_scene` (CC 18)
+# ─────────────────────────────────────────────────────────────────────────────
+#
+# `main()` tenía 57 líneas de arranque que ninguna prueba ejecutaba (--install,
+# --uninstall, --purge, instancia única). `_toggle_scene` tenía 11 sin cubrir y
+# es el corazón operativo del producto. Se caracterizan ANTES de tocarlos.
+
+class TestRedDeMain(unittest.TestCase):
+    """`main()`: despacho de CLI y arranque de la GUI.
+
+    No necesita display: son las únicas rutas de arranque que el CI headless
+    puede ejercitar de verdad, y las que más silencio tenían.
+    """
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        self.raiz = Path(self.tmp.name)
+        (self.raiz / "bin").mkdir()
+        (self.raiz / "assets").mkdir()
+
+        self.svc = MagicMock()
+        self.svc.bin_dir = self.raiz / "bin"
+        self.svc.assets_dir = self.raiz / "assets"
+        self.svc.bin_symlink_path = self.raiz / "bin" / "MASV"
+        self.svc.desktop_entry_path = self.raiz / "masv.desktop"
+        self.svc.ensure_layout.return_value = OperationResult.ok(None, "layout listo")
+        self.svc.write_desktop_entry.return_value = OperationResult.ok(None, "lanzador escrito")
+        self.svc.uninstall.return_value = OperationResult.ok(None, "desinstalado")
+
+    def _patch_installer(self):
+        """`main()` importa `InstallerService` dentro de la rama: se parchea en su módulo."""
+        return patch(
+            "scrcpy_dock.services.installer_service.InstallerService",
+            return_value=self.svc,
+        )
+
+    def _main(self, argv):
+        """Ejecuta `main(argv)` y devuelve (código de salida, stdout)."""
+        salida = io.StringIO()
+        with redirect_stdout(salida):
+            with self.assertRaises(SystemExit) as ctx:
+                main_mod.main(argv)
+        return ctx.exception.code, salida.getvalue()
+
+    # ── --install ────────────────────────────────────────────────────────
+
+    def test_install_congelado_copia_binario_y_icono(self):
+        """Empaquetado (PyInstaller): el binario y el logo acaban en la carpeta gestionada."""
+        origen = self.raiz / "MASV-real"
+        origen.write_text("#!/bin/sh\n", encoding="utf-8")
+        bundle = self.raiz / "bundle"
+        (bundle / "assets").mkdir(parents=True)
+        (bundle / "assets" / "logo.png").write_bytes(b"\x89PNG\r\n")
+
+        with self._patch_installer(), \
+                patch.object(sys, "frozen", True, create=True), \
+                patch.object(sys, "executable", str(origen)), \
+                patch.object(sys, "_MEIPASS", str(bundle), create=True):
+            with redirect_stdout(io.StringIO()):
+                with self.assertRaises(SystemExit) as ctx:
+                    main_mod.main(["--install"])
+
+        self.assertEqual(ctx.exception.code, 0)
+        self.svc.ensure_layout.assert_called_once()
+        copiado = self.svc.bin_dir / "MASV"
+        self.assertTrue(copiado.exists(), "el binario debe quedar en la carpeta gestionada")
+        self.assertTrue(copiado.stat().st_mode & 0o111, "el binario copiado debe ser ejecutable")
+
+        destino, icono = self.svc.write_desktop_entry.call_args.args
+        self.assertEqual(destino, copiado, "el lanzador debe apuntar al binario instalado")
+        self.assertEqual(icono, self.svc.assets_dir / "logo.png")
+        self.assertTrue((self.svc.assets_dir / "logo.png").exists(), "el logo debe copiarse")
+
+    def test_install_sin_congelar_no_copia_nada(self):
+        """Ejecutando desde el código fuente se registra el propio `argv[0]`."""
+        with self._patch_installer():
+            codigo, salida = self._main(["masv", "--install"])
+
+        self.assertEqual(codigo, 0)
+        self.assertIn("Instalación completada con éxito", salida)
+        self.assertFalse((self.svc.bin_dir / "MASV").exists(), "sin congelar no se copia nada")
+        destino, _ = self.svc.write_desktop_entry.call_args.args
+        self.assertEqual(destino, Path(os.path.abspath("masv")).resolve())
+
+    def test_install_con_copia_fallida_instala_el_original(self):
+        """Si no se puede copiar el binario, la instalación sigue con el ejecutable actual."""
+        with self._patch_installer(), \
+                patch.object(sys, "frozen", True, create=True), \
+                patch.object(sys, "executable", str(self.raiz / "MASV-real")), \
+                patch("shutil.copy2", side_effect=OSError("disco lleno")):
+            codigo, _ = self._main(["--install"])
+
+        self.assertEqual(codigo, 0)
+        destino, _ = self.svc.write_desktop_entry.call_args.args
+        self.assertEqual(destino, Path(str(self.raiz / "MASV-real")).resolve())
+
+    def test_install_fallido_sale_1(self):
+        self.svc.write_desktop_entry.return_value = OperationResult.fail(
+            ErrorCode.UNKNOWN_ERROR, "sin permisos",
+        )
+        with self._patch_installer():
+            codigo, salida = self._main(["--install"])
+
+        self.assertEqual(codigo, 1)
+        self.assertIn("Error al instalar", salida)
+
+    # ── --uninstall / --purge ────────────────────────────────────────────
+
+    def test_uninstall_sin_purge_conserva_los_datos(self):
+        with self._patch_installer():
+            codigo, salida = self._main(["--uninstall"])
+
+        self.assertEqual(codigo, 0)
+        self.svc.uninstall.assert_called_once_with(purge=False)
+        self.assertIn("Desinstalación completada con éxito", salida)
+        self.assertNotIn("purgados", salida, "sin --purge no se pueden borrar los datos")
+
+    def test_uninstall_con_purge_lo_dice(self):
+        with self._patch_installer():
+            codigo, salida = self._main(["--uninstall", "--purge"])
+
+        self.assertEqual(codigo, 0)
+        self.svc.uninstall.assert_called_once_with(purge=True)
+        self.assertIn("purgados", salida)
+
+    def test_uninstall_fallido_sale_1(self):
+        self.svc.uninstall.return_value = OperationResult.fail(
+            ErrorCode.UNKNOWN_ERROR, "enlace ocupado",
+        )
+        with self._patch_installer():
+            codigo, salida = self._main(["--uninstall"])
+
+        self.assertEqual(codigo, 1)
+        self.assertIn("Error al desinstalar", salida)
+
+    def test_install_tiene_prioridad_sobre_uninstall(self):
+        """Con las dos banderas gana --install (se comprueba en este orden)."""
+        with self._patch_installer():
+            codigo, _ = self._main(["--install", "--uninstall"])
+
+        self.assertEqual(codigo, 0)
+        self.svc.uninstall.assert_not_called()
+
+    def test_sin_argv_usa_sys_argv(self):
+        with self._patch_installer(), patch.object(sys, "argv", ["masv", "--uninstall"]):
+            codigo, _ = self._main(None)
+
+        self.assertEqual(codigo, 0)
+        self.svc.uninstall.assert_called_once_with(purge=False)
+
+    # ── arranque de la GUI e instancia única ─────────────────────────────
+
+    def test_arranque_normal_cuelga_la_app_del_root_y_libera(self):
+        """La app se cuelga del `root` a propósito: si no, el GC se la lleva."""
+        instancia = MagicMock()
+        instancia.acquire.return_value = True
+        root_falso, app_falsa = MagicMock(), MagicMock()
+
+        with patch.object(main_mod, "SingleInstance", return_value=instancia), \
+                patch.object(main_mod, "ScrcpyDockApp", return_value=app_falsa) as app_ctor, \
+                patch("tkinter.Tk", return_value=root_falso):
+            resultado = main_mod.main([])
+
+        self.assertIsNone(resultado, "el arranque normal no devuelve código de error")
+        self.assertIs(root_falso.masv_app, app_falsa, "la app debe colgar de root.masv_app")
+        root_falso.mainloop.assert_called_once()
+        self.assertIs(app_ctor.call_args.kwargs["single_instance"], instancia)
+        instancia.release.assert_called_once()
+
+    def test_segunda_instancia_avisa_y_sale_1(self):
+        instancia = MagicMock()
+        instancia.acquire.return_value = False
+
+        with patch.object(main_mod, "SingleInstance", return_value=instancia), \
+                patch.object(main_mod, "messagebox") as dialogs, \
+                patch("tkinter.Tk") as tk_ctor:
+            with self.assertRaises(SystemExit) as ctx:
+                main_mod.main([])
+
+        self.assertEqual(ctx.exception.code, 1)
+        self.assertTrue(dialogs.showwarning.called, "debe avisar de que ya está abierta")
+        tk_ctor.assert_not_called()
+        instancia.release.assert_not_called()
+
+    def test_si_el_bucle_de_eventos_revienta_se_libera_la_instancia(self):
+        """El `finally` de la instancia única es lo que permite reabrir la app tras un fallo."""
+        instancia = MagicMock()
+        instancia.acquire.return_value = True
+        root_falso = MagicMock()
+        root_falso.mainloop.side_effect = KeyboardInterrupt()
+
+        with patch.object(main_mod, "SingleInstance", return_value=instancia), \
+                patch.object(main_mod, "ScrcpyDockApp", return_value=MagicMock()), \
+                patch("tkinter.Tk", return_value=root_falso):
+            with self.assertRaises(KeyboardInterrupt):
+                main_mod.main([])
+
+        instancia.release.assert_called_once()
+
+
+class TestRedDeParchesPrevios(unittest.TestCase):
+    """El keyevent 26 previo al arranque: función pura, sin Tk (corre en CI headless).
+
+    El perfil de fábrica de OBS cumple **las dos** condiciones del `or`, así que
+    cada camino se prueba por separado: con el perfil real, una mutación que
+    anulara uno de los dos pasaría desapercibida (medido con el mutador).
+    """
+
+    def test_el_keyevent_previo_tiene_dos_motivos_independientes(self):
+        previo = ScrcpyDockApp._necesita_keyevent_previo
+
+        self.assertTrue(previo({"force_screen_off_keyevent": True}),
+                        "el flag EMUI del perfil basta por sí solo")
+        self.assertTrue(previo({"audio_source": "mic", "extra_args": "--no-video"}),
+                        "el micrófono sin vídeo basta por sí solo")
+        self.assertFalse(previo({"audio_source": "mic", "extra_args": "--max-fps=30"}),
+                         "micrófono con vídeo no necesita el empujón")
+        self.assertFalse(previo({"audio_source": "playback", "extra_args": ""}),
+                         "un perfil normal no manda keyevent")
+        self.assertFalse(previo({}), "un perfil vacío tampoco")
+
+
+class TestRedDeToggleScene(unittest.TestCase):
+    """`_toggle_scene()`: el camino de arranque/parada de la transmisión (CC 18)."""
+
+    @classmethod
+    def setUpClass(cls):
+        try:
+            cls.root = tk.Tk()
+            cls.root.withdraw()
+        except Exception:  # pragma: no cover - sin display
+            cls.root = None
+
+    @classmethod
+    def tearDownClass(cls):
+        if cls.root:
+            try:
+                cls.root.destroy()
+            except Exception:
+                pass
+
+    def setUp(self):
+        if not self.root:
+            self.skipTest("Tkinter sin display: el arnés de UI no puede correr")
+        self.sitio = app_en_prueba(self.root)
+        self.app = self.sitio.app
+        self.app.ctx.security_mgr = MagicMock()
+        self.app.ctx.security_mgr.is_safe_mode_enabled = False
+        self.app.ctx.security_mgr.is_trusted_device.return_value = True
+        self.app.ctx.security_mgr.get_device_alias.return_value = "Mi Vivo"
+        self.ctx = self.app.ctx
+
+    def tearDown(self):
+        if getattr(self, "sitio", None) is not None:
+            self.sitio.cerrar()
+
+    def _con_arranque_espia(self, resultado=None):
+        """Espía el arranque de sesión y devuelve el espía (para leer el perfil pasado).
+
+        Ojo con `resultado or …`: un `OperationResult.fail` es falsy, así que el
+        espía devolvería un éxito y la prueba del fallo no probaría nada.
+        """
+        if resultado is None:
+            resultado = OperationResult.ok(None, "sesión viva")
+        espia = MagicMock(return_value=resultado)
+        self.ctx.session_mgr.start_scene = espia
+        return espia
+
+    # ── sin dispositivo / modo seguro ────────────────────────────────────
+
+    def test_sin_dispositivo_avisa_y_lleva_a_la_pestana_dispositivo(self):
+        self.ctx.active_device_serial = None
+        self.app._nb = MagicMock()
+
+        self.app._toggle_scene()
+
+        self.assertTrue(self.sitio.dialogs.did("showerror"))
+        self.assertIn("Sin dispositivo", str(self.sitio.dialogs.last("showerror")))
+        self.app._nb.select.assert_called_once_with(2)   # pestaña Dispositivo
+
+    def test_modo_seguro_cancelado_no_arranca(self):
+        self.ctx.active_device_serial = "NUEVO"
+        self.ctx.security_mgr.is_safe_mode_enabled = True
+        self.ctx.security_mgr.is_trusted_device.return_value = False
+        so_falso = MagicMock()
+        so_falso.result = "cancel"
+        espia = self._con_arranque_espia()
+
+        with patch.object(main_mod, "TrustPromptModal", return_value=so_falso), \
+                patch.object(main_mod, "save_config") as guardar:
+            self.app._toggle_scene()
+
+        guardar.assert_not_called()
+        espia.assert_not_called()
+        self.assertEqual(self.ctx.session_mgr.sessions, {}, "no puede arrancar sin aprobación")
+
+    def test_modo_seguro_cerrado_sin_elegir_no_arranca(self):
+        """Cerrar el aviso sin responder NO puede equivaler a confiar en el dispositivo."""
+        self.ctx.active_device_serial = "NUEVO"
+        self.ctx.security_mgr.is_safe_mode_enabled = True
+        self.ctx.security_mgr.is_trusted_device.return_value = False
+        so_falso = MagicMock()
+        so_falso.result = None
+        espia = self._con_arranque_espia()
+
+        with patch.object(main_mod, "TrustPromptModal", return_value=so_falso), \
+                patch.object(main_mod, "save_config") as guardar:
+            self.app._toggle_scene()
+
+        guardar.assert_not_called()
+        espia.assert_not_called()
+
+    def test_modo_seguro_aprobado_persiste_y_arranca(self):
+        self.ctx.active_device_serial = "NUEVO"
+        self.ctx.security_mgr.is_safe_mode_enabled = True
+        self.ctx.security_mgr.is_trusted_device.return_value = False
+        so_falso = MagicMock()
+        so_falso.result = "trust"
+        espia = self._con_arranque_espia()
+
+        with patch.object(main_mod, "TrustPromptModal", return_value=so_falso), \
+                patch.object(main_mod, "save_config") as guardar, \
+                patch.object(self.app, "_on_dev_select") as refrescar:
+            self.app._toggle_scene()
+
+        guardar.assert_called_once_with(self.ctx.cfg)
+        refrescar.assert_called_once()
+        espia.assert_called_once()
+
+    def test_sesion_viva_se_detiene_en_vez_de_rearrancar(self):
+        self.ctx.active_device_serial = "HWY9"
+        self.ctx.session_mgr.sessions["HWY9"] = MagicMock()
+        espia = self._con_arranque_espia()
+
+        with patch.object(self.app, "_stop_current") as detener:
+            self.app._toggle_scene()
+
+        detener.assert_called_once()
+        espia.assert_not_called()
+
+    # ── arranque: perfil, extras de Vista Simple y parches previos ───────
+
+    def test_arranca_con_el_perfil_activo_y_la_llamada_queda_en_pendiente(self):
+        self.ctx.active_device_serial = "HWY9"
+        self.ctx.active_profile.set("🎮 Juego Rápido")
+        espia = self._con_arranque_espia()
+
+        self.app._toggle_scene()
+
+        serial, nombre, datos, callback = espia.call_args.args
+        self.assertEqual(serial, "HWY9")
+        self.assertEqual(nombre, "🎮 Juego Rápido")
+        self.assertIsInstance(datos, dict)
+        self.assertEqual(datos, dict(self.ctx.cfg["profiles"]["🎮 Juego Rápido"]),
+                         "el perfil debe llegar tal cual, sin mutar la config")
+        self.assertTrue(callable(callback))
+        self.assertEqual(self.ctx.state_machine.current_state.value, "PENDING")
+
+    def test_vista_simple_fusiona_los_argumentos_extra(self):
+        self.ctx.active_device_serial = "HWY9"
+        self.ctx.active_profile.set("🎮 Juego Rápido")
+        self.app.is_advanced_view = False
+        entrada = self.app.ui.refs.get("simple_extra_cmd_var")
+        self.assertIsNotNone(entrada, "el mini-dock debe exponer simple_extra_cmd_var")
+        entrada.set("--max-fps=30")
+        espia = self._con_arranque_espia()
+
+        self.app._toggle_scene()
+
+        datos = espia.call_args.args[2]
+        self.assertIn("--max-fps=30", datos["extra_args"])
+        self.assertNotIn("--max-fps=30",
+                         self.ctx.cfg["profiles"]["🎮 Juego Rápido"].get("extra_args", ""),
+                         "los extras de la vista simple no deben escribirse en la config")
+
+    def test_vista_avanzada_ignora_los_argumentos_extra(self):
+        self.ctx.active_device_serial = "HWY9"
+        self.ctx.active_profile.set("🎮 Juego Rápido")
+        self.app.is_advanced_view = True
+        entrada = self.app.ui.refs.get("simple_extra_cmd_var")
+        if entrada is not None:
+            entrada.set("--max-fps=30")
+        espia = self._con_arranque_espia()
+
+        self.app._toggle_scene()
+
+        datos = espia.call_args.args[2]
+        self.assertNotIn("--max-fps=30", datos.get("extra_args", ""))
+
+    def test_emui_manda_el_keyevent_antes_de_arrancar(self):
+        perfil = "🎙️ Stream OBS (Huawei)"
+        self.ctx.active_device_serial = "HWY9"
+        self.ctx.active_profile.set(perfil)
+        self.ctx.cfg["profiles"][perfil] = dict(
+            self.ctx.cfg["profiles"].get(perfil, {}), force_screen_off_keyevent=True,
+        )
+        espia = self._con_arranque_espia()
+
+        with patch.object(main_mod.time, "sleep") as dormir:
+            self.app._toggle_scene()
+
+        llamadas = [c for c in self.ctx.adb_engine.calls if c[0] == "shell"]
+        self.assertTrue(
+            any(c[1] == "HWY9" and "26" in str(c[2]) for c in llamadas),
+            f"falta el keyevent 26 previo: {llamadas}",
+        )
+        dormir.assert_called_once_with(0.3)
+        espia.assert_called_once()
+
+    def test_sin_flag_no_manda_ningun_keyevent(self):
+        self.ctx.active_device_serial = "HWY9"
+        self.ctx.active_profile.set("🎮 Juego Rápido")
+        self.ctx.cfg["profiles"]["🎮 Juego Rápido"] = dict(
+            self.ctx.cfg["profiles"]["🎮 Juego Rápido"], force_screen_off_keyevent=False,
+        )
+        self._con_arranque_espia()
+
+        self.app._toggle_scene()
+
+        self.assertEqual([c for c in self.ctx.adb_engine.calls if c[0] == "shell"], [])
+
+    # ── callbacks del arranque ───────────────────────────────────────────
+
+    def test_al_arrancar_pasa_a_la_pestana_acciones_y_queda_en_verde(self):
+        self.ctx.active_device_serial = "HWY9"
+        self.ctx.active_profile.set("🎮 Juego Rápido")
+        espia = self._con_arranque_espia()
+        self.app._nb = MagicMock()
+
+        self.app._toggle_scene()
+        espia.call_args.args[3]()          # la propia app invoca este callback al registrar
+
+        self.assertEqual(self.ctx.state_machine.current_state.value, "SUCCESS")
+        self.app._nb.select.assert_called_once_with(0)   # pestaña Acciones
+        self.assertIn("🎮 Juego Rápido", self.ctx.state_machine.message)
+
+    def test_arranque_fallido_deja_la_fsm_en_fallo(self):
+        self.ctx.active_device_serial = "HWY9"
+        self.ctx.active_profile.set("🎮 Juego Rápido")
+        fallo = OperationResult.fail(ErrorCode.PROCESS_SPAWN_ERROR, "scrcpy no está")
+        self._con_arranque_espia(fallo)
+
+        self.app._toggle_scene()
+
+        self.assertEqual(self.ctx.state_machine.current_state.value, "FAULT")
+        self.assertIn("scrcpy no está", self.ctx.state_machine.message)
 
 
 if __name__ == "__main__":

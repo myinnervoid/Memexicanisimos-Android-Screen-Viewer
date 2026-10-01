@@ -339,12 +339,31 @@ class TestA4ModeloDeDispositivo(unittest.TestCase):
         self.assertEqual(dm.get_device_model("DESCONOCIDO"), "")
 
     def test_toggle_scene_y_otg_usan_un_metodo_que_existe(self):
-        """P3.3: los handlers llamaban a un método inexistente → AttributeError."""
+        """P3.3: los handlers llamaban a un método inexistente → AttributeError.
+
+        Tras extraer el guardián compartido, la comprobación sigue la cadena de
+        ayudantes en vez del texto literal del handler: se verifica que TODO
+        `self._algo(` de la cadena corresponde a un método que existe.
+        """
         self.assertTrue(hasattr(DeviceManager, "get_device_model"))
 
         from scrcpy_dock.main import ScrcpyDockApp
-        for handler in (ScrcpyDockApp._toggle_scene, ScrcpyDockApp._start_otg_mode):
-            self.assertIn("get_device_model", inspect.getsource(handler))
+
+        # El modelo del dispositivo se resuelve donde se pide la confianza.
+        self.assertIn("get_device_model", inspect.getsource(ScrcpyDockApp._pedir_confianza))
+
+        cadena = (
+            ScrcpyDockApp._toggle_scene,
+            ScrcpyDockApp._start_otg_mode,
+            ScrcpyDockApp._dispositivo_listo_para_la_escena,
+            ScrcpyDockApp._avisar_sin_dispositivo,
+            ScrcpyDockApp._requiere_confirmacion_de_confianza,
+            ScrcpyDockApp._pedir_confianza,
+        )
+        for metodo in cadena:
+            for nombre in re.findall(r"self\.(_[a-zA-Z_]+)\(", inspect.getsource(metodo)):
+                self.assertTrue(hasattr(ScrcpyDockApp, nombre),
+                                f"{metodo.__name__} llama a self.{nombre}, que no existe")
 
 
 # ─────────────────────────────────────────────────────────────────────────────
