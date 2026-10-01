@@ -133,6 +133,9 @@ class ScrcpyDockApp:
         file_menu.add_command(label=_("🔄 Refrescar Dispositivos"), command=self._refresh_devices, accelerator="Ctrl+R")
         file_menu.add_command(label=_("⏹ Detener Todas las Sesiones"), command=self._stop_current)
         file_menu.add_separator()
+        file_menu.add_command(label=_("📥 Instalar en Sistema (Menú y Terminal)"), command=self._install_to_system)
+        file_menu.add_command(label=_("🗑️ Desinstalar del Sistema"), command=self._uninstall_from_system)
+        file_menu.add_separator()
         file_menu.add_command(label=_("🚪 Salir"), command=self._on_app_close, accelerator="Ctrl+Q")
         menubar.add_cascade(label=_("Archivo"), menu=file_menu)
 
@@ -203,6 +206,55 @@ class ScrcpyDockApp:
 
         # Notify state update to redraw any specific colored widgets
         self.ctx.state_machine.transition_to(self.ctx.state_machine.current_state, self.ctx.state_machine.message, self.ctx.state_machine.error_code)
+
+    def _install_to_system(self):
+        from .services.installer_service import InstallerService
+        from pathlib import Path
+        import shutil
+        svc = InstallerService()
+        svc.ensure_layout()
+        is_frozen = getattr(sys, 'frozen', False)
+        exe_src = Path(sys.executable if is_frozen else os.path.abspath(sys.argv[0])).resolve()
+        target_exe = svc.bin_dir / "MASV"
+
+        if is_frozen and exe_src != target_exe.resolve():
+            try:
+                shutil.copy2(exe_src, target_exe)
+                target_exe.chmod(0o755)
+                exe_to_reg = target_exe
+            except Exception:
+                exe_to_reg = exe_src
+        else:
+            exe_to_reg = exe_src
+
+        icon_path = Path(__file__).parent.parent / "assets" / "logo.png"
+        if is_frozen and hasattr(sys, '_MEIPASS'):
+            icon_path = Path(sys._MEIPASS) / "assets" / "logo.png"
+        target_icon = svc.assets_dir / "logo.png"
+
+        if icon_path.exists():
+            try:
+                shutil.copy2(icon_path, target_icon)
+                res = svc.write_desktop_entry(exe_to_reg, target_icon)
+            except Exception:
+                res = svc.write_desktop_entry(exe_to_reg, icon_path)
+        else:
+            res = svc.write_desktop_entry(exe_to_reg, exe_to_reg)
+
+        if res.success:
+            messagebox.showinfo(_("Instalación exitosa"), _("MASV se ha instalado en tu sistema con éxito.\n\n• Acceso creado en el Menú de Aplicaciones.\n• Comando 'MASV' listo en Terminal.\n• Ya puedes mover o borrar la carpeta descargada."))
+        else:
+            messagebox.showerror(_("Error"), f"No se pudo completar la instalación: {res.message}")
+
+    def _uninstall_from_system(self):
+        if messagebox.askyesno(_("Confirmar desinstalación"), _("¿Deseas desinstalar MASV y eliminar los accesos directos del sistema?")):
+            from .services.installer_service import InstallerService
+            svc = InstallerService()
+            res = svc.uninstall(purge=False)
+            if res.success:
+                messagebox.showinfo(_("Desinstalado"), _("MASV ha sido retirado del menú y terminal."))
+            else:
+                messagebox.showerror(_("Error"), f"Error en desinstalación: {res.message}")
 
     def _bind_shortcuts(self):
         self.root.bind("<Control-q>", lambda _: self._on_close())
@@ -1632,17 +1684,33 @@ def main():
         import shutil
         svc = InstallerService()
         svc.ensure_layout()
-        exe_path = Path(sys.executable if getattr(sys, 'frozen', False) else os.path.abspath(sys.argv[0]))
+        is_frozen = getattr(sys, 'frozen', False)
+        exe_src = Path(sys.executable if is_frozen else os.path.abspath(sys.argv[0])).resolve()
+        target_exe = svc.bin_dir / "MASV"
+
+        if is_frozen and exe_src != target_exe.resolve():
+            try:
+                shutil.copy2(exe_src, target_exe)
+                target_exe.chmod(0o755)
+                exe_to_reg = target_exe
+            except Exception:
+                exe_to_reg = exe_src
+        else:
+            exe_to_reg = exe_src
+
         icon_path = Path(__file__).parent.parent / "assets" / "logo.png"
-        if getattr(sys, 'frozen', False) and hasattr(sys, '_MEIPASS'):
+        if is_frozen and hasattr(sys, '_MEIPASS'):
             icon_path = Path(sys._MEIPASS) / "assets" / "logo.png"
         
         target_icon = svc.assets_dir / "logo.png"
         if icon_path.exists():
-            shutil.copy2(icon_path, target_icon)
-            res = svc.write_desktop_entry(exe_path, target_icon)
+            try:
+                shutil.copy2(icon_path, target_icon)
+                res = svc.write_desktop_entry(exe_to_reg, target_icon)
+            except Exception:
+                res = svc.write_desktop_entry(exe_to_reg, icon_path)
         else:
-            res = svc.write_desktop_entry(exe_path, exe_path)
+            res = svc.write_desktop_entry(exe_to_reg, exe_to_reg)
 
         if res.success:
             print("[MASV] Instalación completada con éxito.")
