@@ -90,7 +90,9 @@ class ScrcpyDockApp:
             try: self.root.state("zoomed")
             except Exception: pass
 
-        self.root.protocol("WM_DELETE_WINDOW", self._on_app_close)
+        # §3.18 · Aquí había un `protocol("WM_DELETE_WINDOW", self._on_app_close)` que la
+        # línea 161 sobreescribía con `_on_close` (el manejador vivo, que guarda geometría
+        # y respeta el icono de bandeja): era código inerte, no una red de seguridad.
 
         # ── Icono de ventana ───────────────────────────────────
         try:
@@ -574,7 +576,7 @@ class ScrcpyDockApp:
         self._mostrar_frame_de_tab(tab_id)
 
         if hasattr(self, 'sidebar') and self.sidebar.active_id != tab_id:
-            self.sidebar.select(tab_id)
+            self.sidebar.select(tab_id, notify=False)
 
         if tab_id == "profiles":
             self._sync_profile_selection()
@@ -1663,11 +1665,10 @@ class ScrcpyDockApp:
             return self._pedir_confianza(serial)
         return True
 
-    def _avisar_sin_dispositivo(self, critico: bool = True):
+    def _avisar_sin_dispositivo(self, critico: bool = False):
         """Avisa de que no hay dispositivo y lleva a la pestaña Dispositivo."""
-        aviso = messagebox.showerror if critico else messagebox.showwarning
-        aviso(_("Sin dispositivo"),
-              _("Selecciona un dispositivo en la pestaña Dispositivo."))
+        messagebox.showwarning(_("Sin dispositivo"),
+                              _("Selecciona un dispositivo en la pestaña Dispositivo."))
         self._nb.select(2)
 
     def _requiere_confirmacion_de_confianza(self, serial) -> bool:
@@ -1808,7 +1809,7 @@ class ScrcpyDockApp:
         self._pintar_etiquetas_de_perfil()
 
     def _pintar_etiquetas_de_dispositivo(self, serial):
-        """Nombre del dispositivo (o el aviso de que no hay ninguno) en cada pestaña."""
+        """Pinta las etiquetas de dispositivo o el aviso de selección con su color correspondiente."""
         if not serial:
             self._pintar_etiqueta("action_device_lbl", _("📱  Sin dispositivo seleccionado"), C["muted"])
             self._pintar_etiqueta("ctrl_device_lbl", _("📱  Sin dispositivo"), C["muted"])

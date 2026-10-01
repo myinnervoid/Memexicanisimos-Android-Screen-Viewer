@@ -196,14 +196,14 @@ class DashboardSidebar(tk.Frame):
             for tid, (btn, icon, label) in self.buttons.items():
                 btn.config(text=f" {icon}  {label}", anchor="w", padx=10)
 
-    def select(self, item_id, idx=None):
+    def select(self, item_id, idx=None, notify: bool = True):
         self.active_id = item_id
         for tid, (btn, icon, label) in self.buttons.items():
             if tid == item_id:
                 btn.config(bg=C["pill_active"], fg=C["pill_text_act"])
             else:
                 btn.config(bg=C["pill_btn"], fg=C["pill_text"])
-        if self.on_select_cb:
+        if notify and self.on_select_cb:
             self.on_select_cb(item_id, idx)
 
 

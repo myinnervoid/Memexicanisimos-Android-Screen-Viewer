@@ -222,6 +222,141 @@ ERROR_CATALOG: Dict[ErrorCode, ErrorDetail] = {
         remediation_es="Edita el perfil y elimina los argumentos adicionales no permitidos.",
         remediation_en="Edit the profile and remove the disallowed extra arguments."
     ),
+    ErrorCode.DEPENDENCY_INSTALL_FAILED: ErrorDetail(
+        code=ErrorCode.DEPENDENCY_INSTALL_FAILED,
+        title_es="Fallo al instalar dependencias",
+        title_en="Dependency Installation Failed",
+        description_es="El gestor de paquetes no pudo descargar o instalar los paquetes requeridos.",
+        description_en="The package manager could not download or install required packages.",
+        remediation_es="Comprueba tu conexión a Internet o instala adb y scrcpy manualmente.",
+        remediation_en="Check your Internet connection or install adb and scrcpy manually."
+    ),
+    ErrorCode.DEVICE_BUSY: ErrorDetail(
+        code=ErrorCode.DEVICE_BUSY,
+        title_es="Dispositivo ocupado",
+        title_en="Device Busy",
+        description_es="El dispositivo ya tiene una sesión de captura o transmisión activa.",
+        description_en="The device already has an active capture or streaming session.",
+        remediation_es="Detén la sesión previa o desconecta y vuelve a conectar el dispositivo.",
+        remediation_en="Stop the previous session or disconnect and reconnect the device."
+    ),
+    ErrorCode.ADB_SERVER_FAILED: ErrorDetail(
+        code=ErrorCode.ADB_SERVER_FAILED,
+        title_es="Error del servidor ADB",
+        title_en="ADB Server Error",
+        description_es="No se pudo comunicar con el servidor local de ADB o el puerto 5037 está ocupado.",
+        description_en="Could not communicate with local ADB server or port 5037 is busy.",
+        remediation_es="Pulsa 'Reiniciar ADB' en MASV o reinicia el daemon desde la terminal.",
+        remediation_en="Click 'Restart ADB' in MASV or restart daemon from terminal."
+    ),
+    ErrorCode.ADB_DAEMON_DEAD: ErrorDetail(
+        code=ErrorCode.ADB_DAEMON_DEAD,
+        title_es="Demonio ADB finalizado inesperadamente",
+        title_en="ADB Daemon Terminated",
+        description_es="El proceso en segundo plano de ADB murió durante la operación.",
+        description_en="The background ADB daemon process died during operation.",
+        remediation_es="Reinicia el servicio ADB desde el dock o reconecta el cable USB.",
+        remediation_en="Restart ADB service from the dock or reconnect the USB cable."
+    ),
+    ErrorCode.PORT_POOL_EXHAUSTED: ErrorDetail(
+        code=ErrorCode.PORT_POOL_EXHAUSTED,
+        title_es="Grupo de puertos agotado",
+        title_en="Port Pool Exhausted",
+        description_es="No hay puertos TCP disponibles en el rango asignado para nuevas sesiones.",
+        description_en="No TCP ports available in the allocated range for new sessions.",
+        remediation_es="Cierra sesiones scrcpy inactivas o libera puertos huérfanos.",
+        remediation_en="Close inactive scrcpy sessions or release orphaned ports."
+    ),
+    ErrorCode.SCRCPY_SERVER_VERSION_MISMATCH: ErrorDetail(
+        code=ErrorCode.SCRCPY_SERVER_VERSION_MISMATCH,
+        title_es="Discrepancia en versión de scrcpy-server",
+        title_en="scrcpy-server Version Mismatch",
+        description_es="La versión de scrcpy-server.jar no coincide con la versión del binario cliente.",
+        description_en="The scrcpy-server.jar version does not match the client binary version.",
+        remediation_es="Actualiza scrcpy o descarga el scrcpy-server correspondiente a tu versión.",
+        remediation_en="Update scrcpy or download the matching scrcpy-server for your version."
+    ),
+    ErrorCode.PAIRING_TIMEOUT: ErrorDetail(
+        code=ErrorCode.PAIRING_TIMEOUT,
+        title_es="Tiempo de espera agotado al emparejar",
+        title_en="Pairing Timeout",
+        description_es="El dispositivo Android no respondió al emparejamiento Wi-Fi a tiempo.",
+        description_en="The Android device did not respond to Wi-Fi pairing in time.",
+        remediation_es="Mantén encendida la pantalla en 'Depuración inalámbrica' y reintenta.",
+        remediation_en="Keep screen on in 'Wireless debugging' and retry."
+    ),
+    ErrorCode.CONNECTION_REFUSED: ErrorDetail(
+        code=ErrorCode.CONNECTION_REFUSED,
+        title_es="Conexión rechazada",
+        title_en="Connection Refused",
+        description_es="El dispositivo rechazó la conexión TCP en la IP y puerto especificados.",
+        description_en="The device refused TCP connection on specified IP and port.",
+        remediation_es="Verifica que la depuración inalámbrica esté activa y los datos sean correctos.",
+        remediation_en="Verify wireless debugging is active and settings match the phone."
+    ),
+    ErrorCode.BLOCKED_IP_ACCESS: ErrorDetail(
+        code=ErrorCode.BLOCKED_IP_ACCESS,
+        title_es="Acceso bloqueado a dirección IP",
+        title_en="IP Address Access Blocked",
+        description_es="La dirección IP ingresada está bloqueada por la política de seguridad.",
+        description_en="The entered IP address is blocked by the security policy.",
+        remediation_es="Revisa la lista de IPs bloqueadas y los ajustes de Modo Seguro.",
+        remediation_en="Check blocked IP list and Safe Mode settings."
+    ),
+    ErrorCode.PROCESS_SPAWN_ERROR: ErrorDetail(
+        code=ErrorCode.PROCESS_SPAWN_ERROR,
+        title_es="Error al iniciar proceso",
+        title_en="Process Spawn Error",
+        description_es="El sistema operativo no pudo iniciar el subproceso requerido.",
+        description_en="The operating system failed to spawn the required subprocess.",
+        remediation_es="Verifica los permisos de ejecución del binario y la memoria disponible.",
+        remediation_en="Verify binary execution permissions and available system memory."
+    ),
+    ErrorCode.PROCESS_TIMEOUT: ErrorDetail(
+        code=ErrorCode.PROCESS_TIMEOUT,
+        title_es="Tiempo de espera del proceso agotado",
+        title_en="Process Timeout",
+        description_es="El proceso tardó más del tiempo máximo permitido en responder.",
+        description_en="The process exceeded the maximum allowed response time.",
+        remediation_es="Comprueba la estabilidad del enlace USB/Wi-Fi y reduce la resolución.",
+        remediation_en="Check USB/Wi-Fi link stability and reduce resolution or bitrate."
+    ),
+    ErrorCode.V4L2_LOOPBACK_ERROR: ErrorDetail(
+        code=ErrorCode.V4L2_LOOPBACK_ERROR,
+        title_es="Error de cámara virtual V4L2",
+        title_en="V4L2 Loopback Error",
+        description_es="No se pudo acceder o emitir hacia el dispositivo virtual /dev/videoX.",
+        description_en="Could not access or stream to virtual device /dev/videoX.",
+        remediation_es="Asegúrate de haber cargado el módulo v4l2loopback en el sistema.",
+        remediation_en="Ensure v4l2loopback kernel module is loaded on the system."
+    ),
+    ErrorCode.PROFILE_NOT_FOUND: ErrorDetail(
+        code=ErrorCode.PROFILE_NOT_FOUND,
+        title_es="Perfil no encontrado",
+        title_en="Profile Not Found",
+        description_es="El perfil de transmisión especificado no existe en la configuración.",
+        description_en="The specified streaming profile does not exist in configuration.",
+        remediation_es="Elige un perfil existente en la lista o crea uno nuevo en Perfiles.",
+        remediation_en="Select an existing profile or create a new one in Profiles."
+    ),
+    ErrorCode.INVALID_INPUT: ErrorDetail(
+        code=ErrorCode.INVALID_INPUT,
+        title_es="Parámetro o entrada inválida",
+        title_en="Invalid Input Parameter",
+        description_es="Uno o más datos proporcionados no cumplen con el formato requerido.",
+        description_en="One or more provided values do not meet the required format.",
+        remediation_es="Revisa los valores ingresados y corrige los campos señalados.",
+        remediation_en="Check entered values and correct the highlighted fields."
+    ),
+    ErrorCode.UNKNOWN_ERROR: ErrorDetail(
+        code=ErrorCode.UNKNOWN_ERROR,
+        title_es="Error no clasificado",
+        title_en="Unclassified Error",
+        description_es="Ha ocurrido un error inesperado no catalogado.",
+        description_en="An unexpected uncataloged error has occurred.",
+        remediation_es="Consulta masv.log o la consola de depuración para más información.",
+        remediation_en="Check masv.log or debug console for further information."
+    ),
 }
 
 def get_error_detail(code: ErrorCode) -> ErrorDetail:

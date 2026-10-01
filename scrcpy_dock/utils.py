@@ -1,4 +1,10 @@
+import copy
+import errno
+import logging
 import os, sys, re, time, socket, shutil, json
+from typing import Optional
+
+log = logging.getLogger(__name__)
 
 # ── Paleta Warm Modern Dark — Sistema de Diseño Canónico MASV ────────────────
 # Diseño cálido personal (Warm Stone Deep, Ámbar Dorado, Terracota y Marfil)
@@ -19,7 +25,7 @@ C = {
     "pill_hover":  "#38332E",   # Hover de pastilla
     "pill_active": "#D97706",   # Pastilla activa (Ámbar)
     "pill_text":   "#A8A29E",   # Texto inactivo
-    "pill_text_act":"#FFFFFF",  # Texto activo
+    "pill_text_act":"#141210",  # Texto activo (WCAG AA sobre pill_active)
 
     # Acciones primarias y acentos
     "blue":        "#D97706",   # Ámbar Cálido Primario
@@ -81,7 +87,7 @@ THEMES = {
         "pill_hover":  "#38332E",
         "pill_active": "#D97706",
         "pill_text":   "#A8A29E",
-        "pill_text_act":"#FFFFFF",
+        "pill_text_act":"#141210",
         "blue":        "#D97706",
         "blue_hover":  "#B45309",
         "indigo":      "#F59E0B",
@@ -120,7 +126,7 @@ THEMES = {
         "pill_hover":  "#242B42",
         "pill_active": "#00F0FF",
         "pill_text":   "#94A3B8",
-        "pill_text_act":"#FFFFFF",
+        "pill_text_act":"#0B0D13",
         "blue":        "#00F0FF",
         "blue_hover":  "#00C2CF",
         "indigo":      "#3B82F6",
@@ -159,7 +165,7 @@ THEMES = {
         "pill_hover":  "#475569",
         "pill_active": "#38BDF8",
         "pill_text":   "#94A3B8",
-        "pill_text_act":"#FFFFFF",
+        "pill_text_act":"#0F172A",
         "blue":        "#38BDF8",
         "blue_hover":  "#0EA5E9",
         "indigo":      "#6366F1",
@@ -188,7 +194,7 @@ THEMES = {
     }
 }
 
-def apply_theme(theme_name: str):
+def apply_theme(theme_name: str) -> None:
     if theme_name in THEMES:
         C.update(THEMES[theme_name])
 
@@ -246,6 +252,12 @@ DEFAULT_CONFIG = {
             "turn_screen_off": False, "force_screen_off_keyevent": False,
             "stay_awake": True, "extra_args": "--video-source=camera"
         },
+        "📷 Cámara Frontal": {
+            "bitrate": "12M", "max_size": "1920", "max_fps": "30",
+            "audio_source": "mic", "camera_id": None, "video_codec": "h264",
+            "turn_screen_off": False, "force_screen_off_keyevent": False,
+            "stay_awake": True, "extra_args": "--video-source=camera --camera-facing=front"
+        },
     },
     "device_associations": {},
     "last_selected_profile": "🎮 Juego Rápido",
@@ -264,23 +276,27 @@ DEFAULT_CONFIG = {
 
 def load_config() -> dict:
     if not os.path.exists(CONFIG_FILE):
-        save_config(DEFAULT_CONFIG); return dict(DEFAULT_CONFIG)
+        save_config(DEFAULT_CONFIG); return copy.deepcopy(DEFAULT_CONFIG)
     try:
         with open(CONFIG_FILE, "r", encoding="utf-8") as f:
             data = json.load(f)
+        # La fusión con la plantilla **copia** lo que injerta (§3.11-bis): si el fichero
+        # del usuario no trae una clave (p. ej. `security` en un config.json de una
+        # versión anterior), `data[k] = v` dejaba al diccionario cargado compartiendo el
+        # sub-diccionario global — y mutar lo cargado mutaba `DEFAULT_CONFIG`.
         for k, v in DEFAULT_CONFIG.items():
             if k not in data:
-                data[k] = v
+                data[k] = copy.deepcopy(v)
             elif isinstance(v, dict) and isinstance(data[k], dict):
                 for sub_k, sub_v in v.items():
                     if sub_k not in data[k]:
-                        data[k][sub_k] = sub_v
+                        data[k][sub_k] = copy.deepcopy(sub_v)
         return data
     except Exception as e:
         print(f"Error loading config: {e}")
-        return dict(DEFAULT_CONFIG)
+        return copy.deepcopy(DEFAULT_CONFIG)
 
-def save_config(cfg: dict):
+def save_config(cfg: dict) -> None:
     tmp_file = f"{CONFIG_FILE}.tmp"
     try:
         with open(tmp_file, "w", encoding="utf-8") as f:
@@ -297,8 +313,13 @@ def save_config(cfg: dict):
             try: os.remove(tmp_file)
             except Exception: pass
 
-def find_portable_binaries():
-    """Busca adb y scrcpy en la carpeta 'bin' relativa al ejecutable, en ~/.config/masv/bin, y en PATH."""
+def find_portable_binaries() -> tuple[Optional[str], Optional[str]]:
+    """Busca adb y scrcpy en la carpeta 'bin' relativa al ejecutable, en ~/.config/masv/bin, y en PATH.
+
+    Devuelve `(adb, scrcpy)`; el que no aparezca llega como `None` (nunca se inventa
+    una ruta): los llamadores deciden el respaldo — `managers.py` usa
+    `/usr/local/bin/scrcpy` y `adb` se resuelve por separado.
+    """
     search_paths = []
 
     if getattr(sys, 'frozen', False):
@@ -323,8 +344,21 @@ def find_portable_binaries():
 
 import ipaddress
 
-def parse_ip_port(raw: str):
-    """Limpia y valida estrictamente la IP:PORT ingresada usando el módulo ipaddress."""
+def parse_ip_port(raw: str) -> tuple[Optional[str], Optional[str]]:
+    """Limpia y valida estrictamente la IP:PORT ingresada usando el módulo ipaddress.
+
+    Contrato de fallo (⑪): entrada inválida → `(None, None)`, **nunca** `None` suelto
+    y nunca una excepción, porque los llamadores desempaquetan la tupla directamente
+    (`ip, port = parse_ip_port(...)`).
+
+    ⚠️ Esa tupla de fallo es **verdadera**: `if not parsed` NO la detecta. Hay que
+    mirar `parsed[0]` (ver `main.py::_connect_by_ip`). El otro parser de red del
+    proyecto, `SecurityManager.parse_pair_ip_port_code`, usa la convención contraria
+    (`None` suelto) porque su llamador comprueba `if not parsed:` — y una tupla de
+    Nones también sería verdadera y pasaría la guarda.
+
+    Sin puerto explícito se asume 5555; el puerto debe estar entre 1 y 65535.
+    """
     clean = raw.strip()
     if not clean:
         return None, None
@@ -348,19 +382,54 @@ def parse_ip_port(raw: str):
         return None, None
 
 class SingleInstance:
-    """Previene que la aplicación se abra múltiples veces (Singleton por puerto local)."""
+    """Previene que la aplicación se abra múltiples veces (Singleton por puerto local).
+
+    Es una comodidad para el usuario, no un candado de seguridad: si el socket falla
+    por un motivo **distinto** de "puerto ocupado", la app arranca igual (con aviso)
+    en lugar de mostrar el falso "ya está en ejecución" que dejaba sin poder abrirla.
+    """
+
     def __init__(self, port: int = 47291):
         self.port = port
         self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        self._adquirido = False
+
     def acquire(self) -> bool:
+        """True si esta instancia puede arrancar (es la única, o el socket no es fiable).
+
+        Tres propiedades medidas (ver `INFORME_BUGS` §3.21 y ADR-045):
+
+          · **exclusión** — la segunda instancia recibe `EADDRINUSE`;
+          · **reentrada limpia** — tras `release()` el puerto queda libre al instante;
+          · **reentrada con TIME_WAIT** — si el puerto quedó en TIME_WAIT (tras
+            `_restart_app()` o un cierre abrupto con conexión), se puede volver a ligar.
+
+        Las tres exigen `SO_REUSEADDR` **antes** del `bind` **y** `listen(1)`:
+        `SO_REUSEADDR` solo (sin `listen`) permite el segundo bind y rompe la
+        exclusión; y con el `bind` antes de la opción se pierde la reentrada con
+        TIME_WAIT (probado: la variante sin `listen` falla con `EADDRINUSE`).
+        """
         try:
+            self.sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
             self.sock.bind(("127.0.0.1", self.port))
+            self.sock.listen(1)
+            self._adquirido = True
             return True
-        except socket.error:
-            return False
+        except OSError as e:
+            if e.errno == errno.EADDRINUSE:
+                return False          # ya hay otra instancia: es el caso legítimo
+            log.warning(
+                "instancia única: no se pudo reservar el puerto %s (%s); se arranca igual",
+                self.port, e,
+            )
+            return True
+
     def release(self):
-        try: self.sock.close()
-        except Exception: pass
+        try:
+            self.sock.close()
+        except Exception:
+            pass
+        self._adquirido = False
 
 def _extract_serial(text: str) -> str:
     """Extrae el serial del formato 'Modelo (Serial)' o devuelve el texto limpio."""
@@ -369,7 +438,7 @@ def _extract_serial(text: str) -> str:
         return m.group(1).strip()
     return text.strip()
 
-def log_msg(level: str, msg: str):
+def log_msg(level: str, msg: str) -> None:
     ts   = time.strftime("%Y-%m-%d %H:%M:%S")
     line = f"[{ts}] [{level}] {msg}\n"
     print(line, end="")
