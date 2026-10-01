@@ -14,6 +14,7 @@
 32. [ADR-032: Motor ADB Único y Canal Exclusivo para la UI](#adr-032)
 33. [ADR-033: Extracción de `StreamService` con Proveedores (no valores)](#adr-033)
 34. [ADR-034: Datos desde el Modelo, Nunca desde la Etiqueta del Widget](#adr-034)
+35. [ADR-035: Una Pestaña, un Módulo — y el Contenedor se Limpia en un Solo Sitio](#adr-035)
 
 > ⚠️ **Hueco de trazabilidad detectado (2026-10-01):** el código cita **ADR-001 a ADR-031**
 > (`ADR-006/007/008/009` en `adb_engine`, `ADR-029` en `port_allocator`, `ADR-031` en
@@ -134,6 +135,20 @@
 
 ---
 
+<a name="adr-035"></a>
+### ADR-035: Una Pestaña, un Módulo — y el Contenedor se Limpia en un Solo Sitio
+
+- **Contexto del Problema**: `ui_tabs.py` acumulaba 1.034 líneas con siete constructores de 38 a 344 líneas dentro de una sola clase. Consecuencias medidas: el prólogo del lienzo desplazable estaba copiado en 5 pestañas, la limpieza del contenedor existía en 4 de 7 (lo que producía **P3.25**: apilar un árbol de widgets completo en cada cambio de tema), había una importación perezosa escondida en `build_tab_profile` y no había forma de revisar ni probar una pestaña sin cargar todo el archivo.
+- **Decisión Adoptada**: cada pestaña vive en su propio módulo de `scrcpy_dock/ui/tabs/` y expone `build(parent, tab)`, donde `tab` es un `TabContext(ctx, cb, refs, faq_items)`. Las piezas compartidas (`clear`, `scrollable`, el propio `TabContext`) viven en `common.py`. `UIBuilder` **permanece en `ui_tabs.py` como fachada** de 62 líneas que delega, conservando la firma `(app_context, callbacks)` y los atributos `refs`/`_faq_items` que `main.py` y el arnés D1 consultan.
+- **Consecuencias**:
+  - *Positivas*: una pestaña se lee, se revisa y se prueba sola; la cobertura de la capa subió al **99 %** (5 de 7 módulos al 100 %); la duplicación se **redujo a la mitad** (2,9 % → 1,4 %); la limpieza del contenedor tiene un único sitio, así que P3.25 no puede reaparecer por descuido; la importación perezosa desapareció.
+  - *Negativas*: un nivel más de importaciones y un objeto de contexto que hay que pasar; quien añada una pestaña debe recordar llamar a `clear(parent)` (hay una guardia que lo comprueba sobre el código).
+  - *Invariante de compatibilidad*: `refs` y `faq_items` se comparten **por identidad**, nunca por copia. La FAQ usa `.clear()` en vez de reasignar para no romperla.
+  - *Verificación*: `tests/test_fase_c2_regressions.py` (12 pruebas, incluidas las de P3.25) sobre el arnés compartido `tests/ui_harness.py`.
+- **Regla derivada (procedimiento de extracción)**: al partir un archivo grande, **el código se mueve mecánicamente y se verifica línea a línea** contra el original (multiconjunto de líneas normalizadas, descontando sólo los cambios declarados), en vez de retranscribirlo a mano. La partición de 1.034 líneas se validó así antes de dar el cambio por bueno.
+
+---
+
 ## ⚖️ Matriz de Trade-offs de Decisiones Técnicas
 
 | Decisión Técnica | Beneficio Directo | Costo / Penalización | Alternativa Descartada | Razón del Rechazo |
@@ -148,5 +163,7 @@
 | **Proveedores (callables) en vez de valores al extraer un servicio** | La extracción no rompe la sustitución tardía (`mgr._scrcpy = fake`), que usan tests y la re-detección de binarios. | Un nivel de indirección al leer `self._get_scrcpy()`. | Pasar el objeto y confiar en que nadie lo sustituya. | Ya rompió 3 pruebas al ejecutar C1: la sustitución es legítima y frecuente. |
 | **Registro paralelo al widget (`_devices_shown`) en vez de parsear la etiqueta** | El serial es siempre correcto y el formato de la fila se vuelve estético; recupera avisos que eran inalcanzables. | Hay que mantener el listbox y su registro sincronizados. | `_extract_serial()` sobre el texto de la fila. | P3.24: el paréntesis no siempre lleva el serial, así que el parser leía el mensaje de estado. |
 | **Descomponer en validadores puros (uno por campo) en lugar de un `if` gigante** | Un campo, una regla: añadir un campo no obliga a releer toda la sanitización y cada regla se prueba aislada. | Más métodos (8 en vez de ~40 líneas de `if`). El parseo del dict ya no se lee de un tirón. | Mantener la función monolítica y bajar su CC con `# noqa`/helpers anidados. | Es el patrón que dejó `sanitize_profile_dict` en CC 28 sin una sola prueba por campo. |
+| **Un módulo por pestaña + fachada estable, en vez del archivo único** | Cada pestaña se prueba y se revisa sola; la cobertura de la capa sube al 99 % y P3.25 se vuelve imposible por construcción. | Un nivel más de importaciones; un objeto de contexto que atravesar. | Dejar `ui_tabs.py` con 1.034 líneas y siete constructores. | Con el archivo único, 3 de 7 pestañas se construían sin limpiar el contenedor y nadie podía verlo sin abrir el archivo entero. |
+| **Extracción mecánica verificada línea a línea, en vez de retranscribir el código** | Cero riesgo de perder o inventar una línea en una partición de 1.000 líneas; la verificación queda como prueba objetiva. | Un script de extracción y otro de verificación que hay que mantener mientras dura la tarea. | Mover el código a mano, releyendo. | Una transposición manual de 1.000 líneas no tiene forma de demostrar que está completa. |
 | **Sanitización de `extra_args` con lista de rechazo** | Prevención de ataques de inyección de comandos en perfiles compartidos. | Rechazo de scripts compuestos dentro del campo de argumentos. | Ejecutar mediante shell directo con permisos elevados. | Riesgo crítico de seguridad según la Ley Global 3. |
 | **Almacenamiento JSON plano con guardado atómico (`fsync` + `os.replace`)** | Cero dependencias de base de datos externa, portabilidad absoluta. | No apto para consultas relacionales masivas concurrentes. | SQLite / PostgreSQL embebido. | Sobrecomplejidad innecesaria para un gestor de configuración local de escritorio. |

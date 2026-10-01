@@ -44,6 +44,14 @@ from scrcpy_dock.main import ScrcpyDockApp
 from scrcpy_dock.security import SecurityManager
 from scrcpy_dock.utils import parse_ip_port
 
+from tests.ui_harness import (
+    _LAUNCHED,
+    _DialogRecorder,
+    _FakeProc,
+    parches_entorno,
+    parches_ui,
+)
+
 # Pestañas canónicas (main.py:_select_tab)
 TABS = ["quickcast", "actions", "device", "controls", "profiles", "console", "help"]
 
@@ -62,135 +70,6 @@ _DENY = {
     "_on_app_close",
     "_start_tray",             # bandeja del sistema (pystray)
 }
-
-
-_LAUNCHED: list = []
-
-
-class _FakePopen:
-    """`subprocess.Popen` bien comportado: registra y no ejecuta nada.
-
-    Se parchea el atributo del módulo (`subprocess.Popen`) porque `run()` lo
-    resuelve internamente; por eso el doble debe implementar el protocolo que
-    `run()` espera (`__enter__`/`__exit__`, `communicate`, `poll`) y devolver
-    salida vacía con código 0 — así ningún camino real del código abre un
-    proceso, pero `subprocess.run([...])` sigue respondiendo como si todo
-    hubiera ido bien.
-    """
-
-    def __init__(self, args=None, *a, **kwargs):
-        self.args = args
-        self.pid = 0
-        self.returncode = 0
-        _LAUNCHED.append(args)
-
-    def __enter__(self):
-        return self
-
-    def __exit__(self, *exc):
-        return False
-
-    def communicate(self, input=None, timeout=None):
-        return "", ""
-
-    def poll(self):
-        return 0
-
-    def wait(self, timeout=None):
-        return 0
-
-    def terminate(self):
-        pass
-
-    def kill(self):
-        pass
-
-
-class _FakeProc:
-    """Proceso falso con la interfaz que consume ScrcpySession."""
-    pid = 43210
-
-    def poll(self):
-        return None
-
-    def terminate(self):
-        pass
-
-    def kill(self):
-        pass
-
-    def wait(self, timeout=None):
-        return 0
-
-
-class _FakeAdbEngine:
-    """AdbEngine sin subprocess. Registra lo que la UI le pide."""
-
-    def __init__(self, *args, **kwargs):
-        self._adb_binary = Path("/usr/bin/adb")
-        self._effective_port = 5037
-        self._daemon_started = True
-        self._activated_by_masv: set[str] = set()
-        self.calls: list = []
-
-    # contrato del motor real que usa la app
-    def start_daemon(self):
-        return OperationResult.ok(5037, "fake daemon")
-
-    def list_devices(self):
-        return OperationResult.ok([], "0 dispositivo(s)")
-
-    def get_properties(self, serial):
-        return OperationResult.ok({
-            "ro.build.version.sdk": "34",
-            "ro.build.version.release": "14",
-            "ro.product.manufacturer": "vivo",
-            "ro.product.model": "V2314",
-            "ro.board.platform": "qcom",
-        })
-
-    def start_tcpip(self, serial, port=5555):
-        self.calls.append(("start_tcpip", serial, port))
-        self._activated_by_masv.add(serial)
-        return OperationResult.ok(None, "fake tcpip")
-
-    def revert_tcpip(self, serial):
-        self.calls.append(("revert_tcpip", serial))
-        return OperationResult.ok(None, "fake revert")
-
-    def connect_wifi(self, host, port=5555):
-        self.calls.append(("connect_wifi", host, port))
-        return OperationResult.ok(f"{host}:{port}", "fake connect")
-
-    def connect(self, target, timeout=8):
-        self.calls.append(("connect", target))
-        return OperationResult.ok(target, "fake connect")
-
-    def disconnect_wifi(self, serial):
-        return OperationResult.ok(None, "fake disconnect")
-
-    def shell(self, serial, *args, timeout=10, error_code=None):
-        self.calls.append(("shell", serial, args))
-        return OperationResult.ok("", "fake shell")
-
-    def install(self, serial, apk_path, timeout=180):
-        return OperationResult.ok("Success", "Success")
-
-    def kill_server(self):
-        return OperationResult.ok(None, "fake kill")
-
-    def rebind(self, adb_binary):
-        self._adb_binary = Path(adb_binary)
-
-    def track_devices_async(self, on_change, on_daemon_dead, max_reconnect_attempts=5):
-        return OperationResult.ok(None, "sin tracker en pruebas")
-
-    def stop_tracker(self):
-        pass
-
-    @property
-    def effective_socket_port(self):
-        return self._effective_port
 
 
 class _CommandCheckingScrcpy:
@@ -219,29 +98,6 @@ class _CommandCheckingScrcpy:
         if res.data is not None:
             self.launched.append(res.data)
         return OperationResult.ok(_FakeProc())
-
-
-class _DialogRecorder:
-    """Sustituye a messagebox/filedialog: registra y responde sin bloquear."""
-
-    def __init__(self, answers: dict | None = None):
-        self.calls: list[tuple] = []
-        self._answers = answers or {}
-
-    def __getattr__(self, name):
-        def _call(*args, **kwargs):
-            self.calls.append((name, args))
-            return self._answers.get(name, False)
-        return _call
-
-    def did(self, name: str) -> bool:
-        return any(c[0] == name for c in self.calls)
-
-    def last(self, name: str):
-        for call in reversed(self.calls):
-            if call[0] == name:
-                return call
-        return None
 
 
 class UISmokeTest(unittest.TestCase):
@@ -276,25 +132,7 @@ class UISmokeTest(unittest.TestCase):
 
         # Modales: `TrustPromptModal` llama a wait_window en el constructor y
         # `grab_set` deja el grab global tomado entre pruebas.
-        self._patches = [
-            patch.object(utils, "CONFIG_FILE", str(Path(tmp, "config.json"))),
-            patch.object(utils, "LOG_FILE", str(Path(tmp, "masv.log"))),
-            patch.object(utils, "CONFIG_DIR", tmp),
-            patch.object(context_mod, "CONFIG_DIR", tmp),
-            patch.object(context_mod, "find_portable_binaries",
-                         return_value=("/usr/bin/adb", "/usr/local/bin/scrcpy")),
-            patch.object(context_mod, "AdbEngine", _FakeAdbEngine),
-            patch.object(context_mod, "load_config", lambda: copy.deepcopy(self.cfg_data)),
-            patch.object(utils, "save_config", lambda cfg: None),
-            patch("tkinter.Misc.wait_window", lambda self, window=None: None),
-            patch("tkinter.Misc.grab_set", lambda self: None),
-            # Los lockdowns lanzan `adb` real: nunca desde el arnés.
-            patch.object(SecurityManager, "pair_device", staticmethod(lambda *a, **k: (True, "fake"))),
-            patch.object(SecurityManager, "lockdown_device_tcpip",
-                         staticmethod(lambda *a, **k: (True, "fake"))),
-            patch.object(SecurityManager, "lockdown_all_devices",
-                         staticmethod(lambda *a, **k: (0, "fake"))),
-        ]
+        self._patches = parches_entorno(self.cfg_data, tmp)
         for p in self._patches:
             p.start()
 
@@ -303,13 +141,7 @@ class UISmokeTest(unittest.TestCase):
         # Ningún handler puede abrir un proceso real durante el arnés
         # (`_open_log` lanzaría `xdg-open` en el escritorio del usuario).
         _LAUNCHED.clear()
-        self._ui_patches = [
-            patch.object(main_mod, "messagebox", self.dialogs),
-            patch.object(main_mod, "filedialog", _DialogRecorder()),
-            patch.object(main_mod, "Toast",
-                         lambda *a, **k: self.toasts.append(a) or MagicMock()),
-            patch.object(main_mod.subprocess, "Popen", _FakePopen),
-        ]
+        self._ui_patches = parches_ui(self.dialogs, self.toasts)
         for p in self._ui_patches:
             p.start()
 

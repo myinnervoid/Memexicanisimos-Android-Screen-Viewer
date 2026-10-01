@@ -461,6 +461,83 @@ veía el problema; hubo que reproducir el formato real para destaparlo.
 
 ---
 
+### 3.25 🟠 Reconstruir una pestaña apilaba su árbol de widgets completo *(encontrado al partir `ui_tabs.py`, 01-oct)*
+
+**Archivo**: `scrcpy_dock/main.py:_change_theme` (invocador) · `scrcpy_dock/ui_tabs.py:build_*` (constructores)
+
+`_change_theme` ofrece reiniciar la app o refrescar la interfaz en caliente. Si el usuario responde
+que no, recorre **las siete pestañas sobre los mismos frames**:
+
+```python
+for tid, frame in self._tab_frames.items():
+    if tid == "quickcast": self.ui.build_simple_view(frame)
+    elif tid == "actions": self.ui.build_tab_actions(frame)
+    ...
+```
+
+Pero sólo **cuatro** de los siete constructores vaciaban el contenedor antes de reconstruirlo
+(`for w in p.winfo_children(): w.destroy()`); `build_tab_actions`, `build_tab_controls` y
+`build_tab_profile` empezaban a crear widgets directamente.
+
+**Medición** (sonda con la app real, contando hijos directos del frame):
+
+```
+pestaña       antes  después (1er cambio)  después (2º)
+quickcast         2        2               2
+actions           2        4               6      ← DUPLICA
+controls          2        4               6      ← DUPLICA
+profiles          2        4               6      ← DUPLICA
+device            2        2               2
+console           4        4               4
+help              3        3               3
+```
+
+**Impacto**: cada cambio de tema en caliente apila una copia entera de la pestaña (canvas,
+scrollbar y todo el árbol) encima de la anterior. El usuario ve widgets superpuestos y `refs[...]`
+queda re-apuntado a los widgets nuevos mientras los viejos siguen empaquetados y visibles. La
+memoria crece sin límite con cada cambio de tema y los handlers pueden quedar enlazados dos veces.
+
+**Corrección**: la limpieza se unificó en un único ayudante (`ui/tabs/common.py:clear`) que **las
+siete** pestañas llaman como primera operación. La reconstrucción es idempotente: el número de hijos
+no cambia al repetirla.
+
+**Causa raíz**: siete constructores construidos por separado, cada uno con su propio prólogo copiado
+(a veces presente, a veces no). Es una consecuencia directa de la duplicación estructural que C2
+eliminó: al haber un solo sitio donde se decide empezar de cero, ya no puede haber discrepancia.
+
+**Regresión**: `tests/test_fase_c2_regressions.py` — `test_cambiar_de_tema_no_duplica_el_contenido_de_las_pestanas`,
+`test_cada_pestana_se_puede_reconstruir_sin_acumular`, `test_tras_reconstruir_los_refs_apuntan_al_arbol_vivo`
+y `TestCazadoPorC2` (guardia sobre el código). Verificado que **muerden**: al quitar `clear(parent)`
+de una sola pestaña fallan 3 de las 12 pruebas de C2.
+
+---
+
+### 3.26 🟡 Seis claves duplicadas con valores distintos en la tabla de traducciones *(encontrado por pyflakes, 01-oct)*
+
+**Archivo**: `scrcpy_dock/i18n.py` (`_translations`, líneas 166/487, 284/489, 285/490)
+
+```python
+"   d. Aparecerá el mensaje: ¡Ahora eres desarrollador!": "   d. The message will appear: You are now a developer!",   # línea 166
+...
+"   d. Aparecerá el mensaje: ¡Ahora eres desarrollador!": "   d. The message 'You are now a developer!' will appear.",  # línea 487
+```
+
+En un literal de diccionario **la última clave gana**: el valor de la línea 166 es inalcanzable. Lo
+mismo con `"   a. Regresa a Ajustes → Sistema → Opciones para desarrolladores."` (284/489) y
+`"   b. Activa el interruptor 'Depuración USB'."` (285/490).
+
+**Impacto**: hoy **no** hay error visible (las dos traducciones inglesas son correctas), pero el
+defecto es una trampa de mantenimiento: quien edite la entrada de la línea 166 para corregir el
+texto que ve el usuario **no verá ningún efecto** y no habrá ninguna señal de por qué.
+
+**Corrección pendiente** (no aplicada en C2, que no toca i18n): conservar una sola entrada por clave
+—la que gana, o la mejor redactada— y borrar la otra. Es el mismo trabajo pendiente de las ~295
+claves huérfanas; conviene hacerlo todo junto con su propio ADR.
+
+**Detección**: `python -m pyflakes scrcpy_dock` (`dictionary key ... repeated with different values`).
+
+---
+
 ## 4. Cobertura de pruebas — brechas concretas
 
 Lo que **no** cubre la suite actual (269 tests) y permitió que los bugs anteriores pasaran:
@@ -553,13 +630,14 @@ PY
 Los tres documentos del sistema (`ANALISIS.md`, `AUDIT_REPORT.md` y este informe) se mantienen
 sincronizados con el registro de ejecución de `ANALISIS.md` §11.
 
-| Métrica | Al redactar este informe | Tras Fases A–D3 |
+| Métrica | Al redactar este informe | Tras Fases A–C2 |
 | :--- | :---: | :---: |
-| Pruebas | 269 | **532** |
+| Pruebas | 269 | **544** |
 | Cobertura total | 35 % | **78 %** |
 | Cobertura `core/adb_engine.py` | 46 % | **100 %** |
 | Módulos de negocio bajo el 80 % | 4 | **0** (mínimo 81 %) |
-| Cobertura UI (`ui_tabs.py`) | 0–3 % | **98 %** |
+| Cobertura de la capa de pestañas | 0 % | **99 %** (`ui/tabs/`, 526 sentencias) |
+| Cobertura UI (`ui_tabs.py`) | 0–3 % | **100 %** |
 | Bloques con CC > 10 | 20 (máx. 63) | **14 (máx. 18)** |
 | Bloques Rank D o F | 5 (3 D + 2 F) | **0** |
 | Umbrales de la Ley 7 en rojo | 2 | **0** |

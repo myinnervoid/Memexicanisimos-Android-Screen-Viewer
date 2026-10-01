@@ -85,9 +85,10 @@ Runner: `python -m unittest discover -s tests` (el del CI). Herramienta: `covera
 
 | Capa | Umbral Ley 7 | Medido (auditoría v1.4.1) | Medido (hoy) | Veredicto |
 | :--- | :---: | :---: | :---: | :---: |
-| **UI** (`main.py`, `ui_tabs.py`, `ui_widgets.py`) | ≥ 60 % | 0 % / 0 % / 16 % | **61 % / 98 % / 49 %** | 🟡 (`ui_widgets.py`) |
+| **UI** (`main.py` · `ui_tabs.py` · `ui_widgets.py`) | ≥ 60 % | 0 % / 0 % / 16 % | **62 % · 100 % · 49 %** | 🟡 (`ui_widgets.py`) |
+| **Pestañas** (`ui/tabs/`, 7 módulos + `common`) | ≥ 60 % | (no existía) | **99 %** (526 sentencias; 5 módulos al 100 %) | ✅ |
 | **Lógica de negocio / núcleo** (17 módulos) | ≥ 80 % | 46 %–100 % | **81 %–100 %** | ✅ |
-| **TOTAL proyecto** | — | **35 %** (4.664 stmts) | **78 %** (5.031 stmts) | — |
+| **TOTAL proyecto** | — | **35 %** (4.664 stmts) | **78 %** (5.048 stmts) | — |
 
 Desglose de la capa de negocio (17 módulos) — auditoría → hoy:
 
@@ -139,9 +140,14 @@ Desglose de la capa de negocio (17 módulos) — auditoría → hoy:
 
 ### 3.3 Duplicación de código (umbral Ley 7: ≤ 5 %)
 
-**2,9 %** — 24 bloques de ≥ 6 líneas normalizadas repetidos; 252 líneas de 8.769. ✅ **Cumple.**
-*(Medición propia por bloques normalizados, no herramienta estándar de duplicación; sirve como orden de magnitud.)*
-Concentrada en las invocaciones repetidas de `subprocess.run(...)` en `adb_engine.py` (los mismos `capture_output/text/timeout/env` ×6), candidata natural a un helper único `_run_adb()`.
+**1,4 %** — 116 líneas duplicadas de 8.191 líneas normalizadas; 43 ventanas de ≥ 6 líneas repetidas. ✅ **Cumple** (y a la mitad que en la auditoría).
+*(Medición propia por bloques normalizados, no herramienta estándar de duplicación; sirve como orden de magnitud. El recuento de ventanas no es comparable con el de la auditoría porque aquél agrupaba solapamientos; la línea duplicada sí lo es.)*
+
+**Evolución**: 2,9 % (252 de 8.769) en la auditoría → **1,4 %** hoy. La caída tiene una causa
+concreta: C2 eliminó los cinco prólogos de lienzo desplazable copiados línea a línea y unificó la
+limpieza del contenedor, y las pestañas dejaron de repetir el mismo bloque de cabecera de sección.
+La duplicación que queda son invocaciones de `subprocess.run(...)` en `adb_engine.py` (los mismos
+`capture_output/text/timeout` ×6) y bloques de `tk.Label(...)` con la misma tipografía.
 
 ### 3.4 Mantenibilidad (radon MI)
 
@@ -413,12 +419,14 @@ El síntoma clásico que la v3.2 quería eliminar —**«la capa de interfaz eje
 > 98 %**; `ui_widgets.py` **16 % → 49 %**; `main.py` al 55 %.
 > La primera pasada cazó **2 defectos reales** (§11.4). D2–D5 pendientes.
 
-> **Estado: ✅ CERRADA la deuda ciclomática (01-oct, §11.5) y ✅ D3 (01-oct, §11.6).** Con D1 como red se demolieron
+> **Estado: ✅ CERRADA la deuda ciclomática (01-oct, §11.5), ✅ D3 (01-oct, §11.6) y ✅ C2 (01-oct, §11.8).** Con D1 como red se demolieron
 > los **tres últimos bloques Rank D** del repositorio: `sanitize_profile_dict` CC **28 → 2**,
 > `_exit` CC **23 → 1**, `_on_dev_select` CC **21 → 2**. El repositorio queda con **0 bloques
 > Rank D o F** y 14 bloques > 10 (todos Rank C, máximo 18). La segunda
 > pasada cazó **P3.24** (§3.24 del informe de bugs), un defecto de producción real.
-> **D3**: `adb_engine.py` pasó de **46 % a 100 %** de cobertura (63 pruebas nuevas). **462/462 OK.**
+> **D3**: `adb_engine.py` pasó de **46 % a 100 %** de cobertura (63 pruebas nuevas).
+> **C2**: `ui_tabs.py` (1.034 líneas) se partió en **7 pestañas atómicas** (`ui/tabs/`, 99 % de
+> cobertura) más una fachada de 62 líneas que conserva la API. **544/544 OK.**
 
 | # | Acción | Criterio de aceptación |
 | :--- | :--- | :--- |
@@ -947,6 +955,76 @@ monkeypatch global de `open()`. Ninguna prueba escribe en `~/.config/masv/`.
 umbral), los 14 bloques CC entre 11 y 18, D2 (linter en CI), D4 (`ERROR_CATALOG` + WCAG), D5,
 unificar las convenciones de fallo de los parsers de IP, deduplicar las 295 claves i18n huérfanas y
 reconstruir los ~26 ADR citados y no escritos.
+
+### 11.8 Fase C — C2 · Partición de `ui_tabs.py` en pestañas atómicas (2026-10-01)
+
+**544/544 pruebas en verde** (12 nuevas en `tests/test_fase_c2_regressions.py`).
+
+`scrcpy_dock/ui_tabs.py`: **1.034 líneas → 62** (fachada). El contenido pasó a
+`scrcpy_dock/ui/tabs/`, un módulo por pestaña:
+
+| Módulo | Líneas | Cob. | Responsabilidad |
+| :--- | :---: | :---: | :--- |
+| `common.py` | 66 | 96 % | `TabContext`, `clear()`, `scrollable()` |
+| `tab_quickcast.py` | 139 | 92 % | Vista rápida (dashboard compacto) |
+| `tab_actions.py` | 129 | 100 % | Transmisión + tabla de sesiones |
+| `tab_controls.py` | 103 | 100 % | Mando remoto por keyevents + instalador APK |
+| `tab_device.py` | 164 | 100 % | Dispositivos, bóveda, Wi-Fi, blindaje, webcam virtual |
+| `tab_profile.py` | 61 | 100 % | Listado, detalle y perfil activo |
+| `tab_console.py` | 50 | 100 % | Visor de logs con filtros |
+| `tab_help.py` | 343 | 100 % | Centro de ayuda y los 19 acordeones FAQ |
+
+**Ninguna línea se reescribió a mano.** La extracción fue mecánica (AST + reemplazos textuales
+sobre el cuerpo original) y se **verificó línea a línea** contra el original: un script comparó el
+multiconjunto de líneas normalizadas de cada `build_*` con el del módulo generado, descontando sólo
+los cambios declarados (limpieza unificada, prólogo del lienzo, import perezoso, `self` → `tab`).
+Resultado: **idéntico salvo los cambios intencionados**, en las siete pestañas. Sin esa verificación
+una partición de 1.000 líneas no pasa de ser una transposición a mano con fe.
+
+**Contrato de las pestañas.** Cada módulo expone `build(parent, tab)` donde `tab` es un `TabContext`
+(`ctx`, `cb`, `refs`, `faq_items`). `refs` y `faq_items` se comparten **por identidad** con la
+fachada: `ScrcpyDockApp` los consulta en caliente (`ui.refs['dev_listbox']`,
+`ui._faq_items[1].expand()`), así que copiarlos habría roto la app en silencio. La FAQ usa
+`tab.faq_items.clear()` en lugar de reasignar, precisamente para no romper esa identidad.
+
+**Duplicación eliminada.** El prólogo del lienzo desplazable (13 líneas) estaba copiado en cinco
+pestañas y la limpieza del contenedor en cuatro: ahora hay una sola versión de cada uno en
+`common.py`. Además se eliminó una **importación perezosa** (`from .ui_widgets import ProfileChipsView`
+dentro de `build_tab_profile`).
+
+**Defectos cazados en esta pasada:**
+
+1. **P3.25 (🟠, corregido)** — reconstruir una pestaña apilaba su árbol de widgets completo: sólo 4
+   de los 7 constructores vaciaban el contenedor, y `_change_theme` los invoca a los 7 sobre los
+   mismos frames. Medido: `actions`, `controls` y `profiles` pasaban de 2 → 4 → 6 hijos. La
+   corrección es estructural (un único `clear()` que llaman las siete), así que la discrepancia ya
+   no puede reaparecer. Ver `INFORME_BUGS_v1.4.1.md` §3.25.
+2. **P3.26 (🟡, documentado)** — seis claves duplicadas con valores distintos en `_translations`
+   (`i18n.py`), detectadas por `pyflakes`. La última gana y la primera queda inalcanzable. No hay
+   error visible, pero editar la entrada muerta no surte efecto. Ver §3.26.
+
+**Arnés compartido.** El rig de D1 (app real sobre Tk oculto, entorno aislado, dobles de Popen y del
+motor ADB) vivía dentro de `test_ui_smoke.py`. Para que las pruebas de C2 lo reutilizaran sin
+duplicarlo se extrajo a `tests/ui_harness.py`; el arnés D1 pasó de 607 a 439 líneas y sus 23 pruebas
+siguen en verde.
+
+**Métricas tras C2:**
+
+| Métrica | Antes de C2 | Después de C2 |
+| :--- | :---: | :---: |
+| Pruebas | 532 | **544** |
+| `ui_tabs.py` | 1.034 líneas, 98 % | **62 líneas** (fachada), **100 %** |
+| `ui/tabs/` | — | 7 módulos + `common`, **99 %** (526 sentencias) |
+| `main.py` | 61 % | **62 %** (el camino de cambio de tema ahora se ejercita) |
+| Duplicación | 2,9 % | **1,4 %** |
+| Bloques CC > 10 · Rank D/F | 14 · 0 | **14 · 0** (C2 no tocó lógica de negocio) |
+| Cobertura total | 78 % | **78 %** |
+
+**Lo que queda**: `ui_widgets.py` al 49 % es el último 🟡 de la capa de UI (el umbral es 60 %); los
+14 bloques CC entre 11 y 18 (los peores ya están en `main.py`: `_toggle_scene` 18, `_toggle_view`
+17); D2 (linter en CI), D4 (`ERROR_CATALOG` + contraste WCAG) y D5; y las dos limpiezas de datos
+que piden ADR propio: las ~295 claves i18n huérfanas (ahora con P3.26 dentro) y los ~26 ADR citados
+y no escritos.
 
 ---
 
