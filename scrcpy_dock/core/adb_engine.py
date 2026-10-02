@@ -76,11 +76,20 @@ class AdbEngine:
 
     def __init__(
         self,
-        adb_binary: Path,
+        adb_binary: Optional[Path | str] = None,
         preferred_socket_port: int = 5037,
         fallback_socket_port: int = 5038,
     ) -> None:
-        self._adb_binary = Path(adb_binary)
+        # `adb_binary` puede llegar None: en una máquina virgen sin
+        # Platform-Tools, `find_portable_binaries()` devuelve (None, None) y
+        # `Path(None)` reventaba el arranque entero con TypeError. Con el nombre
+        # simbólico "adb" el motor queda vivo pero degradado: cada método ya
+        # captura FileNotFoundError y responde
+        # OperationResult.fail(ErrorCode.ADB_NOT_FOUND) — justo lo que la UI
+        # necesita para ofrecer la instalación asistida (ADR-007). Cuando `adb`
+        # sí existe no se llega aquí: los managers pasan la ruta absoluta que
+        # encontró `find_portable_binaries()`.
+        self._adb_binary = Path(adb_binary or "adb")
         self._preferred_socket_port = preferred_socket_port
         self._fallback_socket_port = fallback_socket_port
 
@@ -151,7 +160,8 @@ class AdbEngine:
         Se usa tras la instalación automática de dependencias. Invalida el
         estado del daemon: el binario nuevo debe negociar su propio socket.
         """
-        self._adb_binary = Path(adb_binary)
+        # Misma degradación controlada que en __init__: nunca Path(None).
+        self._adb_binary = Path(adb_binary or "adb")
         self._daemon_started = False
         self._effective_port = 0
 

@@ -670,6 +670,27 @@ class TestEngineGestionaElTracker(unittest.TestCase):
         self.assertEqual(capturado["adb_binary"], ADB)
         self.assertIs(capturado["parse_line"], self.engine._parse_device_line)
 
+class TestAdbEngineDegradadoSinBinario(unittest.TestCase):
+    """Verifica el contrato degradado de AdbEngine en una máquina virgen (ADR-007)."""
+
+    def test_adb_engine_none_no_lanza_y_degrada_a_simbolico(self):
+        engine = AdbEngine(None)
+        self.assertEqual(engine._adb_binary, Path("adb"))
+
+    def test_adb_engine_rebind_none_no_lanza(self):
+        engine = AdbEngine("/usr/bin/adb")
+        engine.rebind(None)
+        self.assertEqual(engine._adb_binary, Path("adb"))
+
+    def test_device_manager_y_session_manager_sin_adb_no_revientan(self):
+        with patch("scrcpy_dock.managers.find_portable_binaries", return_value=(None, None)):
+            from scrcpy_dock.managers import DeviceManager, SessionManager
+            dm = DeviceManager(adb_engine=None)
+            self.assertEqual(dm._adb._adb_binary, Path("adb"))
+            sm = SessionManager(log_q_or_adb=None, adb_engine=None)
+            self.assertEqual(sm._adb._adb_binary, Path("adb"))
+
 
 if __name__ == "__main__":
     unittest.main()
+
