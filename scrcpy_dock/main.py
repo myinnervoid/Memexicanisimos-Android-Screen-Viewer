@@ -61,6 +61,42 @@ _REFS_DE_DISPOSITIVO = ("action_device_lbl", "ctrl_device_lbl")
 _REFS_DE_CONFIANZA = ("action_trust_lbl", "ctrl_trust_lbl", "simple_trust_lbl")
 _REFS_DE_PERFIL = ("action_profile_lbl", "ctrl_profile_lbl")
 
+def _is_noise_log(msg: str) -> bool:
+    if not msg:
+        return True
+    m = msg.strip().lower()
+    if not m:
+        return True
+    noise_patterns = (
+        "error loading config",
+        "traceback (most recent call last)",
+        "syntaxerror",
+        "deprecationwarning",
+        "resourcewarning",
+    )
+    if any(p in m for p in noise_patterns):
+        return True
+    if m.startswith("file \"") and ", line " in m:
+        return True
+    return False
+
+
+def _detect_log_level(line: str) -> str:
+    if "[ERROR]" in line:
+        return "ERROR"
+    if "[WARNING]" in line:
+        return "WARNING"
+    if "[ADB]" in line:
+        return "ADB"
+    return "INFO"
+
+
+def _matches_log_filter(line: str, key_upper: str) -> bool:
+    if _is_noise_log(line):
+        return False
+    return key_upper == "ALL" or f"[{key_upper}]" in line
+
+
 class ScrcpyDockApp:
     def __init__(self, root: tk.Tk, single_instance: Any = None):
         self.root = root
@@ -1859,6 +1895,8 @@ class ScrcpyDockApp:
 
     def _write_log(self, level: str, msg: str):
         log_msg(level, msg)
+        if _is_noise_log(msg):
+            return
         log_txt = self.ui.refs['log_txt']
         log_txt.config(state="normal")
         ts = time.strftime("%H:%M:%S")
@@ -1889,12 +1927,12 @@ class ScrcpyDockApp:
         except Exception:
             return
 
+        key_upper = (filter_key or "ALL").upper()
         log_txt.config(state="normal")
         log_txt.delete("1.0", tk.END)
         for line in lines[-500:]:
-            if filter_key == "ALL" or f"[{filter_key}]" in line:
-                level = "ERROR" if "[ERROR]" in line else "WARNING" if "[WARNING]" in line else "ADB" if "[ADB]" in line else "INFO"
-                log_txt.insert(tk.END, line, level)
+            if _matches_log_filter(line, key_upper):
+                log_txt.insert(tk.END, line, _detect_log_level(line))
         log_txt.see(tk.END)
         log_txt.config(state="disabled")
 

@@ -35,6 +35,28 @@ def _ip_normalizada(ip_str: str) -> Optional[str]:
         return None
 
 
+def _find_legacy_vault_path(canonical_path: Path, vault_dir: Optional[str]) -> Path:
+    """Resuelve la ruta canónica o el respaldo en ~/.MASV/config/vault.enc."""
+    if canonical_path.exists():
+        return canonical_path
+    for var in ("HOME", "USERPROFILE"):
+        v = os.environ.get(var)
+        if v and (Path(v) / ".MASV" / "config" / SecurityService.VAULT_FILENAME).exists():
+            return Path(v) / ".MASV" / "config" / SecurityService.VAULT_FILENAME
+    for resolver in (Path.home, lambda: Path(os.path.expanduser("~"))):
+        try:
+            cand = resolver() / ".MASV" / "config" / SecurityService.VAULT_FILENAME
+            if cand.exists():
+                return cand
+        except Exception:
+            pass
+    if vault_dir:
+        cand = Path(vault_dir).parent / ".MASV" / "config" / SecurityService.VAULT_FILENAME
+        if cand.exists():
+            return cand
+    return canonical_path
+
+
 class SecurityManager:
     """Gestiona la bóveda de dispositivos confiables, validación de red,
 
@@ -97,11 +119,7 @@ class SecurityManager:
         svc = self._crypto_or_none()
         if svc is None:
             return
-        path = Path(self._vault_path)
-        if not path.exists():
-            legacy_path = Path.home() / ".MASV" / "config" / SecurityService.VAULT_FILENAME
-            if legacy_path.exists():
-                path = legacy_path
+        path = _find_legacy_vault_path(Path(self._vault_path), self._vault_dir)
         if path.exists():
             res = svc.load_vault(path)
             trusted = res.data.get("trusted_devices") if (res.success and isinstance(res.data, dict)) else None

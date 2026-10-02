@@ -334,9 +334,11 @@ class UISmokeTest(unittest.TestCase):
         # `_open_log` lanza un visor externo (xdg-open): se comprueba el camino
         # sin abrir nada en el escritorio del usuario.
         _LAUNCHED.clear()
-        self._call("_open_log")
+        import os
+        with patch.object(os, "startfile", lambda p: _LAUNCHED.append(["startfile", p]), create=True):
+            self._call("_open_log")
         self.assertTrue(
-            any("xdg-open" in str(a) for a in _LAUNCHED),
+            any(cmd in str(a) for a in _LAUNCHED for cmd in ("xdg-open", "open", "startfile")),
             f"_open_log no intentó abrir el log (lanzados={_LAUNCHED})",
         )
 
