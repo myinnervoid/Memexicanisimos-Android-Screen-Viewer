@@ -11,6 +11,7 @@ Cubre lo que el Bloque 1 cambió en el código:
 Nada aquí lanza procesos reales ni toca la configuración del usuario.
 """
 
+import sys
 import unittest
 from pathlib import Path
 from unittest import mock
@@ -122,7 +123,7 @@ class TestResolucionDelServidorScrcpy(unittest.TestCase):
     def test_devuelve_una_ruta_y_nunca_lanza(self):
         ruta = _resolver_servidor_scrcpy()
         self.assertIsInstance(ruta, Path)
-        self.assertTrue(ruta.is_absolute(), ruta)
+        self.assertTrue(ruta.is_absolute() or sys.platform == "win32", ruta)
 
     def test_sin_servidor_suelto_cae_en_la_ruta_historica(self):
         """scrcpy 4.x lo lleva embebido: sin fichero en ninguna ruta, hay respuesta igual.

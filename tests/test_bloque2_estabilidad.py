@@ -88,7 +88,7 @@ class TestSingleInstanceRobusta(unittest.TestCase):
         self.assertTrue(instancia.acquire())
 
         activo = instancia.sock.getsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR)
-        self.assertEqual(activo, 1, "el socket debe llevar SO_REUSEADDR")
+        self.assertTrue(bool(activo), "el socket debe llevar SO_REUSEADDR")
 
     def test_un_error_ajeno_no_se_confunde_con_ya_en_ejecucion(self):
         """EACCES/ENOMEM/EAFNOSUPPORT no significan "la app ya está abierta".

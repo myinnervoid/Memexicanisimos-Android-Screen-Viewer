@@ -117,6 +117,7 @@ class EnsureLayoutContract(unittest.TestCase):
 
 # ─── write_desktop_entry · TODO-I3 ──────────────────────────────────
 
+@unittest.skipIf(sys.platform == "win32", "XDG desktop entries and symlinks do not apply on Windows")
 class WriteDesktopEntryContract(unittest.TestCase):
 
     def setUp(self):
@@ -160,6 +161,7 @@ class WriteDesktopEntryContract(unittest.TestCase):
 
 # ─── uninstall · TODO-I4 ────────────────────────────────────────────
 
+@unittest.skipIf(sys.platform == "win32", "XDG desktop entries and symlinks do not apply on Windows")
 class UninstallContract(unittest.TestCase):
 
     def setUp(self):

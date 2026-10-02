@@ -416,7 +416,12 @@ class SingleInstance:
             self._adquirido = True
             return True
         except OSError as e:
-            if e.errno == errno.EADDRINUSE:
+            addr_in_use = (
+                errno.EADDRINUSE,
+                getattr(errno, "WSAEADDRINUSE", 10048),
+                getattr(errno, "WSAEACCES", 10013),
+            )
+            if e.errno in addr_in_use or getattr(e, "winerror", None) in addr_in_use:
                 return False          # ya hay otra instancia: es el caso legítimo
             log.warning(
                 "instancia única: no se pudo reservar el puerto %s (%s); se arranca igual",

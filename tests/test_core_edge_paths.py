@@ -170,7 +170,7 @@ class TestUtilsPlataformas(unittest.TestCase):
     def test_modulo_restaurado_tras_las_recargas(self):
         self._recargar("darwin")
         self.assertEqual(utils.CONFIG_DIR, utils.APP_DIR)
-        self.assertTrue(utils.CONFIG_DIR.endswith(".config/masv"), utils.CONFIG_DIR)
+        self.assertTrue(utils.CONFIG_DIR.replace("\\", "/").endswith(".config/masv"), utils.CONFIG_DIR)
 
 
 class TestBusquedaDeBinarios(unittest.TestCase):

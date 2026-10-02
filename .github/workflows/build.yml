@@ -98,13 +98,24 @@ jobs:
           elif [ -f dist/MASV ]; then
             cp dist/MASV bin_release/MASV-Windows.exe
           fi
+          if [ -f dist/MASV-Windows.zip ]; then
+            cp dist/MASV-Windows.zip bin_release/MASV-Windows.zip
+          fi
 
       - name: Prepare release artifact (macOS)
         if: runner.os == 'macOS'
         shell: bash
         run: |
           mkdir -p bin_release
-          cp dist/MASV bin_release/MASV-macOS
+          if [ -d dist/MASV.app ]; then
+            cp dist/MASV.app/Contents/MacOS/MASV bin_release/MASV-macOS || true
+            chmod +x bin_release/MASV-macOS || true
+            (cd dist && zip -r ../bin_release/MASV-macOS.zip MASV.app) || true
+          fi
+          if [ -f dist/MASV ]; then
+            cp dist/MASV bin_release/MASV-macOS
+            chmod +x bin_release/MASV-macOS
+          fi
 
       - name: Upload Build Artifact
         uses: actions/upload-artifact@v4

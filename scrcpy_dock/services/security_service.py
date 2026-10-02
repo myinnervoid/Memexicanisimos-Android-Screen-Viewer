@@ -101,10 +101,25 @@ class SecurityService:
 
     def _read_machine_id(self) -> bytes:
         """Lee /etc/machine-id o el path inyectado. Sin cache (test-friendly)."""
-        try:
-            return self._machine_id_path.read_bytes().strip()
-        except (FileNotFoundError, PermissionError) as e:
-            raise RuntimeError(f"machine-id inaccesible: {e}") from e
+        if self._machine_id_path.exists():
+            try:
+                return self._machine_id_path.read_bytes().strip()
+            except (FileNotFoundError, PermissionError) as e:
+                raise RuntimeError(f"machine-id inaccesible: {e}") from e
+
+        # Fallback para macOS, Windows o entornos sin /etc/machine-id
+        if self._machine_id_path == Path("/etc/machine-id"):
+            for alt in (Path("/var/lib/dbus/machine-id"),):
+                if alt.exists():
+                    try:
+                        return alt.read_bytes().strip()
+                    except Exception:
+                        pass
+            host_name = os.environ.get("COMPUTERNAME") or os.environ.get("HOSTNAME") or "masv-host"
+            home_path = str(Path.home())
+            return f"masv-{host_name}-{home_path}".encode("utf-8")
+
+        raise RuntimeError(f"machine-id inaccesible: {self._machine_id_path}")
 
     def _ensure_salt(self, salt_path: Path) -> bytes:
         """Lee el salt existente o crea uno nuevo con permisos 0o600."""
@@ -119,7 +134,11 @@ class SecurityService:
         # Escritura atómica con permisos restringidos
         tmp = salt_path.with_suffix(".tmp")
         tmp.write_bytes(salt)
-        os.chmod(tmp, 0o600)
+        if os.name != "nt":
+            try:
+                os.chmod(tmp, 0o600)
+            except Exception:
+                pass
         os.replace(tmp, salt_path)
         return salt
 
@@ -273,7 +292,11 @@ class SecurityService:
             target.parent.mkdir(parents=True, exist_ok=True)
             tmp = target.with_suffix(target.suffix + ".tmp")
             tmp.write_bytes(enc.data)
-            os.chmod(tmp, 0o600)
+            if os.name != "nt":
+                try:
+                    os.chmod(tmp, 0o600)
+                except Exception:
+                    pass
             os.replace(tmp, target)
         except OSError as e:
             return OperationResult.fail(
