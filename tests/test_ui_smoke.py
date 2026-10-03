@@ -59,7 +59,9 @@ TABS = ["quickcast", "actions", "device", "controls", "profiles", "console", "he
 # ejercitan por otras vías (pruebas unitarias con dobles), nunca por clic.
 _DENY = {
     "_auto_install_deps",     # winget/pkexec: instala paquetes de verdad
+    "auto_install_deps",
     "_open_terminal_install",  # abre una terminal externa
+    "open_terminal_install",
     "_install_to_system",      # escribe en ~/.local/share y ~/.local/bin
     "_uninstall_from_system",  # borra esos enlaces del sistema
     "_setup_v4l2",             # sudo modprobe v4l2loopback
@@ -69,6 +71,8 @@ _DENY = {
     "_on_close",
     "_on_app_close",
     "_start_tray",             # bandeja del sistema (pystray)
+    "_open_log",
+    "open_log",
 }
 
 

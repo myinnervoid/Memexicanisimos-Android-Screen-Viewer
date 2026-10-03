@@ -241,7 +241,18 @@ class TestInstanciaUnica(unittest.TestCase):
 
         primera.release()
         tercera = utils.SingleInstance(puerto)
-        self.assertTrue(tercera.acquire(), "liberar el puerto debe permitir reincorporarse")
+
+        # Poll up to 1.0s to tolerate socket release latency on Windows/macOS kernels
+        import time
+        adquirido = False
+        limite = time.time() + 1.0
+        while time.time() < limite:
+            if tercera.acquire():
+                adquirido = True
+                break
+            time.sleep(0.01)
+
+        self.assertTrue(adquirido, "liberar el puerto debe permitir reincorporarse")
         tercera.release()
 
     def test_release_tolera_un_socket_roto(self):

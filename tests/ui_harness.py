@@ -215,11 +215,13 @@ def parches_entorno(cfg_data: dict, tmp: str) -> list:
 
 def parches_ui(dialogs: _DialogRecorder, toasts: list) -> list:
     """Ningún handler puede abrir un proceso ni un diálogo modal real."""
+    import os
     return [
         patch.object(main_mod, "messagebox", dialogs),
         patch.object(main_mod, "filedialog", _DialogRecorder()),
         patch.object(main_mod, "Toast", lambda *a, **k: toasts.append(a) or MagicMock()),
         patch.object(main_mod.subprocess, "Popen", _FakePopen),
+        patch.object(os, "startfile", lambda p: _LAUNCHED.append(["startfile", p]), create=True),
     ]
 
 

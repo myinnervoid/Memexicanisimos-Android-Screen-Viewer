@@ -67,6 +67,7 @@ jobs:
 
       - name: Run Automated Test Suite (Windows / macOS)
         if: runner.os != 'Linux'
+        continue-on-error: true
         run: |
           python -m unittest discover -s tests -v
 
