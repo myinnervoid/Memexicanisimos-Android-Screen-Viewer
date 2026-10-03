@@ -81,8 +81,8 @@ class TestLaSuiteNoTocaLaConfigReal(unittest.TestCase):
 
     def test_ejecutar_las_pruebas_de_widgets_no_modifica_la_config_real(self):
         """De extremo a extremo: el archivo real queda idéntico tras la ejecución."""
-        if not _hay_display():
-            self.skipTest("requiere display para que las pruebas de widgets corran de verdad")
+        if sys.platform != "linux" or not _hay_display():
+            self.skipTest("requiere display y xvfb (linux) para que las pruebas de widgets corran de verdad de extremo a extremo")
 
         antes = _huella(CONFIG_REAL)
         entorno = dict(os.environ)

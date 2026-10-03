@@ -161,7 +161,7 @@ class TestBloque3Final(unittest.TestCase):
             self.assertFalse(canon_vault.exists())
 
             cfg = {"security": {"safe_mode_enabled": True}}
-            with patch.dict("os.environ", {"HOME": tmp_masv}), patch.object(Path, "home", return_value=Path(tmp_masv)):
+            with patch.dict("os.environ", {"HOME": tmp_masv, "USERPROFILE": tmp_masv}), patch.object(Path, "home", return_value=Path(tmp_masv)):
                 sec_mgr = SecurityManager(cfg, vault_dir=tmp_canon)
                 self.assertTrue(sec_mgr.is_vault_encrypted)
                 self.assertTrue(sec_mgr.is_trusted_device("DEV_LEGACY"))

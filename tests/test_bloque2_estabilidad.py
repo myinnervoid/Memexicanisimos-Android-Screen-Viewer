@@ -21,6 +21,7 @@ import copy
 import errno
 import json
 import socket
+import sys
 import tempfile
 import threading
 import time
@@ -79,7 +80,7 @@ class TestSingleInstanceRobusta(unittest.TestCase):
 
         segunda = SingleInstance(port=self.puerto)
         self.addCleanup(segunda.release)
-        self.assertTrue(segunda.acquire(), "tras liberar, el puerto debe quedar libre")
+        self.assertTrue(_esperar(segunda.acquire, limite=1.0), "tras liberar, el puerto debe quedar libre")
 
     def test_el_socket_se_prepara_para_reentrar(self):
         """SO_REUSEADDR antes del bind: sin él, un cierre abrupto deja el puerto inservible."""
@@ -110,6 +111,7 @@ class TestSingleInstanceRobusta(unittest.TestCase):
         instancia.release()
         instancia.release()          # no debe lanzar
 
+    @unittest.skipIf(sys.platform != "linux", "Reentrada TIME_WAIT con SO_REUSEADDR requiere semantica de socket Linux")
     def test_reentrada_con_el_puerto_en_time_wait(self):
         """El caso que motiva `SO_REUSEADDR`: puerto en TIME_WAIT tras un cierre con conexión.
 
