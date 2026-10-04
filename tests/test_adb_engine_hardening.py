@@ -330,7 +330,7 @@ class TestRevertTcpip(unittest.TestCase):
     def test_usa_el_binario_y_el_socket_aislado(self, run_mock):
         run_mock.return_value = fake_completed_process()
         self.engine.revert_tcpip("HWY9")
-        self.assertEqual(run_mock.call_args.args[0], ["/usr/bin/adb", "-s", "HWY9", "usb"])
+        self.assertEqual(run_mock.call_args.args[0], [str(Path("/usr/bin/adb")), "-s", "HWY9", "usb"])
         self.assertIn("ADB_SERVER_SOCKET", run_mock.call_args.kwargs["env"])
 
 

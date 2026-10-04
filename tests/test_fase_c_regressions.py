@@ -77,7 +77,7 @@ class TestC3PrimitivasDelMotor(unittest.TestCase):
 
         self.assertTrue(res.success)
         argv = run_mock.call_args.args[0]
-        self.assertEqual(argv, ["/usr/bin/adb", "kill-server"])
+        self.assertEqual(argv, [str(Path("/usr/bin/adb")), "kill-server"])
         env = run_mock.call_args.kwargs["env"]
         self.assertEqual(env["ADB_SERVER_SOCKET"], "tcp:localhost:5037",
                          "kill-server debe apuntar a NUESTRO socket, no al compartido")
@@ -107,7 +107,7 @@ class TestC3PrimitivasDelMotor(unittest.TestCase):
         argv = run_mock.call_args.args[0]
         self.assertEqual(
             argv,
-            ["/usr/bin/adb", "-s", "S1", "shell", "input", "text", "'hola; rm -rf /'"],
+            [str(Path("/usr/bin/adb")), "-s", "S1", "shell", "input", "text", "'hola; rm -rf /'"],
         )
         self.assertNotIn("shell", run_mock.call_args.kwargs,
                          "nunca shell=True: el argv se construye token a token")
@@ -145,17 +145,17 @@ class TestC3PrimitivasDelMotor(unittest.TestCase):
 
         self.assertTrue(res.success)
         argv = run_mock.call_args.args[0]
-        self.assertEqual(argv, ["/usr/bin/adb", "-s", "S1", "install", "-r", "/tmp/app.apk"])
+        self.assertEqual(argv, [str(Path("/usr/bin/adb")), "-s", "S1", "install", "-r", "/tmp/app.apk"])
 
     @patch("subprocess.run")
     def test_connect_parsea_el_endpoint(self, run_mock):
         run_mock.return_value = fake_completed_process(stdout="connected to 1.2.3.4:5555")
 
         self.engine.connect("1.2.3.4:5555")
-        self.assertEqual(run_mock.call_args.args[0], ["/usr/bin/adb", "connect", "1.2.3.4:5555"])
+        self.assertEqual(run_mock.call_args.args[0], [str(Path("/usr/bin/adb")), "connect", "1.2.3.4:5555"])
 
         self.engine.connect("1.2.3.4")
-        self.assertEqual(run_mock.call_args.args[0], ["/usr/bin/adb", "connect", "1.2.3.4:5555"])
+        self.assertEqual(run_mock.call_args.args[0], [str(Path("/usr/bin/adb")), "connect", "1.2.3.4:5555"])
 
     @patch("subprocess.run")
     def test_rebind_apunta_al_binario_nuevo(self, run_mock):

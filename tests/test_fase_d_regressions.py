@@ -775,7 +775,8 @@ class TestRedDeMain(unittest.TestCase):
         self.svc.ensure_layout.assert_called_once()
         copiado = self.svc.bin_dir / "MASV"
         self.assertTrue(copiado.exists(), "el binario debe quedar en la carpeta gestionada")
-        self.assertTrue(copiado.stat().st_mode & 0o111, "el binario copiado debe ser ejecutable")
+        if sys.platform != "win32":
+            self.assertTrue(copiado.stat().st_mode & 0o111, "el binario copiado debe ser ejecutable")
 
         destino, icono = self.svc.write_desktop_entry.call_args.args
         self.assertEqual(destino, copiado, "el lanzador debe apuntar al binario instalado")

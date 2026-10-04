@@ -410,7 +410,17 @@ class SingleInstance:
         TIME_WAIT (probado: la variante sin `listen` falla con `EADDRINUSE`).
         """
         try:
-            self.sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+            if sys.platform == "win32":
+                # En Windows, SO_REUSEADDR permite secuestrar el puerto (semántica BSD).
+                # Se usa SO_EXCLUSIVEADDRUSE para lograr la exclusión real.
+                try:
+                    # SO_EXCLUSIVEADDRUSE es ~O~N no documentada en el módulo socket de python a veces, su valor es -5
+                    self.sock.setsockopt(socket.SOL_SOCKET, getattr(socket, "SO_EXCLUSIVEADDRUSE", -5), 1)
+                except OSError:
+                    pass
+            else:
+                self.sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+
             self.sock.bind(("127.0.0.1", self.port))
             self.sock.listen(1)
             self._adquirido = True
@@ -442,6 +452,13 @@ def _extract_serial(text: str) -> str:
     if m:
         return m.group(1).strip()
     return text.strip()
+
+# Blindaje UTF-8 en consola para Windows (CR-5)
+if sys.platform == "win32":
+    if hasattr(sys.stdout, "reconfigure"):
+        sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+    if hasattr(sys.stderr, "reconfigure"):
+        sys.stderr.reconfigure(encoding="utf-8", errors="replace")
 
 def log_msg(level: str, msg: str) -> None:
     ts   = time.strftime("%Y-%m-%d %H:%M:%S")
