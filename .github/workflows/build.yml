@@ -67,7 +67,8 @@ jobs:
 
       - name: Run Automated Test Suite (Windows / macOS)
         if: runner.os != 'Linux'
-        continue-on-error: true
+        env:
+          PYTHONIOENCODING: 'utf-8'
         run: |
           python -m unittest discover -s tests -v
 

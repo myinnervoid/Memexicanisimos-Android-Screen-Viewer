@@ -99,27 +99,94 @@ class SecurityService:
     # Helpers internos (implementados)
     # ────────────────────────────────────────────────────────────────────
 
+    def _read_machine_id_fallback(self) -> bytes:
+        """Fallback para generar o leer UUID persistido si las formas nativas fallan."""
+        home = Path(os.environ.get("HOME", str(Path.home())))
+        fallback_path = home / ".config" / "masv" / ".machine_id"
+        if fallback_path.exists():
+            try:
+                return fallback_path.read_bytes().strip()
+            except OSError:
+                pass
+
+        import uuid
+        new_id = str(uuid.uuid4()).encode("utf-8")
+        try:
+            fallback_path.parent.mkdir(parents=True, exist_ok=True)
+            tmp = fallback_path.with_suffix(".tmp")
+            tmp.write_bytes(new_id)
+            if os.name != "nt":
+                try:
+                    os.chmod(tmp, 0o600)
+                except OSError:
+                    pass
+            os.replace(tmp, fallback_path)
+        except OSError as e:
+            log.warning(f"No se pudo guardar machine_id fallback: {e}")
+
+        return new_id
+
+    def _read_machine_id_darwin(self) -> bytes | None:
+        import subprocess
+        try:
+            output = subprocess.check_output(
+                ["ioreg", "-rd1", "-c", "IOPlatformExpertDevice"],
+                stderr=subprocess.DEVNULL
+            ).decode("utf-8")
+            for line in output.splitlines():
+                if "IOPlatformUUID" in line:
+                    parts = line.split("=")
+                    if len(parts) == 2:
+                        return parts[1].strip().strip('"').encode("utf-8")
+        except (subprocess.CalledProcessError, FileNotFoundError, OSError):
+            pass
+        return None
+
+    def _read_machine_id_windows(self) -> bytes | None:
+        import winreg
+        try:
+            with winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, r"SOFTWARE\Microsoft\Cryptography", 0, winreg.KEY_READ | winreg.KEY_WOW64_64KEY) as key:
+                machine_guid, _ = winreg.QueryValueEx(key, "MachineGuid")
+                return machine_guid.encode("utf-8")
+        except OSError:
+            pass
+        return None
+
+    def _read_machine_id_linux(self) -> bytes | None:
+        for alt in (Path("/etc/machine-id"), Path("/var/lib/dbus/machine-id")):
+            if alt.exists():
+                try:
+                    return alt.read_bytes().strip()
+                except Exception:
+                    pass
+        return None
+
     def _read_machine_id(self) -> bytes:
         """Lee /etc/machine-id o el path inyectado. Sin cache (test-friendly)."""
-        if self._machine_id_path.exists():
+        # Si se inyecta una ruta explícita (p.ej. tests), intentar leerla primero.
+        if self._machine_id_path != Path("/etc/machine-id") and self._machine_id_path.exists():
             try:
                 return self._machine_id_path.read_bytes().strip()
             except (FileNotFoundError, PermissionError) as e:
                 raise RuntimeError(f"machine-id inaccesible: {e}") from e
 
-        # Fallback para macOS, Windows o entornos sin /etc/machine-id
-        if self._machine_id_path == Path("/etc/machine-id"):
-            for alt in (Path("/var/lib/dbus/machine-id"),):
-                if alt.exists():
-                    try:
-                        return alt.read_bytes().strip()
-                    except Exception:
-                        pass
-            host_name = os.environ.get("COMPUTERNAME") or os.environ.get("HOSTNAME") or "masv-host"
-            home_path = str(Path.home())
-            return f"masv-{host_name}-{home_path}".encode("utf-8")
+        # IDs nativos según la plataforma
+        if os.name == "nt":
+            win_id = self._read_machine_id_windows()
+            if win_id is not None:
+                return win_id
+        else:
+            import sys
+            if sys.platform == "darwin":
+                darwin_id = self._read_machine_id_darwin()
+                if darwin_id is not None:
+                    return darwin_id
+            else:
+                linux_id = self._read_machine_id_linux()
+                if linux_id is not None:
+                    return linux_id
 
-        raise RuntimeError(f"machine-id inaccesible: {self._machine_id_path}")
+        return self._read_machine_id_fallback()
 
     def _ensure_salt(self, salt_path: Path) -> bytes:
         """Lee el salt existente o crea uno nuevo con permisos 0o600."""
