@@ -166,7 +166,7 @@ class TestC3PrimitivasDelMotor(unittest.TestCase):
 
         self.assertEqual(self.engine.effective_socket_port, 0)
         self.engine.kill_server()
-        self.assertEqual(run_mock.call_args.args[0], ["/opt/nuevo/adb", "kill-server"])
+        self.assertEqual(run_mock.call_args.args[0], [str(Path("/opt/nuevo/adb")), "kill-server"])
 
 
 class TestC3UnSoloMotorCompartido(unittest.TestCase):

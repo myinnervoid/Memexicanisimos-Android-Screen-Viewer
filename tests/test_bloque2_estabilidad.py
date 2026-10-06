@@ -84,6 +84,8 @@ class TestSingleInstanceRobusta(unittest.TestCase):
 
     def test_el_socket_se_prepara_para_reentrar(self):
         """SO_REUSEADDR antes del bind: sin él, un cierre abrupto deja el puerto inservible."""
+        if sys.platform == "win32":
+            self.skipTest("En Windows se usa SO_EXCLUSIVEADDRUSE en lugar de SO_REUSEADDR")
         instancia = SingleInstance(port=self.puerto)
         self.addCleanup(instancia.release)
         self.assertTrue(instancia.acquire())

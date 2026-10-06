@@ -627,7 +627,7 @@ class TestEmparejarYBlindar(_SecurityBase):
     def test_kill_server_correcto(self, run_mock):
         run_mock.return_value = fake_completed_process()
         self.assertTrue(SecurityManager.kill_adb_server("/usr/bin/adb"))
-        self.assertEqual(run_mock.call_args.args[0], [str(Path("/usr/bin/adb")), "kill-server"])
+        self.assertEqual(run_mock.call_args.args[0], ["/usr/bin/adb", "kill-server"])
 
     @patch("subprocess.run")
     def test_kill_server_con_adb_ausente(self, run_mock):
