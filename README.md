@@ -1,9 +1,9 @@
-# 📱 MASV — Memexicanisimos Android Screen Viewer (v1.4.1)
+# 📱 MASV — Memexicanisimos Android Screen Viewer (v1.4.2)
 
 ![Open Source · Python · scrcpy](https://img.shields.io/badge/Open%20Source-Python%20%7C%20scrcpy-F59E0B?style=for-the-badge&logo=python&logoColor=white)
-![Version v1.4.1](https://img.shields.io/badge/Version-v1.4.1-EA580C?style=for-the-badge)
+![Version v1.4.2](https://img.shields.io/badge/Version-v1.4.2-EA580C?style=for-the-badge)
 ![MIT License](https://img.shields.io/badge/License-MIT-10B981?style=for-the-badge)
-![Tests 668 Passed](https://img.shields.io/badge/Tests-668%20Passed-10B981?style=for-the-badge)
+![Tests 671 Passed](https://img.shields.io/badge/Tests-671%20Passed-10B981?style=for-the-badge)
 ![Platforms](https://img.shields.io/badge/Platforms-Linux%20%7C%20Windows%20%7C%20macOS-D97706?style=for-the-badge)
 
 [English Version 🇺🇸](README.en.md) | [Portal Oficial 🌐](https://memexicanisimos.com)

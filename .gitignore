@@ -76,11 +76,17 @@ backups/
 /ANALISIS.md
 /AUDIT_REPORT.md
 /INFORME_BUGS_v1.4.1.md
+/INFORME_ANALISIS_LOGS_CI_v1.4.1.md
 /TRADEOFFS_MATRIX.md
 /DECISIONS.md
 /docs/adr/
 
+# CI / GitHub Actions Logs & Archives
+*.zip
+logs_*/
+bin_release/
 
 # Binaries inside bin/ (except .gitkeep)
 bin/*
 !bin/.gitkeep
+

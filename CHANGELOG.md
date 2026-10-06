@@ -5,6 +5,22 @@ El formato sigue los lineamientos de [Keep a Changelog](https://keepachangelog.c
 
 ---
 
+## [1.4.2] — 2026-10-06
+
+### 🚀 Novedades y Mejoras Multiplataforma (Multiplatform & CI Hardening)
+- **Despliegue Multiplataforma Automatizado:**
+  - Publicación automatizada en GitHub Releases de ejecutables para los tres sistemas operativos: `MASV-Windows.exe` (100% Standalone con `scrcpy` y `adb` integrados), `MASV-Linux.tar.gz` y `MASV-macOS`.
+- **Compatibilidad y Normalización en Windows:**
+  - Normalización de separadores y rutas de comandos en la suite de pruebas de `AdbEngine` y regresiones.
+  - Implementación de exclusividad de socket en Windows mediante `SO_EXCLUSIVEADDRUSE` y tolerancia a latencia de liberación de puertos.
+  - Omisión controlada de comprobaciones de permisos POSIX (`0o111`) no aplicables a sistemas de archivos NTFS.
+- **Robustecimiento de Cifrado en macOS y Windows:**
+  - Extracción nativa de identificador de hardware vía `IOPlatformUUID` en macOS y `MachineGuid` en Windows para el cifrado seguro de la bóveda (`SecurityService`).
+- **Resiliencia en Ejecución de Pruebas de CI:**
+  - Configuración explícita de `PYTHONIOENCODING=utf-8` para prevenir excepciones de codificación CP1252 en consolas de Windows.
+  - Aislamiento de entornos sin servidor gráfico X11/display en runners no-Linux.
+  - Cobertura ampliada a 671 pruebas unitarias y de integración completamente pasando en verde.
+
 ## [1.4.1] — 2026-10-01
 
 ### 🚀 Novedades y Mejoras (Features & Improvements)
