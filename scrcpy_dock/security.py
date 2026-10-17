@@ -6,7 +6,7 @@ import shlex
 import subprocess
 import time
 from pathlib import Path
-from typing import Optional, Tuple, Dict, List
+from typing import Optional, Tuple, Dict, List, Callable, Any
 from .contracts import OperationResult
 from .errors import ErrorCode
 from .services.security_service import SecurityService
@@ -84,7 +84,12 @@ class SecurityManager:
         if self._vault_path:
             self._init_vault()
 
-    def _ensure_security_config(self):
+    def _ensure_security_config(self) -> None:
+        """Asegura que la configuración de seguridad base esté presente en el diccionario de configuración.
+
+        Rellena las claves ausentes con sus valores por defecto correspondientes, tales como
+        el modo seguro, bloqueo automático, lista de dispositivos de confianza y el estado del cifrado.
+        """
         if "security" not in self.cfg or not isinstance(self.cfg["security"], dict):
             self.cfg["security"] = {}
         sec = self.cfg["security"]
@@ -111,7 +116,12 @@ class SecurityManager:
                 return None
         return self._crypto
 
-    def _vault_payload(self) -> dict:
+    def _vault_payload(self) -> Dict[str, Any]:
+        """Construye el payload de la bóveda para ser cifrado y almacenado.
+
+        Returns:
+            Dict[str, Any]: Diccionario conteniendo la versión del esquema y los dispositivos de confianza.
+        """
         return {"schema_version": 1, "trusted_devices": dict(self._trusted)}
 
     def _init_vault(self) -> None:
@@ -184,8 +194,12 @@ class SecurityManager:
         except Exception:
             return None
 
-    def _sync_vault(self, save_cb=None) -> None:
-        """Persiste la bóveda: cifrada si está disponible; si no, en config.json."""
+    def _sync_vault(self, save_cb: Optional[Callable[[dict], None]] = None) -> None:
+        """Persiste la bóveda: cifrada si está disponible; si no, en config.json.
+
+        Args:
+            save_cb (Optional[Callable[[dict], None]], opcional): Función de callback para guardar la configuración tras la sincronización.
+        """
         if self._vault_path and self._persist_vault():
             pass
         else:
@@ -201,7 +215,13 @@ class SecurityManager:
     def is_safe_mode_enabled(self) -> bool:
         return self.cfg.get("security", {}).get("safe_mode_enabled", True)
 
-    def set_safe_mode(self, enabled: bool, save_cb=None):
+    def set_safe_mode(self, enabled: bool, save_cb: Optional[Callable[[dict], None]] = None) -> None:
+        """Activa o desactiva el Modo Seguro en la configuración y opcionalmente guarda los cambios.
+
+        Args:
+            enabled (bool): True para activar el Modo Seguro, False para desactivarlo.
+            save_cb (Optional[Callable[[dict], None]], opcional): Función callback para persistir la configuración.
+        """
         self._ensure_security_config()
         self.cfg["security"]["safe_mode_enabled"] = bool(enabled)
         if save_cb:
@@ -211,7 +231,13 @@ class SecurityManager:
     def is_auto_lockdown_enabled(self) -> bool:
         return self.cfg.get("security", {}).get("auto_lockdown_on_exit", True)
 
-    def set_auto_lockdown(self, enabled: bool, save_cb=None):
+    def set_auto_lockdown(self, enabled: bool, save_cb: Optional[Callable[[dict], None]] = None) -> None:
+        """Activa o desactiva el blindaje automático (Auto Lockdown) y opcionalmente guarda los cambios.
+
+        Args:
+            enabled (bool): True para activar el blindaje automático, False para desactivarlo.
+            save_cb (Optional[Callable[[dict], None]], opcional): Función callback para persistir la configuración.
+        """
         self._ensure_security_config()
         self.cfg["security"]["auto_lockdown_on_exit"] = bool(enabled)
         if save_cb:
@@ -231,6 +257,12 @@ class SecurityManager:
         Contrato: entrada vacía, `None` o no parseable → **False** (nunca lanza).
         Ojo al sentido del valor: False significa "no es privada", así que el
         Modo Seguro **bloquea** ante un valor desconocido — dirección segura.
+
+        Args:
+            ip_str (str): La dirección IP a validar.
+
+        Returns:
+            bool: True si la IP pertenece a un rango privado, de lo contrario False.
         """
         return SecurityService.is_private_ip(ip_str)
 
@@ -244,6 +276,13 @@ class SecurityManager:
         guarda y reventaría al desenvolver tres valores nulos. Si algún día se unifica
         con `utils.parse_ip_port` (que sí devuelve `(None, None)`), hay que cambiar
         también esa guarda.
+
+        Args:
+            raw_ip_port (str): Cadena en formato "IP:PUERTO" a parsear.
+            raw_code (str): Código de emparejamiento de 6 dígitos.
+
+        Returns:
+            Optional[Tuple[str, str, str]]: Una tupla con (IP normalizada, puerto en cadena, código de 6 dígitos), o None en caso de fallo.
         """
         raw_ip_port = (raw_ip_port or "").strip()
         raw_code = (raw_code or "").strip()
@@ -289,8 +328,18 @@ class SecurityManager:
         return False
 
     def trust_device(self, serial: str, model: str = "Android", alias: str = "",
-                     save_cb=None) -> OperationResult[dict]:
-        """Registra o actualiza un dispositivo como Confiable en la bóveda."""
+                     save_cb: Optional[Callable[[dict], None]] = None) -> OperationResult[dict]:
+        """Registra o actualiza un dispositivo como Confiable en la bóveda.
+
+        Args:
+            serial (str): El número de serie del dispositivo.
+            model (str, opcional): El modelo del dispositivo. Por defecto "Android".
+            alias (str, opcional): Un alias amigable para el dispositivo.
+            save_cb (Optional[Callable[[dict], None]], opcional): Función de callback para guardar la configuración tras el cambio.
+
+        Returns:
+            OperationResult[dict]: Resultado de la operación conteniendo la entrada del dispositivo en caso de éxito.
+        """
         if not serial:
             return OperationResult.fail(ErrorCode.INVALID_INPUT, "serial vacío")
         now = time.strftime("%Y-%m-%d %H:%M:%S")
@@ -306,16 +355,32 @@ class SecurityManager:
         self._sync_vault(save_cb)
         return OperationResult.ok(entry, f"{serial} en la bóveda")
 
-    def untrust_device(self, serial: str, save_cb=None) -> OperationResult[None]:
-        """Elimina la condición de confianza de un dispositivo (conserva el alias)."""
+    def untrust_device(self, serial: str, save_cb: Optional[Callable[[dict], None]] = None) -> OperationResult[None]:
+        """Elimina la condición de confianza de un dispositivo (conserva el alias).
+
+        Args:
+            serial (str): El número de serie del dispositivo a revocar.
+            save_cb (Optional[Callable[[dict], None]], opcional): Función de callback para guardar la configuración tras el cambio.
+
+        Returns:
+            OperationResult[None]: Resultado de la operación indicando si la revocación fue exitosa.
+        """
         if serial not in self._trusted:
             return OperationResult.ok(None, f"{serial} no estaba en la bóveda (no-op)")
         self._trusted[serial]["is_trusted"] = False
         self._sync_vault(save_cb)
         return OperationResult.ok(None, f"{serial} revocado")
 
-    def remove_device_from_vault(self, serial: str, save_cb=None) -> OperationResult[None]:
-        """Elimina completamente un dispositivo de la bóveda. Idempotente."""
+    def remove_device_from_vault(self, serial: str, save_cb: Optional[Callable[[dict], None]] = None) -> OperationResult[None]:
+        """Elimina completamente un dispositivo de la bóveda. Idempotente.
+
+        Args:
+            serial (str): El número de serie del dispositivo a eliminar.
+            save_cb (Optional[Callable[[dict], None]], opcional): Función de callback para guardar la configuración tras la eliminación.
+
+        Returns:
+            OperationResult[None]: Resultado de la operación indicando el estado de la eliminación.
+        """
         if serial in self._trusted:
             del self._trusted[serial]
             self._sync_vault(save_cb)
@@ -333,7 +398,18 @@ class SecurityManager:
 
     @staticmethod
     def pair_device(adb_path: str, ip: str, port: str, code: str, timeout: int = 15) -> OperationResult[str]:
-        """Ejecuta 'adb pair IP:PORT CODE' con Android 11+."""
+        """Ejecuta 'adb pair IP:PORT CODE' con Android 11+.
+
+        Args:
+            adb_path (str): La ruta al ejecutable de adb.
+            ip (str): La dirección IP del dispositivo.
+            port (str): El puerto de red.
+            code (str): El código de emparejamiento.
+            timeout (int, opcional): Tiempo de espera máximo en segundos. Por defecto 15.
+
+        Returns:
+            OperationResult[str]: El resultado de la operación incluyendo la salida o un mensaje de error.
+        """
         if not adb_path:
             return OperationResult.fail(ErrorCode.ADB_NOT_FOUND, "Binario adb no encontrado")
         target = f"{ip}:{port}"
@@ -357,7 +433,16 @@ class SecurityManager:
 
     @staticmethod
     def lockdown_device_tcpip(adb_path: str, serial: str, timeout: int = 8) -> OperationResult[str]:
-        """Cierra el puerto TCP/IP (5555) en el teléfono ejecutando 'adb usb' para devolverlo a modo USB seguro."""
+        """Cierra el puerto TCP/IP (5555) en el teléfono ejecutando 'adb usb' para devolverlo a modo USB seguro.
+
+        Args:
+            adb_path (str): La ruta al ejecutable de adb.
+            serial (str): El número de serie del dispositivo a blindar.
+            timeout (int, opcional): El tiempo máximo de espera en segundos para ejecutar el comando. Por defecto 8.
+
+        Returns:
+            OperationResult[str]: El resultado de la operación con un mensaje de éxito o fallo al cambiar de modo.
+        """
         if not adb_path or not serial:
             return OperationResult.fail(ErrorCode.INVALID_INPUT, "Parámetros inválidos")
         try:
@@ -377,7 +462,14 @@ class SecurityManager:
 
     @staticmethod
     def validate_extra_arguments(extra_args: str) -> OperationResult[List[str]]:
-        """Valida y sanitiza argumentos adicionales para scrcpy."""
+        """Valida y sanitiza argumentos adicionales para scrcpy.
+
+        Args:
+            extra_args (str): La cadena que contiene argumentos adicionales para pasar a scrcpy.
+
+        Returns:
+            OperationResult[List[str]]: El resultado de la operación incluyendo una lista de argumentos divididos si es seguro y correcto.
+        """
         if not extra_args or not extra_args.strip():
             return OperationResult.ok(data=[])
 
@@ -401,7 +493,15 @@ class SecurityManager:
 
     @staticmethod
     def lockdown_all_devices(adb_path: str, active_serials: List[str]) -> int:
-        """Ejecuta 'adb usb' en todos los dispositivos conectados para revocar puertos inalámbricos abiertos."""
+        """Ejecuta 'adb usb' en todos los dispositivos conectados para revocar puertos inalámbricos abiertos.
+
+        Args:
+            adb_path (str): La ruta al ejecutable de adb.
+            active_serials (List[str]): Una lista de números de serie activos para iterar e invocar el blindaje.
+
+        Returns:
+            int: El conteo de dispositivos cuyo blindaje fue exitoso (retornó Success).
+        """
         if not adb_path:
             return 0
         success_count = 0
@@ -413,7 +513,14 @@ class SecurityManager:
 
     @staticmethod
     def kill_adb_server(adb_path: str) -> bool:
-        """Termina el servidor ADB local para limpiar conexiones residuales."""
+        """Termina el servidor ADB local para limpiar conexiones residuales.
+
+        Args:
+            adb_path (str): La ruta al ejecutable de adb.
+
+        Returns:
+            bool: True si el comando de finalización del servidor se completó correctamente o temporalmente, False en caso de error de conexión o error general de binario.
+        """
         if not adb_path:
             return False
         try:
