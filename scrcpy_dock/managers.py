@@ -1,7 +1,7 @@
 import time
 import threading
 from pathlib import Path
-from dataclasses import dataclass, replace
+from dataclasses import dataclass, replace, field, InitVar
 from typing import List, Dict, Optional, Tuple, Callable, Any
 
 from .contracts import OperationResult, DeviceEntry, SessionInfo
@@ -50,41 +50,71 @@ def _resolver_servidor_scrcpy() -> "Path":
 
 @dataclass(frozen=True)
 class _SessionInfo:
-    """Información interna de sesión activa generada por SessionManager."""
+    """Información interna de sesión activa generada por SessionManager.
+    
+    Atributos:
+        port: Puerto TCP asignado a la sesión.
+        process: Proceso del sistema operativo subyacente.
+    """
     port: int
     process: SessionProcess
 
 
+@dataclass
 class ScrcpySession:
-    """Envoltorio de sesión activa para compatibilidad con UI y observadores."""
+    """Envoltorio de sesión activa para compatibilidad con UI y observadores.
+    
+    Mantiene el estado y el ciclo de vida de una sesión de scrcpy activa,
+    proporcionando métodos para terminarla de forma segura y obtener
+    métricas de tiempo de actividad.
 
-    def __init__(
-        self,
-        serial: str,
-        profile_name: str,
-        proc: Any,
-        assigned_port: int = 27183,
-        config: Any = None,
-        device: Any = None,
-        caps: Any = None,
-    ):
-        self.serial = serial
-        self.profile_name = profile_name
+    Atributos:
+        serial (str): Identificador único del dispositivo.
+        profile_name (str): Nombre del perfil utilizado para la sesión.
+        proc (InitVar[Any]): El objeto de proceso subyacente.
+        assigned_port (int): El puerto de red asignado a esta sesión.
+        config (Any): Configuración de sesión preservada.
+        device (Any): Dispositivo de la sesión preservado.
+        caps (Any): Capacidades de dispositivo preservadas.
+        process (Any): El proceso del sistema operativo para la sesión.
+        pid (int): Identificador del proceso.
+        active (bool): Indica si la sesión está actualmente activa.
+        t0 (float): Marca de tiempo de inicio de la sesión.
+    """
+    serial: str
+    profile_name: str
+    proc: InitVar[Any]
+    assigned_port: int = 27183
+    config: Any = None
+    device: Any = None
+    caps: Any = None
+    process: Any = field(init=False)
+    pid: int = field(init=False)
+    active: bool = field(init=False)
+    t0: float = field(init=False)
+
+    def __post_init__(self, proc: Any):
+        """Inicializa los atributos que dependen del proceso o estado."""
         self.process = proc
         self.pid = getattr(proc, "pid", 0)
-        self.assigned_port = assigned_port
         self.active = True
         self.t0 = time.time()
-        # Contexto preservado para poder reconstruir el argv ("Copiar comando scrcpy").
-        self.config = config
-        self.device = device
-        self.caps = caps
 
     def uptime(self) -> str:
+        """Devuelve el tiempo de actividad de la sesión como un string en formato MM:SS.
+
+        Returns:
+            str: Tiempo de actividad formateado.
+        """
         s = int(time.time() - self.t0)
         return f"{s // 60:02d}:{s % 60:02d}"
 
     def to_session_info(self) -> SessionInfo:
+        """Convierte la sesión a un objeto SessionInfo, útil para observadores.
+
+        Returns:
+            SessionInfo: Objeto de transferencia de información de la sesión.
+        """
         return SessionInfo(
             serial=self.serial,
             profile_name=self.profile_name,
@@ -95,6 +125,12 @@ class ScrcpySession:
         )
 
     def terminate(self, timeout: float = 3.0, block: bool = False):
+        """Termina el proceso de la sesión, enviando una señal y luego forzando el cierre si es necesario.
+
+        Args:
+            timeout (float, optional): Tiempo de espera en segundos para que termine el proceso.
+            block (bool, optional): Indica si el método debe bloquear hasta la finalización.
+        """
         self.active = False
 
         def _reap(proc):
@@ -312,34 +348,54 @@ class DeviceManager:
         self._subscribers.append(cb)
 
 
+@dataclass
 class SessionManager:
-    """Administrador y orquestador de sesiones scrcpy sobre engines core."""
+    """Administrador y orquestador de sesiones scrcpy sobre engines core.
+    
+    Se encarga de lanzar, supervisar y finalizar las instancias de scrcpy,
+    repartiendo los puertos dinámicos para soportar múltiples streams.
 
-    def __init__(
-        self,
-        log_q_or_adb: Any = None,
-        scrcpy_engine: Optional[ScrcpyEngine] = None,
-        allocator: Optional[PortAllocator] = None,
-        clock: Optional[Callable[[], float]] = None,
-        device_mgr: Optional[DeviceManager] = None,
-        adb_engine: Optional[AdbEngine] = None,
-    ):
-        if adb_engine is not None:
-            self._adb = adb_engine
+    Atributos:
+        log_q_or_adb: Cola (queue) para registro de eventos o objeto adb.
+        scrcpy_engine: Referencia al motor scrcpy.
+        allocator: Asignador de puertos TCP.
+        clock: Función que retorna el tiempo actual, por defecto time.monotonic.
+        device_mgr: Referencia al administrador de dispositivos.
+        adb_engine: Motor para enviar comandos adb.
+    """
+    log_q_or_adb: Any = None
+    scrcpy_engine: Optional[ScrcpyEngine] = None
+    allocator: Optional[PortAllocator] = None
+    clock: Optional[Callable[[], float]] = None
+    device_mgr: Optional[DeviceManager] = None
+    adb_engine: Optional[AdbEngine] = None
+
+    _adb: AdbEngine = field(init=False)
+    log_q: Any = field(init=False)
+    _scrcpy: ScrcpyEngine = field(init=False)
+    _allocator: PortAllocator = field(init=False)
+    _clock: Callable[[], float] = field(init=False)
+    sessions: Dict[str, Any] = field(init=False)
+    _session_info: Dict[str, _SessionInfo] = field(init=False)
+    _stream: StreamService = field(init=False)
+
+    def __post_init__(self):
+        if self.adb_engine is not None:
+            self._adb = self.adb_engine
             # Un `log_q` explícito sigue siendo válido aunque se inyecte motor:
             # antes se descartaba en silencio y el panel de logs dejaba de
             # recibir los mensajes de sesión.
-            self.log_q = log_q_or_adb if hasattr(log_q_or_adb, "put") else None
-        elif isinstance(log_q_or_adb, AdbEngine):
-            self._adb = log_q_or_adb
+            self.log_q = self.log_q_or_adb if hasattr(self.log_q_or_adb, "put") else None
+        elif isinstance(self.log_q_or_adb, AdbEngine):
+            self._adb = self.log_q_or_adb
             self.log_q = None
         else:
-            self.log_q = log_q_or_adb
+            self.log_q = self.log_q_or_adb
             adb_bin, _ = find_portable_binaries()
             self._adb = AdbEngine(adb_bin)
 
-        if scrcpy_engine is not None:
-            self._scrcpy = scrcpy_engine
+        if self.scrcpy_engine is not None:
+            self._scrcpy = self.scrcpy_engine
         else:
             _, scrcpy_bin = find_portable_binaries()
             self._scrcpy = ScrcpyEngine(
@@ -347,12 +403,11 @@ class SessionManager:
                 _resolver_servidor_scrcpy(),
             )
 
-        self._allocator = allocator or PortAllocator(base=27183, max_offset=20)
-        self._clock = clock or time.monotonic
-        self.device_mgr = device_mgr
+        self._allocator = self.allocator or PortAllocator(base=27183, max_offset=20)
+        self._clock = self.clock or time.monotonic
 
-        self.sessions: Dict[str, Any] = {}
-        self._session_info: Dict[str, _SessionInfo] = {}
+        self.sessions = {}
+        self._session_info = {}
 
         # C1: la compilación del perfil y el lanzamiento viven en un servicio;
         # este manager queda como fachada. Se comparten por referencia el pool
