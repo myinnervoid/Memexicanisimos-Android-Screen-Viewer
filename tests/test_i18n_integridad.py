@@ -44,8 +44,12 @@ def _tablas_del_literal() -> tuple[list[str], list[str]]:
     arbol = ast.parse(I18N.read_text(encoding="utf-8"))
     en, extra = [], []
     for nodo in ast.walk(arbol):
-        if isinstance(nodo, ast.Assign) and isinstance(nodo.value, ast.Dict):
-            nombres = [t.id for t in nodo.targets if isinstance(t, ast.Name)]
+        if isinstance(nodo, (ast.Assign, ast.AnnAssign)) and isinstance(nodo.value, ast.Dict):
+            if isinstance(nodo, ast.Assign):
+                nombres = [t.id for t in nodo.targets if isinstance(t, ast.Name)]
+            else:
+                nombres = [nodo.target.id] if isinstance(nodo.target, ast.Name) else []
+            
             if nombres == ["_translations"]:
                 for k, v in zip(nodo.value.keys, nodo.value.values):
                     if isinstance(k, ast.Constant) and k.value == "en" and isinstance(v, ast.Dict):
