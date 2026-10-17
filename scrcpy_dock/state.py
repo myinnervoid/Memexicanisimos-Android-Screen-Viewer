@@ -4,9 +4,12 @@ Estándar de 5 Vectores — Vector 4 (Superficie de Interfaz & Mapeo de Estados)
 Gestiona de manera formal los 5 estados canónicos: [IDLE], [PENDING], [SUCCESS], [EMPTY], [FAULT].
 """
 
+from dataclasses import dataclass, field
 from enum import Enum
 from typing import Callable, List, Optional, Dict, Any
+
 from .errors import ErrorCode
+
 
 class UIState(str, Enum):
     IDLE = "IDLE"          # Sin transmisión activa, interfaz lista para operar
@@ -16,15 +19,51 @@ class UIState(str, Enum):
     FAULT = "FAULT"        # Error en ADB, scrcpy, red o permisos
 
 
-class UIStateMachine:
-    """Máquina de estados finita determinista para la interfaz de usuario."""
+@dataclass
+class UIStatusInfo:
+    """Modelo de estado para representar la información de estado de la interfaz.
 
-    def __init__(self, initial_state: UIState = UIState.IDLE):
-        self._state: UIState = initial_state
-        self._previous_state: Optional[UIState] = None
-        self._message: str = ""
-        self._error_code: Optional[ErrorCode] = None
-        self._listeners: List[Callable[[UIState, str, Optional[ErrorCode]], None]] = []
+    Attributes:
+        state: Estado actual de la UI en forma de cadena.
+        message: Mensaje asociado al estado actual.
+        error_code: Código de error asociado, si aplica.
+        is_busy: Indica si la UI está procesando información.
+        is_streaming: Indica si la transmisión está activa.
+        has_error: Indica si ha ocurrido un error.
+    """
+    state: str
+    message: str
+    error_code: Optional[str]
+    is_busy: bool
+    is_streaming: bool
+    has_error: bool
+
+    def __getitem__(self, item):
+        """Permite acceso como diccionario para compatibilidad con código existente."""
+        return getattr(self, item)
+
+
+@dataclass
+class UIStateMachine:
+    """Máquina de estados finita determinista para la interfaz de usuario.
+
+    Gestiona de manera formal los 5 estados canónicos:
+    [IDLE], [PENDING], [SUCCESS], [EMPTY], [FAULT].
+    
+    Attributes:
+        initial_state: Estado inicial de la interfaz (por defecto IDLE).
+    """
+    initial_state: UIState = UIState.IDLE
+    
+    _state: UIState = field(init=False)
+    _previous_state: Optional[UIState] = field(init=False, default=None)
+    _message: str = field(init=False, default="")
+    _error_code: Optional[ErrorCode] = field(init=False, default=None)
+    _listeners: List[Callable[[UIState, str, Optional[ErrorCode]], None]] = field(init=False, default_factory=list)
+
+    def __post_init__(self):
+        """Inicializa variables dependientes conservando la secuencia original."""
+        self._state = self.initial_state
 
     @property
     def current_state(self) -> UIState:
@@ -55,7 +94,7 @@ class UIStateMachine:
     # Una transición no listada se rechaza SIN mutar el estado ni notificar.
     # Regla canónica: no se puede llegar a SUCCESS sin haber pasado por PENDING
     # (y las auto-transiciones y la recuperación desde FAULT siempre se permiten).
-    _ALLOWED: Dict[UIState, frozenset] = {
+    _ALLOWED: Dict[UIState, frozenset] = field(init=False, default_factory=lambda: {
         UIState.IDLE:    frozenset({UIState.IDLE, UIState.PENDING, UIState.EMPTY, UIState.FAULT}),
         UIState.PENDING: frozenset({UIState.PENDING, UIState.IDLE, UIState.SUCCESS,
                                     UIState.EMPTY, UIState.FAULT}),
@@ -65,7 +104,7 @@ class UIStateMachine:
                                     UIState.SUCCESS, UIState.FAULT}),
         UIState.FAULT:   frozenset({UIState.FAULT, UIState.IDLE, UIState.PENDING,
                                     UIState.SUCCESS, UIState.EMPTY}),
-    }
+    })
 
     def can_transition_to(self, new_state: UIState) -> bool:
         """True si el grafo permite ir del estado actual a `new_state`."""
@@ -115,12 +154,12 @@ class UIStateMachine:
             except Exception as e:
                 print(f"[UIStateMachine] Error en listener: {e}")
 
-    def get_status_info(self) -> Dict[str, Any]:
-        return {
-            "state": self._state.value,
-            "message": self._message,
-            "error_code": self._error_code.value if self._error_code else None,
-            "is_busy": self._state == UIState.PENDING,
-            "is_streaming": self._state == UIState.SUCCESS,
-            "has_error": self._state == UIState.FAULT,
-        }
+    def get_status_info(self) -> UIStatusInfo:
+        return UIStatusInfo(
+            state=self._state.value,
+            message=self._message,
+            error_code=self._error_code.value if self._error_code else None,
+            is_busy=(self._state == UIState.PENDING),
+            is_streaming=(self._state == UIState.SUCCESS),
+            has_error=(self._state == UIState.FAULT),
+        )
