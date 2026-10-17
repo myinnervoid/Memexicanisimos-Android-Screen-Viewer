@@ -1,7 +1,8 @@
+from typing import Dict
 
-_current_lang = "es"
+_current_lang: str = "es"
 
-_translations = {
+_translations: Dict[str, Dict[str, str]] = {
     "en": {
         "No se pudo completar la instalación automática.": "Could not complete automatic installation.",
         "🎉  ¡Comenzar!": "🎉  Start!",
@@ -306,7 +307,7 @@ _translations = {
 # ─── C4 (Fase C) · Cobertura bilingüe de las cadenas que faltaban ───
 # Bloque separado para no reescribir la tabla histórica; se fusiona al importar.
 # Lo verifica tests/test_fase_c_regressions.py::TestC4CoberturaI18n.
-_EN_EXTRA = {
+_EN_EXTRA: Dict[str, str] = {
     'Dirección ingresada:': 'Entered address:',
     '  Memexicanisimos Android Screen Viewer': '  Memexicanisimos Android Screen Viewer',
     '  Sesiones activas': '  Active sessions',
@@ -447,18 +448,34 @@ _EN_EXTRA = {
 }
 _translations["en"].update(_EN_EXTRA)
 
-def set_language(lang: str):
+def set_language(lang: str) -> None:
+    """Establece el idioma actual de la aplicación.
+    
+    Args:
+        lang (str): Código del idioma a establecer ('es' o 'en').
+    """
     global _current_lang
     if lang in ["es", "en"]:
         _current_lang = lang
 
 def get_language() -> str:
+    """Obtiene el idioma actual de la aplicación.
+    
+    Returns:
+        str: Código del idioma actual ('es' o 'en').
+    """
     return _current_lang
 
 def _(text: str) -> str:
-    """
-    Translates the given text (which is expected to be in Spanish by default)
-    to the current language.
+    """Traduce el texto dado al idioma actual.
+    
+    Por defecto, se asume que el texto de entrada está en español.
+    
+    Args:
+        text (str): El texto en español a traducir.
+        
+    Returns:
+        str: El texto traducido al idioma actual, o el texto original si no hay traducción.
     """
     if _current_lang == "es":
         return text
