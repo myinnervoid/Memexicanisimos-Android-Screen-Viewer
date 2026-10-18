@@ -7,6 +7,12 @@ from enum import Enum
 from typing import Dict, NamedTuple
 
 class ErrorCode(str, Enum):
+    """
+    Enumeración de los códigos de error manejados por el sistema.
+
+    Define códigos únicos en formato de cadena para categorizar los diferentes 
+    tipos de fallos, excepciones y problemas que pueden ocurrir durante la ejecución.
+    """
     # Sin error
     NONE = "NONE"
 
@@ -60,6 +66,18 @@ class ErrorCode(str, Enum):
 
 
 class ErrorDetail(NamedTuple):
+    """
+    Estructura de datos que encapsula los detalles de un error específico.
+
+    Attributes:
+        code (ErrorCode): El código único que identifica el error.
+        title_es (str): El título del error en español.
+        title_en (str): El título del error en inglés.
+        description_es (str): La descripción detallada del error en español.
+        description_en (str): La descripción detallada del error en inglés.
+        remediation_es (str): Las instrucciones para solucionar el error en español.
+        remediation_en (str): Las instrucciones para solucionar el error en inglés.
+    """
     code: ErrorCode
     title_es: str
     title_en: str
@@ -360,7 +378,19 @@ ERROR_CATALOG: Dict[ErrorCode, ErrorDetail] = {
 }
 
 def get_error_detail(code: ErrorCode) -> ErrorDetail:
-    """Devuelve la información detallada para un código de error determinado."""
+    """
+    Obtiene los detalles asociados a un código de error determinado.
+
+    Busca en el catálogo de errores predefinidos y devuelve la información
+    correspondiente. Si el código de error no se encuentra en el catálogo,
+    devuelve un objeto ErrorDetail genérico con información de error desconocido.
+
+    Args:
+        code (ErrorCode): El código de error a buscar.
+
+    Returns:
+        ErrorDetail: Los detalles estructurados y traducidos del error especificado.
+    """
     return ERROR_CATALOG.get(
         code,
         ErrorDetail(
